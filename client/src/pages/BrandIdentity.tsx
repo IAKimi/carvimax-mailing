@@ -84,8 +84,8 @@ function SectionDivider({ label }: { label: string }) {
 export default function BrandIdentity() {
   const { toast } = useToast();
   const [saved, setSaved] = useState(false);
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
   const [brand, setBrand] = useState({
     companyName: "",
     industry: "",

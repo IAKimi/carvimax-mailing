@@ -36,6 +36,7 @@ interface ScheduledEmail {
   subject: string;
   objective: string;
   templateId: string;
+  targetDatabase: string;
   scheduledDate: string;
   status: "borrador" | "programado" | "enviado";
   textVersions: TextVersion[];
@@ -52,6 +53,12 @@ const AVAILABLE_TEMPLATES = [
   { id: "3", name: "Bienvenida al Cliente" },
 ];
 
+const AVAILABLE_DATABASES = [
+  { id: "db-1", name: "Clientes Premium" },
+  { id: "db-2", name: "Newsletter General" },
+  { id: "db-3", name: "Leads 2026" },
+];
+
 const MOCK_IMAGE_URLS = [
   "https://placehold.co/600x300/002073/white?text=Imagen+v1",
   "https://placehold.co/600x300/003099/white?text=Imagen+v2",
@@ -64,7 +71,7 @@ const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", 
 const INITIAL_EMAILS: ScheduledEmail[] = [
   {
     id: 1, date: "2026-03-15", idea: "Promoción de primavera", subject: "Promoción de primavera - 30% descuento",
-    objective: "Aumentar ventas", templateId: "1", scheduledDate: "2026-03-15", status: "borrador",
+    objective: "Aumentar ventas", templateId: "1", targetDatabase: "db-1", scheduledDate: "2026-03-15", status: "borrador",
     textVersions: [
       { id: 1, versionNumber: 1, isSelected: true, html: "<h2>Promoción de Primavera</h2><p>Estimado cliente, le invitamos a disfrutar de un <strong>30% de descuento</strong> en toda nuestra tienda. Esta oferta es por tiempo limitado.</p><p>No deje pasar esta oportunidad.</p><p><strong>¡Le esperamos!</strong></p>" }
     ],
@@ -75,7 +82,7 @@ const INITIAL_EMAILS: ScheduledEmail[] = [
   },
   {
     id: 2, date: "2026-03-22", idea: "Newsletter semanal", subject: "Newsletter - Tendencias de Marzo",
-    objective: "Informar clientes", templateId: "2", scheduledDate: "2026-03-22", status: "programado",
+    objective: "Informar clientes", templateId: "2", targetDatabase: "db-2", scheduledDate: "2026-03-22", status: "programado",
     textVersions: [
       { id: 2, versionNumber: 1, isSelected: false, html: "<h2>Tendencias de Marzo</h2><p>Primera versión del newsletter.</p>" },
       { id: 3, versionNumber: 2, isSelected: true, html: "<h2>Newsletter - Tendencias de Marzo 2026</h2><p>Le compartimos las principales tendencias que están transformando su industria.</p><ul><li><strong>IA Generativa</strong>: Nuevas aplicaciones</li><li><strong>Sostenibilidad</strong>: Prácticas verdes</li></ul>" }
@@ -100,7 +107,7 @@ export default function CalendarView() {
   const [textEditMode, setTextEditMode] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [emails, setEmails] = useState<ScheduledEmail[]>(INITIAL_EMAILS);
-  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", scheduledDate: "" });
+  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "" });
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -121,7 +128,7 @@ export default function CalendarView() {
     setSelectedDay(day);
     const dayEmails = getEmailsForDay(day);
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setForm({ idea: "", objective: "", templateId: "", scheduledDate: `${dateStr}T09:00` });
+    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T09:00` });
 
     if (dayEmails.length === 0) {
       setShowNewDialog(true);
@@ -165,6 +172,7 @@ export default function CalendarView() {
       subject: form.idea,
       objective: form.objective,
       templateId: form.templateId,
+      targetDatabase: form.targetDatabase,
       scheduledDate: form.scheduledDate || dateStr,
       status: "borrador",
       textVersions: [
@@ -696,6 +704,19 @@ export default function CalendarView() {
                 <SelectContent>
                   {AVAILABLE_TEMPLATES.map(t => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Base de Datos de Destino</Label>
+              <Select value={form.targetDatabase} onValueChange={(v) => setForm(f => ({ ...f, targetDatabase: v }))}>
+                <SelectTrigger data-testid="select-calendar-database" className="rounded-xl">
+                  <SelectValue placeholder="Seleccione una base de datos..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_DATABASES.map(db => (
+                    <SelectItem key={db.id} value={db.id}>{db.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

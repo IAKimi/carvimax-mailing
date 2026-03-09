@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,17 +12,6 @@ import Templates from "@/pages/Templates";
 import MyEmails from "@/pages/MyEmails";
 import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
-
-function useThemeBootstrap() {
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
-}
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
   const isAuth = localStorage.getItem("postIAlo_auth") === "true";
@@ -58,8 +46,6 @@ function Router() {
 }
 
 function App() {
-  useThemeBootstrap();
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

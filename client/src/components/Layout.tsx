@@ -8,8 +8,6 @@ import {
   LayoutTemplate,
   Mail,
   Database,
-  Sun,
-  Moon,
   Menu,
   LogOut
 } from "lucide-react";
@@ -26,14 +24,13 @@ const NAV_ITEMS = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
-  const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const userName = localStorage.getItem("postIAlo_user") || "Usuario";
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("theme", dark ? "dark" : "light");
-  }, [dark]);
+    document.documentElement.classList.remove("dark");
+  }, []);
 
   function handleLogout() {
     localStorage.removeItem("postIAlo_auth");
@@ -41,11 +38,81 @@ export function Layout({ children }: { children: ReactNode }) {
     setLocation("/login");
   }
 
+  const sidebarExpanded = sidebarHovered;
+
   return (
     <div className="min-h-screen bg-background flex">
+      <aside
+        className="hidden md:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#002073] text-white transition-all duration-300 ease-in-out"
+        style={{ width: sidebarExpanded ? "16rem" : "4.5rem" }}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+      >
+        <div className="p-5 flex items-center gap-3 border-b border-white/10 overflow-hidden whitespace-nowrap">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+            <Mail className="w-4 h-4 text-white" />
+          </div>
+          {sidebarExpanded && (
+            <span className="font-extrabold tracking-tight text-lg text-white transition-opacity duration-300">
+              Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mail</span>
+            </span>
+          )}
+        </div>
+
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
+          {NAV_ITEMS.map((item) => {
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                className={`
+                  flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden
+                  ${isActive
+                    ? "bg-white/20 text-white"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                  }
+                `}
+                style={{ justifyContent: sidebarExpanded ? "flex-start" : "center", paddingLeft: sidebarExpanded ? "1rem" : "0", paddingRight: sidebarExpanded ? "1rem" : "0" }}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {sidebarExpanded && (
+                  <span className="transition-opacity duration-300">
+                    {item.label}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-3 border-t border-white/10 space-y-2 overflow-hidden">
+          {sidebarExpanded && (
+            <div className="px-4 py-2 text-sm text-white/60 truncate">
+              {userName}
+            </div>
+          )}
+          <button
+            data-testid="button-logout"
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:bg-[#e3001b]/20 hover:text-[#e3001b] transition-all duration-200 w-full whitespace-nowrap overflow-hidden"
+            style={{ justifyContent: sidebarExpanded ? "flex-start" : "center", paddingLeft: sidebarExpanded ? "1rem" : "0", paddingRight: sidebarExpanded ? "1rem" : "0" }}
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {sidebarExpanded && (
+              <span className="transition-opacity duration-300">
+                Cerrar Sesión
+              </span>
+            )}
+          </button>
+        </div>
+      </aside>
+
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 flex flex-col
-        transform transition-transform duration-300 md:relative md:translate-x-0
+        fixed inset-y-0 left-0 z-40 w-64 flex flex-col md:hidden
+        transform transition-transform duration-300
         ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         bg-[#002073] text-white
       `}>
@@ -54,7 +121,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Mail className="w-4 h-4 text-white" />
           </div>
           <span className="font-extrabold tracking-tight text-lg text-white">
-            Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white/70">Mail</span>
+            Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mail</span>
           </span>
         </div>
 
@@ -66,7 +133,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                data-testid={`nav-${item.href.replace("/", "") || "home"}`}
+                data-testid={`nav-mobile-${item.href.replace("/", "") || "home"}`}
                 onClick={() => setMobileOpen(false)}
                 className={`
                   flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
@@ -88,7 +155,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {userName}
           </div>
           <button
-            data-testid="button-logout"
+            data-testid="button-logout-mobile"
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:bg-[#e3001b]/20 hover:text-[#e3001b] transition-all duration-200 w-full"
           >
@@ -99,10 +166,12 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />
+        <div data-testid="overlay-mobile-sidebar" className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${sidebarExpanded ? "md:ml-64" : "md:ml-[4.5rem]"}`}
+      >
         <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border px-4 md:px-6 h-14 flex items-center justify-between gap-2">
           <Button
             data-testid="button-mobile-menu"
@@ -114,14 +183,6 @@ export function Layout({ children }: { children: ReactNode }) {
             <Menu className="w-5 h-5" />
           </Button>
           <div className="flex-1" />
-          <Button
-            data-testid="button-theme-toggle"
-            variant="ghost"
-            size="icon"
-            onClick={() => setDark(!dark)}
-          >
-            {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </Button>
         </header>
 
         <main className="flex-1 overflow-x-hidden">
