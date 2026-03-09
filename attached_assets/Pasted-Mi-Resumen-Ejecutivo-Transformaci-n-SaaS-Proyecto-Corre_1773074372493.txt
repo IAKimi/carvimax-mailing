@@ -1,0 +1,41 @@
+Mi Resumen Ejecutivo: Transformación SaaS "Proyecto Correos"
+1. El Origen: El Sistema "Frankenstein" que detectamos
+Todo comenzó cuando analizamos la necesidad de automatizar el envío de correos que actualmente gestiona Javier Cornejo. Me di cuenta de que este sistema, aunque es funcional, opera como un "Frankenstein" técnico: una mezcla de Google Sheets, Apps Script y flujos en Make.com que nos exige una manipulación manual constante, no nos da previsualización y es muy difícil de escalar.
+2. La Evolución: De herramienta a producto (Lo que hablé con Eduardo)
+Tras las reuniones que tuve con Eduardo Ortiz, se recomendó que el alcance del proyecto debía evolucionar. Ya no buscamos solo "digitalizar" una hoja de Excel; la visión evolucionó a que creemos una plataforma SaaS (Software as a Service) robusta, inspirada en la metodología de PostIAlo. Hablamos de pasar de una herramienta de uso interno a un producto comercializable que resuelva la comunicación de marketing de forma profesional y autónoma.
+3. Propuesta de Valor: El escenario ideal (Nuestra Wishlist)
+Nuestra visión es un portal inteligente donde el usuario no tenga que "armar" un correo, sino que la IA lo construya por él. El producto ideal que hemos diseñado integra:
+•	Motor de Generación IA Avanzado: Inyectamos la idea, el objetivo y el tono para generar copys y Layouts (estructuras) HTML completas.
+•	Editor AI Designer: Un editor flexible donde el usuario pueda ajustar fuentes, colores de marca y manipular el diseño visual generado sin romper el código.
+•	Sistema de Regeneración: Tendremos un historial de versiones con hasta 3 intentos por componente para asegurar la calidad.
+•	Seguridad Corporativa (OAuth): Un sistema donde el cliente conecte su propia cuenta de Brevo/Facebook de forma profesional y segura.
+•	Dashboard de Monitoreo: Visibilidad total de envíos acumulados, segmentación por país y tendencias de uso.
+•	Dual Sending: Disparo inmediato de campañas o programación inteligente (Scheduler).
+
+
+4. Evaluación de Viabilidad: Lo que definimos como posible
+Basado en el análisis que hicimos con Antigravity y Replit, segmenté esta "Wishlist" según su factibilidad técnica inmediata:
+Evaluaciones del Proyecto: Viabilidad Técnica
+Este documento desglosa las funcionalidades discutidas y su viabilidad para ser implementadas en Replit utilizando IA (Replit Agent / Antigravity).
+1. Viabilidad Alta (Implementación Directa)
+Estas funciones son estándar en desarrollo web moderno y la IA las maneja con precisión.
+•	Gestión de Bases de Datos SQL (PostgreSQL): VIABLE. Almacenamiento de contactos, usuarios y logs.
+•	Micro-prompts (Idea/Objetivo/Imagen): VIABLE. Integración con APIs de OpenAI/Gemini/DALL-E.
+•	Scheduler (Programación de Envíos): VIABLE. Uso de Cron Jobs o Workers en Node.js.
+•	Dashboard de Métricas: VIABLE. Creación de gráficos con librerías como Chart.js o integración con Looker Studio.
+•	Historial de Versiones: VIABLE. Estructura de tablas para guardar iteraciones de texto e imagen.
+•	Middleware con Make.com: VIABLE. Disparo de webhooks y recepción de callbacks HTTP.
+2. Viabilidad Media (Requiere Desarrollo UX/UI)
+Funcionalidades que dependen de una buena estructuración del frontend para que sean útiles.
+•	Editor HTML Visual (WYSIWYG): VIABLE. Se pueden integrar librerías como Quill o TipTap para permitir negritas, fuentes y colores.
+•	Generación de Layouts Dinámicos: VIABLE. La IA puede generar el código HTML; el reto es que el usuario pueda manipularlo visualmente sin romperlo.
+•	Límites de Regeneración (Créditos): VIABLE. Lógica simple de contador en la base de datos.
+•	Previsualización en Tiempo Real: VIABLE. Renderizado dinámico del HTML generado antes del envío.
+3. Viabilidad a Investigar (Complejidad Técnica)
+Puntos que requieren validación de APIs externas o investigación de seguridad.
+•	Conexión OAuth con Brevo: INVESTIGAR. Brevo permite API Keys, pero el flujo OAuth completo para que el cliente "autorice" sin dar la llave requiere verificar los permisos de la App en Brevo.
+•	Edición Estilo "AI Designer" (Arrastrar y Soltar): DIFÍCIL / INVESTIGAR. Implementar un editor de arrastrar y soltar (tipo Wix) desde cero en Replit es complejo, pero se puede lograr una versión simplificada basada en bloques predefinidos.
+
+5. Conclusión
+Estamos ante un proyecto que no solo automatiza un proceso existente, sino que crea un activo tecnológico de alto valor para la empresa. Estoy convencido de que la combinación de IA + Replit nos permitirá construir este ecosistema de forma ágil y escalable.
+

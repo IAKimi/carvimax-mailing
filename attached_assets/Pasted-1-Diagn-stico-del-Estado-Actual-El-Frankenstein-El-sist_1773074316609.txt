@@ -1,0 +1,31 @@
+1. Diagnóstico del Estado Actual ("El Frankenstein")
+El sistema actual, operado por Javier Cornejo, es una orquestación funcional pero rígida basada en:
+
+Interfaz: Google Sheets (Selección de fotos.xlsx).
+Lógica de Disparo: Apps Script que monitorea la columna O ("Enviar").
+Orquestador: Make.com como middleware para ensamblaje y envío.
+Canal: Brevo (vía API transaccional).
+Limitaciones: Dependencia de Sheets, falta de previsualización y gestión manual de activos.
+2. Definición de Funcionalidades Clave (Etapa Javier/Ángel)
+Tras la revisión inicial, se definieron los pilares del nuevo SaaS:
+
+Bases SQL: Sustitución de Sheets por una base de datos relacional.
+Motor de IA: Generación de copys e imágenes (estilo PostIAlo) con 3 intentos de regeneración.
+Dual Sending: Capacidad de envío inmediato y programado (Scheduler).
+Dashboard de Monitoreo: Tracking de ejecuciones y segmentación por país.
+3. Refinamientos y Mejoras Identificadas (Etapa Eduardo/Ángel)
+En una revisión posterior, se identificaron factores críticos para convertir la herramienta en un producto de alto valor:
+
+Editor HTML Flexible: Superar el texto plano permitiendo manipulación visual de formatos, fuentes y colores.
+Layouts con IA: La IA debe proponer estructuras de correo (Header, Body, Columns, Footer) no solo contenido.
+Seguridad OAuth: Implementar un flujo de autorización profesional para que los usuarios conecten sus propias cuentas de Brevo sin exponer credenciales.
+4. Validación y Alcance
+Este alcance integral está sujeto a validación por la Gerencia General para confirmar si la robustez planteada se alinea con los objetivos comerciales de la organización.
+
+5. Evaluación de Factibilidad
+Se ha realizado un análisis técnico (ver documento 
+evaluaciones_proyecto.md
+) donde se confirma que:
+
+El 90% de las funcionalidades son altamente viables en Replit.
+Los puntos de edición avanzada y OAuth requieren una fase de investigación previa para asegurar una implementación óptima.

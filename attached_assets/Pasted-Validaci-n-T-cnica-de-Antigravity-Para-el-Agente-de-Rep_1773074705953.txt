@@ -1,0 +1,30 @@
+Validación Técnica de Antigravity (Para el Agente de Replit)
+He analizado tus propuestas técnicas y aquí tienes las definiciones de arquitectura para proceder con el diseño:
+1. Sobre Brevo y Autenticación (API Keys vs OAuth)
+Decisión: Aceptado el enfoque de API Keys (Encriptadas) para el MVP.
+•	Aquí la mejor decisión de momento es simple y sencillamente: por ahorita en esta primera fase no implementar nada de esto del OAuth ni las API Keys hacia Brevo.
+•	De momento quiero seguir ocupando a Make como middleware. Entonces lo que vamos a hacer es que esta API inicialmente va a tener que enviar un payload a un webhook, el cual activará el flujo de Make que se encarga de hacer la publicación del correo.
+•	Al final cuando el flujo se complete, configurar un endpoint acá a nosotros internamente al cual Make tendrá que hacer un HTTP post para dar la verificación de que el envío de correo fue hecho satisfactoriamente o falló. Para que lo podamos renderizar en tiempo real en nuestra app pero de momento esto saquemoslo de la ecuación
+
+2. Sobre la Generación del Layout e IA
+Decisión: Enfoque Híbrido (IA genera JSON + Estructura sugerida).
+•	Flujo: La IA generará un objeto JSON con el contenido (Textos, Imagen, CTA) y un identificador de Layout Template (ej: "Grid_2_Cols", "Hero_Centered").
+•	IA genera CSS inline limitado: La IA puede sugerir colores de marca y estilos básicos en el JSON, pero el sistema renderiza el HTML final usando plantillas pre-testeables para asegurar compatibilidad con Outlook/Gmail.
+•	Esto evita el riesgo de generar HTML "roto" y facilita la edición manual.
+3. Sobre la Carga Masiva de Contactos (CSV)
+Decisión: PostgreSQL como Almacén de Metadatos + Brevo como Motor de Envío.
+•	Guardaremos los contactos en PostgreSQL para alimentar las métricas del Dashboard (País, Fecha de carga, Segmento).
+•	Al momento del envío, el SaaS enviará la lista procesada al Webhook de Make.com (o directamente a Brevo si se prefiere) para que ellos manejen la cola de correos.
+4. Profundidad del Editor AI Designer
+Decisión: TipTap (WYSIWYG Avanzado).
+•	Dado el requerimiento de Eduardo sobre "cambiar negritas, fuentes y colores", un editor tipo TipTap es suficiente y mucho más ágil de implementar que un GrapesJS completo.
+•	El usuario podrá editar los bloques de texto e imagen generados por la IA en tiempo real. Si el usuario requiere cambios estructurales drásticos, deberá usar la "Regeneración" (Intento 2 o 3).
+5. Lógica de los 3 Intentos
+Decisión: Créditos por Campaña.
+•	Una "Campaña" incluye la generación inicial + 2 regeneraciones (total 3 versiones).
+•	Una vez agotadas, el usuario puede editar manualmente la versión seleccionada de forma infinita.
+•	Si quiere un flujo de IA totalmente nuevo, se considera una nueva campaña (consumo de créditos).
+6. Sincronización Real-Time
+Decisión: WebSockets (Socket.io).
+•	El SaaS recibirá el callback de Make.com y notificará al frontend mediante WebSockets para actualizar el Dashboard sin refrescar la página.
+

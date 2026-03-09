@@ -1,0 +1,23 @@
+6. Sincronización Real-Time
+Decisión: WebSockets (Socket.io).
+•	El SaaS recibirá el callback de Make.com y notificará al frontend mediante WebSockets para actualizar el Dashboard sin refrescar la página.
+7. Sobre el rol de Make.com vs. Conexión Directa
+Decisión: Mantener Make.com como Middleware.
+•	Aunque la conexión directa es más eficiente, el requerimiento del usuario final es mantener el flujo de Make inicialmente.
+•	El SaaS enviará el payload completo al webhook de Make.
+8. Almacenamiento de Imágenes (Gemini Nano Banaba)
+Decisión: Almacenamiento Externo (Cloudinary / AWS S3).
+•	Replit no es adecuado para servir assets a gran escala. Usaremos Cloudinary (ya usado en el Frankenstein) o un bucket de S3 para hostear las imágenes generadas por IA y asegurar que se vean correctamente en los correos.
+•	El reto está en lo siguiente: la plataforma, a la hora de generar el contenido en esos tres parámetros, debería permitirle al usuario poder crear imágenes con inteligencia artificial. Eso estaría pegada a una API de Gemini que generaría la imagen que el usuario ponga, basado en el prompt que el usuario ponga en el campo que nosotros definamos. O bien debería permitirle al usuario poder subir archivos propios.
+•	El tema con esto es que a mí no me gustaría que nosotros guardáramos todas las imágenes que se vayan generando en la base de datos porque no sé qué tan caro va a ser eso a la hora de que hagamos el despliegue en Replit. Vamos a tener una base sumamente poblada. Tú me dirás cuál es el mejor camino si podemos guardarlas nosotros en la base de datos, perfecto.
+•	Recordemos que como vamos a hacer un HTML para un correo, las imágenes tienen que estar hosteadas en un servidor público y tienen que ser convertidas al formato de código HTML para que se puedan renderizar en el correo. No pueden ser simples y sencillos enlaces a imágenes, lo que a mí se me había ocurrido en un inicio pero yo no soy ningún experto. Era de que las personas las subieran directamente si quieren ocupar una imagen propia o generarla por IA y momentáneamente guardarla en la base de datos.
+•	Esto inmediatamente tendría que disparar un proceso a través de una API de Cloudinary en donde enviaríamos esta imagen a Cloudinary para que nos hostee la imagen allá. Él nos devolvería a nosotros la URL lista para HTML. Cuando nuestra plataforma recibe esa URL lista, la imagen debería ser borrada de la base de datos para mantenerla lo más liviana posible.
+•	Al final, ese gran tira y encoge, no sé qué tan factible sea lo dejo a tu discreción para que tú me digas qué podríamos hacer en esa parte
+9. Motor de Programación (Scheduler)
+Decisión: Enfoque Nativo de Brevo.
+•	Le enviaremos a Brevo el parámetro scheduled_at. Esto delega la confiabilidad del envío al proveedor.
+•	Nuestro SaaS guardará el registro en PostgreSQL para mostrar el estado "Programado" en el Dashboard.
+10. Autenticación al Dashboard
+Decisión: Login con Google (OIDC) + Tradicional.
+•	Priorizaremos el Login corporativo con Google para facilitar el acceso, permitiendo también el registro tradicional con correo/contraseña.
+

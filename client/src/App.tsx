@@ -5,12 +5,21 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
+// Page Imports
+import Dashboard from "./pages/Dashboard";
+import CampaignsList from "./pages/CampaignsList";
+import CampaignCreate from "./pages/CampaignCreate";
+import CampaignEditor from "./pages/CampaignEditor";
+import Contacts from "./pages/Contacts";
+
 function Router() {
   return (
     <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
+      <Route path="/" component={Dashboard}/>
+      <Route path="/campaigns" component={CampaignsList}/>
+      <Route path="/campaigns/new" component={CampaignCreate}/>
+      <Route path="/campaigns/:id" component={CampaignEditor}/>
+      <Route path="/contacts" component={Contacts}/>
       <Route component={NotFound} />
     </Switch>
   );

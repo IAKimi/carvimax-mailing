@@ -1,0 +1,27 @@
+Documentación Técnica: El Sistema "Frankenstein" (Estado Actual)
+Este documento describe la arquitectura y el flujo de trabajo del sistema de correos actual, utilizado como base para la migración al nuevo SaaS.
+
+1. Componentes del Ecosistema
+Cerebro de Datos (Google Sheets): El archivo Selección de fotos.xlsx actúa como base de datos y panel de control. Contiene columnas para:
+Parámetros de envío (País, Rubro, Template).
+Contenido dinámico (Asunto, Cuerpo, CTA, Link de WhatsApp).
+Selección de imágenes (Fórmulas =IMAGE apuntando a Cloudinary).
+Columna de Control (O): Contiene el tag "Enviar" que dispara el proceso.
+Disparador (Google Apps Script): Un script vinculado a la hoja (onEdit) monitorea los cambios. Cuando detecta que la columna O cambia a "Enviar", captura la URL de la imagen y los datos de la fila y los envía a un Webhook.
+Orquestador (Make.com): Recibe los datos del Webhook y ejecuta un flujo (Blueprint) que:
+Busca la fila correspondiente en Google Sheets.
+Filtra solo aquellas marcadas para envío.
+Ensambla el contenido final del correo.
+Canal de Salida (Brevo API): Make se conecta a Brevo utilizando cuentas gratuitas (límite de 300 correos/día). Actualmente se usan 2 cuentas para alcanzar un tope de 600 envíos.
+2. Flujo de Ejecución Paso a Paso
+Configuración: El usuario llena la fila en Sheets con el texto y elige la foto.
+Disparo: El usuario escribe "Enviar" en la Columna O.
+Webhook: El Apps Script reacciona y manda un POST JSON al Webhook de Make.com.
+Procesamiento: Make.com recupera la data, aplica lógica de filtrado y mapea las variables (Nombre, Empresa, Link) en el template de Brevo.
+Envío: Brevo despacha el correo al destinatario final.
+Cierre: El proceso termina sin reportar automáticamente el éxito al usuario (falta de feedback loop).
+3. Puntos Críticos y "Dolores"
+Fragilidad: Si se borra una celda o se altera una fórmula =IMAGE, el flujo falla sin aviso claro.
+Caja Negra: No hay forma de "ver" cómo quedó el correo hasta que ya se envió.
+Gestión de Bases: Las listas de contactos están en pestañas separadas, lo que dificulta la segmentación masiva.
+Manualidad: El usuario debe ir fila por fila o arrastrar etiquetas para disparar envíos masivos
