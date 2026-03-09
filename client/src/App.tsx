@@ -1,4 +1,5 @@
-import { Switch, Route, Redirect } from "wouter";
+import { useState, useEffect } from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,16 +15,58 @@ import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
-  const isAuth = localStorage.getItem("postIAlo_auth") === "true";
-  if (!isAuth) {
+  const [, setLocation] = useLocation();
+  const [status, setStatus] = useState<"loading" | "ok" | "denied">("loading");
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => {
+        if (res.ok) {
+          setStatus("ok");
+        } else {
+          localStorage.removeItem("postIAlo_auth");
+          localStorage.removeItem("postIAlo_user");
+          localStorage.removeItem("postIAlo_userId");
+          setStatus("denied");
+        }
+      })
+      .catch(() => {
+        setStatus("denied");
+      });
+  }, []);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Cargando...</div>
+      </div>
+    );
+  }
+  if (status === "denied") {
     return <Redirect to="/login" />;
   }
   return <Component />;
 }
 
 function LoginRoute() {
-  const isAuth = localStorage.getItem("postIAlo_auth") === "true";
-  if (isAuth) {
+  const [status, setStatus] = useState<"loading" | "auth" | "no-auth">("loading");
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => {
+        setStatus(res.ok ? "auth" : "no-auth");
+      })
+      .catch(() => setStatus("no-auth"));
+  }, []);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#002073]">
+        <div className="animate-pulse text-white/60">Cargando...</div>
+      </div>
+    );
+  }
+  if (status === "auth") {
     return <Redirect to="/" />;
   }
   return <Login />;

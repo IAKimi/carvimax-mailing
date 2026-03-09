@@ -50,9 +50,12 @@ export function Layout({ children }: { children: ReactNode }) {
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem("postIAlo_auth");
-    localStorage.removeItem("postIAlo_user");
-    setLocation("/login");
+    fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => {
+      localStorage.removeItem("postIAlo_auth");
+      localStorage.removeItem("postIAlo_user");
+      localStorage.removeItem("postIAlo_userId");
+      setLocation("/login");
+    });
   }
 
   return (

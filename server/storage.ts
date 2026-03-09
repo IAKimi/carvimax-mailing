@@ -1,146 +1,132 @@
-import { 
-  users, campaigns, campaignVersions, contacts,
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import {
+  users, campaigns, campaignVersions, contacts, contactDatabases,
   type User, type InsertUser,
   type Campaign, type InsertCampaign,
   type CampaignVersion, type InsertCampaignVersion,
-  type Contact, type InsertContact
+  type Contact, type InsertContact,
+  type ContactDatabase, type InsertContactDatabase
 } from "@shared/schema";
-import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // Campaigns
-  getCampaigns(): Promise<Campaign[]>;
+  createUser(user: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserById(id: number): Promise<User | undefined>;
+
+  getCampaigns(userId: number): Promise<Campaign[]>;
   getCampaign(id: number): Promise<Campaign | undefined>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined>;
-  
-  // Versions
+
   getCampaignVersions(campaignId: number): Promise<CampaignVersion[]>;
   createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion>;
   updateCampaignVersion(id: number, updates: Partial<InsertCampaignVersion>): Promise<CampaignVersion | undefined>;
-  
-  // Dashboard
-  getDashboardStats(): Promise<any>;
-  
-  // Contacts
-  getContacts(): Promise<Contact[]>;
+
+  getDashboardStats(userId: number): Promise<any>;
+
+  getContactDatabases(userId: number): Promise<ContactDatabase[]>;
+  createContactDatabase(db: InsertContactDatabase): Promise<ContactDatabase>;
+  deleteContactDatabase(id: number): Promise<void>;
+
+  getContacts(databaseId: number): Promise<Contact[]>;
+  createContact(contact: InsertContact): Promise<Contact>;
+  updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined>;
+  deleteContact(id: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private currentId = 1;
-  private users: User[] = [{ id: 1, name: "Admin", email: "admin@example.com", company: "Mi Empresa" }];
-  private campaigns: Campaign[] = [];
-  private versions: CampaignVersion[] = [];
-  private contacts: Contact[] = [
-    { id: 1, userId: 1, email: "cliente1@gmail.com", name: "Juan Pérez", country: "MX", segment: "Premium", createdAt: new Date() },
-    { id: 2, userId: 1, email: "cliente2@gmail.com", name: "María Gómez", country: "CO", segment: "Standard", createdAt: new Date() },
-    { id: 3, userId: 1, email: "cliente3@gmail.com", name: "Carlos López", country: "ES", segment: "Premium", createdAt: new Date() },
-  ];
-
-  constructor() {
-    // Seed some initial data so the dashboard looks good
-    this.seedData();
+export class DatabaseStorage implements IStorage {
+  async createUser(user: InsertUser): Promise<User> {
+    const [created] = await db.insert(users).values(user).returning();
+    return created;
   }
 
-  private seedData() {
-    this.campaigns.push({
-      id: 1,
-      userId: 1,
-      name: "Campaña Día de Madres",
-      idea: "Promoción del 20% en toda la tienda",
-      objective: "Generar ventas directas",
-      tone: "Emocional y cálido",
-      status: "draft",
-      layoutPreference: "Hero_Centered",
-      scheduledAt: null,
-      createdAt: new Date(Date.now() - 86400000 * 2)
-    });
-    
-    this.versions.push({
-      id: 1,
-      campaignId: 1,
-      versionNumber: 1,
-      contentJson: { 
-        title: "¡Feliz día a la mejor!", 
-        body: "Aprovecha nuestro 20% de descuento en toda la tienda. Hazla sonreír hoy.",
-        cta: "Comprar ahora"
-      },
-      imageUrl: "https://images.unsplash.com/photo-1581579186913-46eaacaec265?q=80&w=2070&auto=format&fit=crop",
-      isSelected: true,
-      createdAt: new Date(Date.now() - 86400000 * 2)
-    });
-
-    this.currentId = 10;
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
-  async getCampaigns(): Promise<Campaign[]> {
-    return this.campaigns;
+  async getUserById(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getCampaigns(userId: number): Promise<Campaign[]> {
+    return db.select().from(campaigns).where(eq(campaigns.userId, userId));
   }
 
   async getCampaign(id: number): Promise<Campaign | undefined> {
-    return this.campaigns.find(c => c.id === id);
-  }
-
-  async createCampaign(insertCampaign: InsertCampaign): Promise<Campaign> {
-    const id = this.currentId++;
-    const campaign: Campaign = { 
-      ...insertCampaign, 
-      id, 
-      status: "draft",
-      layoutPreference: insertCampaign.layoutPreference ?? "Hero_Centered",
-      createdAt: new Date(),
-      scheduledAt: insertCampaign.scheduledAt ?? null
-    };
-    this.campaigns.push(campaign);
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
     return campaign;
   }
 
+  async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
+    const [created] = await db.insert(campaigns).values(campaign).returning();
+    return created;
+  }
+
   async updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined> {
-    const idx = this.campaigns.findIndex(c => c.id === id);
-    if (idx === -1) return undefined;
-    this.campaigns[idx] = { ...this.campaigns[idx], ...updates };
-    return this.campaigns[idx];
+    const [updated] = await db.update(campaigns).set(updates).where(eq(campaigns.id, id)).returning();
+    return updated;
   }
 
   async getCampaignVersions(campaignId: number): Promise<CampaignVersion[]> {
-    return this.versions.filter(v => v.campaignId === campaignId);
+    return db.select().from(campaignVersions).where(eq(campaignVersions.campaignId, campaignId));
   }
 
-  async createCampaignVersion(insertVersion: InsertCampaignVersion): Promise<CampaignVersion> {
-    const id = this.currentId++;
-    const version: CampaignVersion = { 
-      ...insertVersion, 
-      id,
-      isSelected: insertVersion.isSelected ?? false,
-      imageUrl: insertVersion.imageUrl ?? null,
-      createdAt: new Date()
-    };
-    this.versions.push(version);
-    return version;
+  async createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion> {
+    const [created] = await db.insert(campaignVersions).values(version).returning();
+    return created;
   }
 
   async updateCampaignVersion(id: number, updates: Partial<InsertCampaignVersion>): Promise<CampaignVersion | undefined> {
-    const idx = this.versions.findIndex(v => v.id === id);
-    if (idx === -1) return undefined;
-    this.versions[idx] = { ...this.versions[idx], ...updates };
-    return this.versions[idx];
+    const [updated] = await db.update(campaignVersions).set(updates).where(eq(campaignVersions.id, id)).returning();
+    return updated;
   }
 
-  async getDashboardStats(): Promise<any> {
+  async getDashboardStats(userId: number): Promise<any> {
+    const userCampaigns = await this.getCampaigns(userId);
+    const sentCampaigns = userCampaigns.filter(c => c.status === "sent");
     return {
-      totalSent: 1450,
-      byCountry: {
-        "MX": 450,
-        "CO": 600,
-        "ES": 400
-      },
-      recentCampaigns: [...this.campaigns].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)).slice(0, 5)
+      totalSent: sentCampaigns.length,
+      byCountry: {},
+      recentCampaigns: userCampaigns
+        .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+        .slice(0, 5),
     };
   }
 
-  async getContacts(): Promise<Contact[]> {
-    return this.contacts;
+  async getContactDatabases(userId: number): Promise<ContactDatabase[]> {
+    return db.select().from(contactDatabases).where(eq(contactDatabases.userId, userId));
+  }
+
+  async createContactDatabase(contactDb: InsertContactDatabase): Promise<ContactDatabase> {
+    const [created] = await db.insert(contactDatabases).values(contactDb).returning();
+    return created;
+  }
+
+  async deleteContactDatabase(id: number): Promise<void> {
+    await db.delete(contacts).where(eq(contacts.databaseId, id));
+    await db.delete(contactDatabases).where(eq(contactDatabases.id, id));
+  }
+
+  async getContacts(databaseId: number): Promise<Contact[]> {
+    return db.select().from(contacts).where(eq(contacts.databaseId, databaseId));
+  }
+
+  async createContact(contact: InsertContact): Promise<Contact> {
+    const [created] = await db.insert(contacts).values(contact).returning();
+    return created;
+  }
+
+  async updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined> {
+    const [updated] = await db.update(contacts).set(updates).where(eq(contacts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteContact(id: number): Promise<void> {
+    await db.delete(contacts).where(eq(contacts.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

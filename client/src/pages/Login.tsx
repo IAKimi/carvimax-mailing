@@ -1,28 +1,67 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { Mail, Lock, ArrowRight, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SiGoogle } from "react-icons/si";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    localStorage.setItem("postIAlo_auth", "true");
-    localStorage.setItem("postIAlo_user", email || "Usuario");
-    setLocation("/");
+    setLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/auth/login", { email, password });
+      const user = await res.json();
+      localStorage.setItem("postIAlo_auth", "true");
+      localStorage.setItem("postIAlo_user", user.name || user.email);
+      localStorage.setItem("postIAlo_userId", String(user.id));
+      setLocation("/");
+    } catch (err: any) {
+      const msg = err.message?.includes("401")
+        ? "Correo o contraseña incorrectos."
+        : "Error al iniciar sesión. Intente de nuevo.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleGoogleLogin() {
-    localStorage.setItem("postIAlo_auth", "true");
-    localStorage.setItem("postIAlo_user", "Usuario Google");
-    setLocation("/");
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/auth/register", {
+        name,
+        email,
+        password,
+        company: company || undefined,
+      });
+      const user = await res.json();
+      localStorage.setItem("postIAlo_auth", "true");
+      localStorage.setItem("postIAlo_user", user.name || user.email);
+      localStorage.setItem("postIAlo_userId", String(user.id));
+      setLocation("/");
+    } catch (err: any) {
+      const msg = err.message?.includes("409")
+        ? "Ya existe una cuenta con este correo."
+        : "Error al registrarse. Intente de nuevo.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -48,52 +87,140 @@ export default function Login() {
           </div>
 
           <p className="text-center text-gray-500 mb-8">
-            Tu plataforma inteligente de email marketing
+            {mode === "login"
+              ? "Tu plataforma inteligente de email marketing"
+              : "Crea tu cuenta para comenzar"}
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">Correo electrónico</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  data-testid="input-email"
-                  id="email"
-                  type="email"
-                  placeholder="tu@empresa.com"
-                  className="pl-10 rounded-xl border-gray-300"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+          {mode === "login" ? (
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-gray-700">Correo electrónico</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    data-testid="input-email"
+                    id="email"
+                    type="email"
+                    placeholder="tu@empresa.com"
+                    className="pl-10 rounded-xl border-gray-300"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">Contraseña</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  data-testid="input-password"
-                  id="password"
-                  type="password"
-                  placeholder="Tu contraseña"
-                  className="pl-10 rounded-xl border-gray-300"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-gray-700">Contraseña</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    data-testid="input-password"
+                    id="password"
+                    type="password"
+                    placeholder="Tu contraseña"
+                    className="pl-10 rounded-xl border-gray-300"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <Button
-              data-testid="button-login"
-              type="submit"
-              className="w-full rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white"
-              size="lg"
-            >
-              Iniciar Sesión
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </form>
+              <Button
+                data-testid="button-login"
+                type="submit"
+                className="w-full rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white"
+                size="lg"
+                disabled={loading}
+              >
+                {loading ? "Iniciando..." : "Iniciar Sesión"}
+                {!loading && <ArrowRight className="w-4 h-4" />}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="reg-name" className="text-gray-700">Nombre</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    data-testid="input-register-name"
+                    id="reg-name"
+                    type="text"
+                    placeholder="Tu nombre completo"
+                    className="pl-10 rounded-xl border-gray-300"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reg-email" className="text-gray-700">Correo electrónico</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    data-testid="input-register-email"
+                    id="reg-email"
+                    type="email"
+                    placeholder="tu@empresa.com"
+                    className="pl-10 rounded-xl border-gray-300"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reg-password" className="text-gray-700">Contraseña</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    data-testid="input-register-password"
+                    id="reg-password"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    className="pl-10 rounded-xl border-gray-300"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reg-company" className="text-gray-700">Empresa <span className="text-gray-400">(opcional)</span></Label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    data-testid="input-register-company"
+                    id="reg-company"
+                    type="text"
+                    placeholder="Nombre de tu empresa"
+                    className="pl-10 rounded-xl border-gray-300"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <Button
+                data-testid="button-register"
+                type="submit"
+                className="w-full rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white"
+                size="lg"
+                disabled={loading}
+              >
+                {loading ? "Registrando..." : "Crear Cuenta"}
+                {!loading && <ArrowRight className="w-4 h-4" />}
+              </Button>
+            </form>
+          )}
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
@@ -107,13 +234,42 @@ export default function Login() {
           <Button
             data-testid="button-google-login"
             variant="outline"
-            className="w-full rounded-xl gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="w-full rounded-xl gap-2 border-gray-300 text-gray-400 cursor-not-allowed"
             size="lg"
-            onClick={handleGoogleLogin}
+            disabled
+            title="Próximamente"
           >
             <SiGoogle className="w-4 h-4" />
-            Google
+            Google (Próximamente)
           </Button>
+
+          <div className="mt-6 text-center">
+            {mode === "login" ? (
+              <p className="text-sm text-gray-500">
+                ¿No tienes cuenta?{" "}
+                <button
+                  data-testid="button-switch-to-register"
+                  type="button"
+                  onClick={() => setMode("register")}
+                  className="text-[#002073] font-semibold hover:underline"
+                >
+                  Regístrate
+                </button>
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500">
+                ¿Ya tienes cuenta?{" "}
+                <button
+                  data-testid="button-switch-to-login"
+                  type="button"
+                  onClick={() => setMode("login")}
+                  className="text-[#002073] font-semibold hover:underline"
+                >
+                  Inicia sesión
+                </button>
+              </p>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>

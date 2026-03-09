@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ interface ScheduledEmail {
   imageApproved: boolean;
   textGenerationsUsed: number;
   imageGenerationsUsed: number;
+  imagePrompt: string;
 }
 
 const AVAILABLE_TEMPLATES = [
@@ -78,7 +79,8 @@ const INITIAL_EMAILS: ScheduledEmail[] = [
     imageVersions: [
       { id: 1, versionNumber: 1, url: MOCK_IMAGE_URLS[0], isSelected: true }
     ],
-    textApproved: false, imageApproved: false, textGenerationsUsed: 1, imageGenerationsUsed: 1
+    textApproved: false, imageApproved: false, textGenerationsUsed: 1, imageGenerationsUsed: 1,
+    imagePrompt: "Una imagen vibrante de flores de primavera con colores pastel y un banner de descuento del 30%"
   },
   {
     id: 2, date: "2026-03-22", idea: "Newsletter semanal", subject: "Newsletter - Tendencias de Marzo",
@@ -91,7 +93,8 @@ const INITIAL_EMAILS: ScheduledEmail[] = [
       { id: 2, versionNumber: 1, url: MOCK_IMAGE_URLS[0], isSelected: false },
       { id: 3, versionNumber: 2, url: MOCK_IMAGE_URLS[1], isSelected: true }
     ],
-    textApproved: true, imageApproved: false, textGenerationsUsed: 2, imageGenerationsUsed: 2
+    textApproved: true, imageApproved: false, textGenerationsUsed: 2, imageGenerationsUsed: 2,
+    imagePrompt: "Diseño moderno y profesional con iconos de tecnología e innovación para un newsletter corporativo"
   },
 ];
 
@@ -107,7 +110,10 @@ export default function CalendarView() {
   const [textEditMode, setTextEditMode] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [emails, setEmails] = useState<ScheduledEmail[]>(INITIAL_EMAILS);
-  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "" });
+  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "" });
+  const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
+  const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -128,7 +134,9 @@ export default function CalendarView() {
     setSelectedDay(day);
     const dayEmails = getEmailsForDay(day);
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T09:00` });
+    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T09:00`, imagePrompt: "" });
+    setImageSourceMode(null);
+    setUploadedImageFile(null);
 
     if (dayEmails.length === 0) {
       setShowNewDialog(true);
@@ -185,6 +193,7 @@ export default function CalendarView() {
       imageApproved: false,
       textGenerationsUsed: 1,
       imageGenerationsUsed: 1,
+      imagePrompt: form.imagePrompt,
     };
     setEmails(prev => [...prev, newEmail]);
     setShowNewDialog(false);
@@ -694,6 +703,88 @@ export default function CalendarView() {
                 onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
                 className="rounded-xl min-h-[70px]"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Imagen del Correo</Label>
+              <div className="flex gap-2">
+                <Button
+                  data-testid="button-image-prompt-toggle"
+                  type="button"
+                  variant={imageSourceMode === "prompt" ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-xl gap-1.5 toggle-elevate"
+                  onClick={() => {
+                    setImageSourceMode(imageSourceMode === "prompt" ? null : "prompt");
+                    setUploadedImageFile(null);
+                  }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Prompt de Imagen
+                </Button>
+                <Button
+                  data-testid="button-upload-image-toggle"
+                  type="button"
+                  variant={imageSourceMode === "upload" ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-xl gap-1.5 toggle-elevate"
+                  onClick={() => {
+                    setImageSourceMode(imageSourceMode === "upload" ? null : "upload");
+                    setForm(f => ({ ...f, imagePrompt: "" }));
+                    if (imageSourceMode !== "upload") {
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Subir Imagen
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  data-testid="input-calendar-upload-image"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setUploadedImageFile(file);
+                    if (file) {
+                      setImageSourceMode("upload");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <AnimatePresence>
+                {imageSourceMode === "prompt" && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <Textarea
+                      data-testid="input-calendar-image-prompt"
+                      placeholder="Ej: Una imagen profesional con colores corporativos mostrando un equipo de trabajo colaborando"
+                      value={form.imagePrompt}
+                      onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
+                      className="rounded-xl min-h-[70px] mt-2"
+                    />
+                  </motion.div>
+                )}
+                {imageSourceMode === "upload" && uploadedImageFile && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-xl px-3 py-2">
+                      <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                      <span data-testid="text-uploaded-filename" className="truncate">{uploadedImageFile.name}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="space-y-2">
               <Label>Plantilla</Label>
