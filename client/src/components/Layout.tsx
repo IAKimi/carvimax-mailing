@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   { icon: Palette, label: "Identidad de Marca", href: "/brand" },
   { icon: CalendarDays, label: "Calendario", href: "/calendar" },
   { icon: LayoutTemplate, label: "Plantillas", href: "/templates" },
-  { icon: Mail, label: "Mis Correos", href: "/emails" },
+  { icon: Mail, label: "Historial", href: "/emails" },
   { icon: Users, label: "Contactos", href: "/contacts" },
 ];
 
@@ -54,7 +54,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Mail className="w-4 h-4 text-white" />
           </div>
           <span className="font-extrabold tracking-tight text-lg text-white">
-            Post<span className="text-[#e3001b]">IA</span>lo<span className="text-white/70">.mail</span>
+            Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white/70">Mail</span>
           </span>
         </div>
 

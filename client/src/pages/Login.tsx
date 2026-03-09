@@ -43,7 +43,7 @@ export default function Login() {
               <Mail className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-[#002073]">
-              Post<span className="text-[#e3001b]">IA</span>lo<span className="text-[#002073]/60">.mail</span>
+              Post<span className="text-[#e3001b]">IA</span>lo <span className="text-[#002073]/60">Mail</span>
             </h1>
           </div>
 
