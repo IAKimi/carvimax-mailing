@@ -8,7 +8,7 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 - **Backend**: Express.js (Node.js)
 - **Base de Datos**: PostgreSQL (Drizzle ORM) - conectada con DatabaseStorage
 - **Autenticación**: bcryptjs (hash de contraseñas) + express-session (sesiones en PostgreSQL via connect-pg-simple)
-- **IA / Imágenes**: Gemini API (modelo gemini-2.0-flash-preview-image-generation con responseModalities IMAGE)
+- **IA / Imágenes**: Gemini API (modelo gemini-3.1-flash-image-preview / Nano Banana 2 con responseModalities IMAGE)
 - **Editor WYSIWYG**: TipTap
 - **Animaciones**: Framer Motion
 - **Routing**: Wouter
@@ -138,7 +138,7 @@ docs/
 - localStorage: solo `postIAlo_auth` como fast UI guard (la verificación real es /api/auth/me)
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
-- Gemini: usa modelo gemini-2.0-flash-preview-image-generation con responseModalities ["IMAGE", "TEXT"]
+- Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2) con responseModalities ["IMAGE", "TEXT"]
 
 ## Fases Futuras (Pendientes)
 - **Fase 3.5**: Integración con Nano Banana para edición de imágenes
