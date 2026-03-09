@@ -1,5 +1,11 @@
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+interface SafetyRating {
+  category: string;
+  probability: string;
+  blocked?: boolean;
+}
+
 interface GeminiImageResponse {
   candidates?: Array<{
     content?: {
@@ -11,19 +17,23 @@ interface GeminiImageResponse {
         text?: string;
       }>;
     };
+    finishReason?: string;
+    safetyRatings?: SafetyRating[];
   }>;
+  promptFeedback?: {
+    blockReason?: string;
+    safetyRatings?: SafetyRating[];
+  };
   error?: {
     message: string;
     code: number;
   };
 }
 
-export async function generateImage(prompt: string): Promise<string> {
+export async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
   }
-
-  const enhancedPrompt = `Generate a professional, clean image for an email marketing campaign. The image should have no text overlaid on it, use a clean background suitable for email clients. Style: modern, professional, high quality. Description: ${prompt}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -32,14 +42,16 @@ export async function generateImage(prompt: string): Promise<string> {
       {
         parts: [
           {
-            text: enhancedPrompt,
+            text: prompt,
           },
         ],
       },
     ],
     generationConfig: {
-      responseModalities: ["IMAGE", "TEXT"],
-      temperature: 1,
+      responseModalities: ["IMAGE"],
+      imageConfig: {
+        aspectRatio,
+      },
     },
   };
 
@@ -61,13 +73,37 @@ export async function generateImage(prompt: string): Promise<string> {
     throw new Error(`Error de Gemini: ${data.error.message}`);
   }
 
-  if (!data.candidates || data.candidates.length === 0) {
-    throw new Error("Gemini no devolvió resultados. Intente con un prompt diferente.");
+  if (data.promptFeedback?.blockReason) {
+    throw new Error(`El prompt fue bloqueado por los filtros de seguridad de Google (${data.promptFeedback.blockReason}). Intente con un prompt diferente.`);
   }
 
-  const parts = data.candidates[0]?.content?.parts;
-  if (!parts) {
-    throw new Error("Respuesta de Gemini sin contenido.");
+  if (!data.candidates || data.candidates.length === 0) {
+    throw new Error("Gemini no devolvió resultados. Es posible que el prompt haya sido bloqueado por seguridad. Intente con un prompt diferente.");
+  }
+
+  const candidate = data.candidates[0];
+
+  const finishReason = candidate.finishReason;
+  if (finishReason === "SAFETY") {
+    throw new Error("El prompt fue bloqueado por los filtros de seguridad de Google. Intente con un prompt diferente que no contenga contenido sensible.");
+  }
+  if (finishReason === "RECITATION") {
+    throw new Error("El prompt fue bloqueado por políticas de recitación. Intente reformular el prompt.");
+  }
+  if (finishReason === "PROHIBITED_CONTENT") {
+    throw new Error("El contenido solicitado está prohibido por las políticas de Google. Intente con un prompt diferente.");
+  }
+
+  const parts = candidate.content?.parts;
+  if (!parts || parts.length === 0) {
+    const blockedCategories = candidate.safetyRatings
+      ?.filter(r => r.blocked)
+      .map(r => r.category)
+      .join(", ");
+    if (blockedCategories) {
+      throw new Error(`Imagen bloqueada por filtros de seguridad en las categorías: ${blockedCategories}. Intente con un prompt diferente.`);
+    }
+    throw new Error("Respuesta de Gemini sin contenido. Intente con un prompt más descriptivo.");
   }
 
   for (const part of parts) {

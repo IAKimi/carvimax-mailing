@@ -96,14 +96,16 @@ docs/
 - `DELETE /api/templates/:id` — eliminar plantilla
 
 ## Flujo de Generación de Imágenes con Gemini
-1. Usuario llena "Prompt de Imagen" en el formulario del calendario
+1. Usuario llena "Prompt de Imagen" (campo 3) en el formulario del calendario
 2. Clic en "Generar Correo" → POST /api/campaigns (guarda imagePrompt)
 3. Automáticamente se llama POST /api/campaigns/:id/generate
-4. Backend lee campaign.imagePrompt, llama a Gemini API
-5. Gemini devuelve imagen en base64
-6. Se guarda como data URL en campaign_versions.imageUrl
-7. Frontend recibe la versión y renderiza la imagen
-8. Si no hay GEMINI_API_KEY, se usa imagen placeholder
+4. Backend lee campaign.imagePrompt y lo envía SOLO ese texto a Gemini (sin mezclar idea ni objetivo)
+5. Configuración: responseModalities: ["IMAGE"] (exclusivo), imageConfig: { aspectRatio: "16:9" }
+6. Gemini devuelve imagen en base64 (inlineData)
+7. Se guarda como data URL en campaign_versions.imageUrl
+8. Si no hay imagePrompt → placeholder "Sin imagen"
+9. Si no hay GEMINI_API_KEY → placeholder "Sin API Key"
+10. Si Gemini bloquea por seguridad → error claro al usuario (finishReason/promptFeedback/safetyRatings)
 
 ## Flujo de Usuario
 1. Login/Registro → Home (bienvenida con nombre real del API)
@@ -138,7 +140,9 @@ docs/
 - localStorage: solo `postIAlo_auth` como fast UI guard (la verificación real es /api/auth/me)
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
-- Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2) con responseModalities ["IMAGE", "TEXT"]
+- Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2) con responseModalities ["IMAGE"] exclusivo, imageConfig aspectRatio "16:9"
+- Gemini safety: manejo de finishReason (SAFETY, RECITATION, PROHIBITED_CONTENT), promptFeedback.blockReason, y safetyRatings.blocked
+- Gemini prompt: solo se envía el campo imagePrompt del usuario, sin mezclar idea ni objetivo
 
 ## Fases Futuras (Pendientes)
 - **Fase 3.5**: Integración con Nano Banana para edición de imágenes

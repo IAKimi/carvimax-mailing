@@ -214,16 +214,17 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
     }
 
-    let imageUrl = "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
-    const imagePrompt = campaign.imagePrompt || `Imagen profesional para email marketing sobre: ${campaign.idea}`;
+    let imageUrl = "https://placehold.co/600x300/002073/white?text=Sin+imagen";
 
-    if (isGeminiConfigured()) {
+    if (campaign.imagePrompt && isGeminiConfigured()) {
       try {
-        imageUrl = await generateImage(imagePrompt);
+        imageUrl = await generateImage(campaign.imagePrompt);
       } catch (err: any) {
         console.error("Error generando imagen con Gemini:", err.message);
         imageUrl = "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
       }
+    } else if (!isGeminiConfigured()) {
+      imageUrl = "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
     }
 
     const newVersion = await storage.createCampaignVersion({
