@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
@@ -22,13 +22,31 @@ const NAV_ITEMS = [
   { icon: Database, label: "Base de Datos", href: "/contacts" },
 ];
 
+let _sidebarMouseInside = false;
+
 export function Layout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(_sidebarMouseInside);
+  const sidebarRef = useRef<HTMLElement>(null);
   const userName = localStorage.getItem("postIAlo_user") || "Usuario";
 
   useEffect(() => {
     document.documentElement.classList.remove("dark");
+  }, []);
+
+  useEffect(() => {
+    setSidebarExpanded(_sidebarMouseInside);
+  }, [location]);
+
+  const handleMouseEnter = useCallback(() => {
+    _sidebarMouseInside = true;
+    setSidebarExpanded(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    _sidebarMouseInside = false;
+    setSidebarExpanded(false);
   }, []);
 
   function handleLogout() {
@@ -40,16 +58,22 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background flex">
       <aside
-        className="hidden md:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#002073] text-white transition-all duration-300 ease-in-out w-[4.5rem] hover:w-64 group/sidebar"
+        ref={sidebarRef}
+        className="hidden md:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#002073] text-white transition-all duration-300 ease-in-out"
+        style={{ width: sidebarExpanded ? "16rem" : "4.5rem" }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         data-testid="desktop-sidebar"
       >
         <div className="p-5 flex items-center gap-3 border-b border-white/10 overflow-hidden whitespace-nowrap">
           <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
             <Mail className="w-4 h-4 text-white" />
           </div>
-          <span className="font-extrabold tracking-tight text-lg text-white hidden group-hover/sidebar:inline transition-opacity duration-300">
-            Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mail</span>
-          </span>
+          {sidebarExpanded && (
+            <span className="font-extrabold tracking-tight text-lg text-white">
+              Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mail</span>
+            </span>
+          )}
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
@@ -63,7 +87,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 data-testid={`nav-${item.href.replace("/", "") || "home"}`}
                 className={`
                   flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden
-                  justify-center group-hover/sidebar:justify-start px-0 group-hover/sidebar:px-4
+                  ${sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
                   ${isActive
                     ? "bg-white/20 text-white"
                     : "text-white/70 hover:bg-white/10 hover:text-white"
@@ -71,27 +95,29 @@ export function Layout({ children }: { children: ReactNode }) {
                 `}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="hidden group-hover/sidebar:inline">
-                  {item.label}
-                </span>
+                {sidebarExpanded && (
+                  <span>{item.label}</span>
+                )}
               </Link>
             );
           })}
         </nav>
 
         <div className="p-3 border-t border-white/10 space-y-2 overflow-hidden">
-          <div className="px-4 py-2 text-sm text-white/60 truncate hidden group-hover/sidebar:block">
-            {userName}
-          </div>
+          {sidebarExpanded && (
+            <div className="px-4 py-2 text-sm text-white/60 truncate">
+              {userName}
+            </div>
+          )}
           <button
             data-testid="button-logout"
             onClick={handleLogout}
-            className="flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:bg-[#e3001b]/20 hover:text-[#e3001b] transition-all duration-200 w-full whitespace-nowrap overflow-hidden justify-center group-hover/sidebar:justify-start px-0 group-hover/sidebar:px-4"
+            className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:bg-[#e3001b]/20 hover:text-[#e3001b] transition-all duration-200 w-full whitespace-nowrap overflow-hidden ${sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}`}
           >
             <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className="hidden group-hover/sidebar:inline">
-              Cerrar Sesión
-            </span>
+            {sidebarExpanded && (
+              <span>Cerrar Sesión</span>
+            )}
           </button>
         </div>
       </aside>
