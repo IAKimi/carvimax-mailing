@@ -6,6 +6,7 @@ import { useRoute } from "wouter";
 import { TipTapEditor } from "@/components/TipTapEditor";
 import { Sparkles, Save, Send, ChevronLeft, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 
 export default function CampaignEditor() {
   const [, params] = useRoute("/campaigns/:id");
@@ -16,18 +17,16 @@ export default function CampaignEditor() {
   
   const { mutate: generateVersion, isPending: isGenerating } = useGenerateVersion();
   const { mutate: updateVersion, isPending: isSaving } = useUpdateVersion();
-  const { mutate: updateCampaign } = useUpdateCampaign();
 
   const [activeVersionId, setActiveVersionId] = useState<number | null>(null);
   const [editorContent, setEditorContent] = useState("");
 
-  // Set initial active version when versions load
   useEffect(() => {
     if (versions && versions.length > 0 && !activeVersionId) {
       const selected = versions.find((v: any) => v.isSelected) || versions[0];
       setActiveVersionId(selected.id);
-      // Assuming contentJson has a 'body' field with HTML for this simplified demo
-      setEditorContent(selected.contentJson?.body || "<h1>Start editing...</h1>");
+      const json = selected.contentJson as any;
+      setEditorContent(json?.body || "<h1>Empiece a editar...</h1>");
     }
   }, [versions, activeVersionId]);
 
@@ -38,151 +37,132 @@ export default function CampaignEditor() {
   };
 
   const handleSave = () => {
-    if (activeVersionId) {
+    if (activeVersionId && activeVersion) {
+      const currentJson = activeVersion.contentJson as any;
       updateVersion({ 
         id: activeVersionId, 
-        contentJson: { ...activeVersion.contentJson, body: editorContent },
+        contentJson: { ...(currentJson || {}), body: editorContent },
         isSelected: true
       });
     }
   };
 
   if (isCampLoading || isVersLoading) {
-    return <Layout><div className="flex h-96 items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-accent" /></div></Layout>;
+    return <Layout><div className="flex h-96 items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div></Layout>;
   }
 
   if (!campaign) {
-    return <Layout><div>Campaign not found</div></Layout>;
+    return <Layout><div className="text-center py-16 text-muted-foreground">Campaña no encontrada</div></Layout>;
   }
 
   const needsGeneration = !versions || versions.length === 0;
 
   return (
     <Layout>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8 pb-4 border-b border-border">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/campaigns" className="p-2 rounded-xl bg-card border border-border hover:bg-slate-100 transition-colors">
-            <ChevronLeft className="w-5 h-5" />
+          <Link href="/emails">
+            <Button variant="ghost" size="icon">
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-extrabold text-foreground">{campaign.name}</h1>
-            <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-500" /> {campaign.status.toUpperCase()}
-            </p>
+            <h2 className="text-2xl font-extrabold">{campaign.name}</h2>
+            <p className="text-sm text-muted-foreground capitalize">{campaign.status}</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button 
+        <div className="flex items-center gap-2">
+          <Button
+            data-testid="button-save-campaign"
+            variant="outline"
             onClick={handleSave}
             disabled={isSaving || needsGeneration}
-            className="px-5 py-2.5 rounded-xl font-bold border-2 border-border bg-card hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50 transition-colors"
+            className="rounded-xl gap-2"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Draft
-          </button>
-          <button 
+            Guardar
+          </Button>
+          <Button
+            data-testid="button-schedule-campaign"
             disabled={needsGeneration}
-            className="px-6 py-2.5 rounded-xl font-bold bg-primary text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50 disabled:transform-none transition-all"
+            className="rounded-xl gap-2"
           >
             <Send className="w-4 h-4" />
-            Proceed to Schedule
-          </button>
+            Programar Envío
+          </Button>
         </div>
       </div>
 
       {needsGeneration ? (
-        <div className="flex flex-col items-center justify-center py-32 bg-card rounded-3xl border border-dashed border-border text-center px-4">
-          <div className="w-24 h-24 bg-accent/10 rounded-full flex items-center justify-center mb-6">
-            <Sparkles className="w-12 h-12 text-accent" />
+        <div className="flex flex-col items-center justify-center py-24 bg-card rounded-2xl border border-dashed border-border text-center px-4">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+            <Sparkles className="w-10 h-10 text-primary" />
           </div>
-          <h2 className="text-3xl font-bold mb-4">Ready to generate content</h2>
-          <p className="text-lg text-muted-foreground max-w-lg mb-8">
-            We'll use your idea, objective, and tone to generate 3 unique versions of this email campaign.
+          <h2 className="text-2xl font-bold mb-3">Listo para generar contenido</h2>
+          <p className="text-muted-foreground max-w-md mb-6">
+            Usaremos la idea, objetivo y tono para generar versiones de este correo.
           </p>
-          <button
+          <Button
+            data-testid="button-generate-versions"
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="
-              px-8 py-4 rounded-2xl font-extrabold text-lg text-white bg-gradient-to-r from-accent to-purple-600
-              shadow-xl shadow-accent/30 hover:shadow-2xl hover:-translate-y-1 transition-all
-              flex items-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none
-            "
+            size="lg"
+            className="rounded-xl gap-2"
           >
-            {isGenerating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6" />}
-            {isGenerating ? "AI is writing..." : "Generate 3 Versions"}
-          </button>
+            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {isGenerating ? "Generando..." : "Generar Versiones"}
+          </Button>
         </div>
       ) : (
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Versions */}
-          <div className="w-full lg:w-72 flex flex-col gap-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-lg">AI Versions</h3>
-              <span className="text-xs font-bold px-2 py-1 bg-secondary rounded-md">{versions?.length}/3</span>
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="w-full lg:w-64 flex flex-col gap-3">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold">Versiones</h3>
+              <span className="text-xs font-semibold text-muted-foreground">{versions?.length}/3</span>
             </div>
             
-            {versions?.map((v: any, index: number) => (
-              <button
-                key={v.id}
-                onClick={() => {
-                  setActiveVersionId(v.id);
-                  setEditorContent(v.contentJson?.body || "");
-                }}
-                className={`
-                  p-4 rounded-2xl text-left border-2 transition-all relative overflow-hidden group
-                  ${activeVersionId === v.id 
-                    ? 'border-accent bg-accent/5 ring-4 ring-accent/10' 
-                    : 'border-border bg-card hover:border-slate-300'}
-                `}
-              >
-                {v.isSelected && (
-                  <div className="absolute top-0 right-0 w-8 h-8 bg-accent text-white flex items-center justify-center rounded-bl-xl font-bold text-xs">
-                    ★
-                  </div>
-                )}
-                <h4 className={`font-bold mb-1 ${activeVersionId === v.id ? 'text-accent' : 'text-foreground'}`}>
-                  Option {v.versionNumber}
-                </h4>
-                <p className="text-xs text-muted-foreground mb-3">Generated {new Date(v.createdAt).toLocaleTimeString()}</p>
-                <div className="h-20 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative">
-                  {/* Miniature representation */}
-                  <div className="absolute inset-0 p-2 transform scale-50 origin-top-left opacity-50" dangerouslySetInnerHTML={{ __html: v.contentJson?.body?.substring(0, 100) }} />
-                </div>
-              </button>
-            ))}
+            {versions?.map((v: any) => {
+              const json = v.contentJson as any;
+              return (
+                <button
+                  key={v.id}
+                  data-testid={`button-version-select-${v.versionNumber}`}
+                  onClick={() => {
+                    setActiveVersionId(v.id);
+                    setEditorContent(json?.body || "");
+                  }}
+                  className={`
+                    p-3 rounded-xl text-left border transition-all
+                    ${activeVersionId === v.id 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border bg-card hover:border-primary/30'}
+                  `}
+                >
+                  <h4 className="font-bold text-sm mb-0.5">Opción {v.versionNumber}</h4>
+                  <p className="text-xs text-muted-foreground truncate">{json?.title || "Sin título"}</p>
+                </button>
+              );
+            })}
 
             {(versions?.length || 0) < 3 && (
-              <button
+              <Button
+                data-testid="button-generate-more"
+                variant="outline"
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="p-4 rounded-2xl border-2 border-dashed border-border text-muted-foreground hover:bg-slate-50 hover:text-foreground hover:border-slate-300 font-bold flex items-center justify-center gap-2 transition-all"
+                className="rounded-xl gap-1 border-dashed"
               >
-                {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                Generate another
-              </button>
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Generar otra
+              </Button>
             )}
           </div>
 
-          {/* Editor Area */}
-          <div className="flex-1 flex flex-col min-h-[600px]">
-            <div className="bg-card border border-border p-4 rounded-t-2xl flex items-center justify-between">
-              <span className="font-bold text-sm text-muted-foreground uppercase tracking-wider">HTML Editor</span>
-              <button className="text-sm font-semibold text-accent flex items-center gap-1 hover:underline">
-                <ImageIcon className="w-4 h-4" /> Change Hero Image
-              </button>
-            </div>
-            
-            {/* The TipTap Editor handles its own styling, making it look like a seamless document */}
-            <div className="flex-1 bg-slate-100 dark:bg-black/20 p-4 md:p-8 rounded-b-2xl border-x border-b border-border overflow-y-auto">
-               <div className="max-w-2xl mx-auto shadow-2xl rounded-2xl">
-                 <TipTapEditor 
-                   content={editorContent} 
-                   onChange={setEditorContent} 
-                 />
-               </div>
-            </div>
+          <div className="flex-1 min-h-[500px]">
+            <TipTapEditor 
+              content={editorContent} 
+              onChange={setEditorContent} 
+            />
           </div>
         </div>
       )}

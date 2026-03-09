@@ -4,72 +4,133 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 210 20% 98%; /* Very light, clean gray/white */
-    --foreground: 222 47% 11%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    
-    --primary: 250 24% 9%; /* Sophisticated almost black */
-    --primary-foreground: 210 40% 98%;
-    
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222 47% 11.2%;
-    
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    
-    --accent: 262 83% 58%; /* Vibrant purple accent */
-    --accent-foreground: 210 40% 98%;
-    
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 250 24% 9%;
+  --background: 220 14% 96%;
+  --foreground: 224 71% 4%;
+  --border: 220 13% 91%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+  --card-border: 220 13% 91%;
+  --sidebar: 225 25% 97%;
+  --sidebar-foreground: 224 71% 4%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-primary: 262 83% 58%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 262 83% 95%;
+  --sidebar-accent-foreground: 262 60% 40%;
+  --sidebar-ring: 262 83% 58%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71% 4%;
+  --popover-border: 220 13% 91%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 224 71% 4%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 220 13% 91%;
+  --ring: 262 83% 58%;
+  --chart-1: 262 83% 58%;
+  --chart-2: 200 80% 50%;
+  --chart-3: 150 60% 45%;
+  --chart-4: 35 90% 55%;
+  --chart-5: 340 75% 55%;
 
-    --radius: 1rem; /* Generous 16px radius */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --radius: .75rem;
 
-    /* Custom Selection Colors */
-    --selection-bg: 262 83% 58%;
-    --selection-text: 0 0% 100%;
-  }
+  --shadow-2xs: 0 1px 2px 0 rgba(0,0,0,.03);
+  --shadow-xs: 0 1px 3px 0 rgba(0,0,0,.04);
+  --shadow-sm: 0 2px 4px -1px rgba(0,0,0,.06), 0 1px 2px -1px rgba(0,0,0,.04);
+  --shadow: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -1px rgba(0,0,0,.04);
+  --shadow-md: 0 6px 12px -2px rgba(0,0,0,.08), 0 3px 6px -2px rgba(0,0,0,.04);
+  --shadow-lg: 0 10px 25px -3px rgba(0,0,0,.1), 0 4px 10px -2px rgba(0,0,0,.04);
+  --shadow-xl: 0 20px 40px -5px rgba(0,0,0,.12), 0 8px 16px -4px rgba(0,0,0,.06);
+  --shadow-2xl: 0 25px 50px -12px rgba(0,0,0,.25);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
 
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    
-    --accent: 262 83% 65%; /* Slightly lighter accent for dark mode */
-    --accent-foreground: 210 40% 98%;
-    
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --selection-bg: 262 83% 58%;
+  --selection-text: 0 0% 100%;
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+
+  --background: 224 71% 4%;
+  --foreground: 210 40% 98%;
+  --border: 225 25% 15%;
+  --card: 225 30% 8%;
+  --card-foreground: 210 40% 98%;
+  --card-border: 225 25% 15%;
+  --sidebar: 225 30% 6%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 225 25% 15%;
+  --sidebar-primary: 262 83% 65%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 262 50% 15%;
+  --sidebar-accent-foreground: 262 83% 80%;
+  --sidebar-ring: 262 83% 65%;
+  --popover: 225 30% 8%;
+  --popover-foreground: 210 40% 98%;
+  --popover-border: 225 25% 15%;
+  --primary: 262 83% 65%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 225 25% 12%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 225 25% 12%;
+  --muted-foreground: 220 15% 60%;
+  --accent: 262 83% 65%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 210 40% 98%;
+  --input: 225 25% 18%;
+  --ring: 262 83% 65%;
+  --chart-1: 262 83% 65%;
+  --chart-2: 200 80% 55%;
+  --chart-3: 150 60% 50%;
+  --chart-4: 35 90% 60%;
+  --chart-5: 340 75% 60%;
+
+  --shadow-2xs: 0 1px 2px 0 rgba(0,0,0,.15);
+  --shadow-xs: 0 1px 3px 0 rgba(0,0,0,.2);
+  --shadow-sm: 0 2px 4px -1px rgba(0,0,0,.25), 0 1px 2px -1px rgba(0,0,0,.15);
+  --shadow: 0 4px 6px -1px rgba(0,0,0,.3), 0 2px 4px -1px rgba(0,0,0,.15);
+  --shadow-md: 0 6px 12px -2px rgba(0,0,0,.35), 0 3px 6px -2px rgba(0,0,0,.2);
+  --shadow-lg: 0 10px 25px -3px rgba(0,0,0,.4), 0 4px 10px -2px rgba(0,0,0,.2);
+  --shadow-xl: 0 20px 40px -5px rgba(0,0,0,.5), 0 8px 16px -4px rgba(0,0,0,.25);
+  --shadow-2xl: 0 25px 50px -12px rgba(0,0,0,.6);
 }
 
 @layer base {
@@ -77,42 +138,93 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased transition-colors duration-500;
-    font-family: 'Inter', sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    transition: background-color 500ms ease, color 500ms ease;
   }
-  
   ::selection {
     background-color: hsl(var(--selection-bg) / 0.3);
     color: inherit;
   }
-
-  /* Typography enhancements */
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight;
-  }
-  
-  h1 {
-    @apply text-4xl md:text-5xl lg:text-6xl font-extrabold;
   }
 }
 
 @layer utilities {
-  .glass-effect {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 dark:bg-black/50 dark:border-white/10;
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
   }
-  
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+  .no-default-hover-elevate {}
+  .no-default-active-elevate {}
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after {
+    inset: -1px;
+  }
+  .glass-effect {
+    @apply bg-white/70 backdrop-blur-md border border-white/20;
+  }
+  .dark .glass-effect {
+    @apply bg-black/50 border-white/10;
+  }
   .premium-shadow {
     box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08), 0 4px 10px -5px rgba(0,0,0,0.04);
   }
-  
   .premium-shadow-hover {
     box-shadow: 0 20px 50px -15px rgba(0,0,0,0.12), 0 8px 20px -8px rgba(0,0,0,0.06);
   }
 }
 
-/* TipTap Editor Styles */
 .ProseMirror {
-  @apply min-h-[300px] outline-none p-6 bg-white dark:bg-card rounded-2xl border border-border focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300;
+  @apply min-h-[300px] outline-none p-6;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
