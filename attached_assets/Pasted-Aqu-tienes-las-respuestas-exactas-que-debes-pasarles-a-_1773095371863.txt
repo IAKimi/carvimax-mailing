@@ -1,0 +1,49 @@
+Aquí tienes las respuestas exactas que debes pasarles a tus desarrolladores para que armen el plan de implementación, incorporando tus nuevos requerimientos:
+1. Sobre la Responses API (/v1/responses)
+Diles a los chicos de Replit que están en lo correcto.
+Endpoint exacto: Sí, el endpoint es POST https://api.openai.com/v1/responses
+.
+SDK de Node.js: Sí, el SDK oficial ya soporta esta API. El método a utilizar es openai.responses.create()
+,
+.
+Formato del Body: En lugar del antiguo arreglo de messages, la Responses API tiene una semántica más limpia. La instrucción estática del sistema (tu prompt engineering) se pasa en un campo de primer nivel llamado instructions, y los prompts dinámicos del usuario (Idea + Objetivo) se pasan en el arreglo input
+,
+.
+2. Sobre el modelo (¡Vamos con GPT-5 Mini!)
+Indícales que para la fase de pruebas y el inicio de producción usarán gpt-5-mini
+,
+. Este modelo es la versión más rápida y rentable de la nueva familia GPT-5, ideal para tareas bien definidas como esta
+,
+. Soporta nativamente la Responses API, salidas estructuradas (Structured Outputs) y el guardado en caché de prompts (Prompt Caching), lo que te mantendrá los costos bajísimos
+,
+. Si más adelante ven que necesitan redacciones más complejas, cambiarlo a gpt-5.4 o gpt-5.2 es tan fácil como cambiar un string en el código
+.
+3. Sobre Structured Outputs (Salidas Estructuradas)
+La propuesta de ellos está excelente. Diles que configuren el parámetro text.format a json_schema
+,
+. Al usar esta funcionalidad, matas automáticamente el problema de que ChatGPT te responda con introducciones como "Claro, aquí tienes tu resultado...", ya que la API obliga al modelo a responder estricta y únicamente con el JSON válido
+.
+Puedes pedirles este esquema JSON exacto (agregando el CTA que es muy útil en email marketing):
+{
+  "asunto": "El asunto persuasivo del correo",
+  "preheader": "Texto de preview enganchador",
+  "cuerpo_html": "<p>Contenido formateado en HTML limpio sin etiquetas <html> ni <body>, listo para inyectar</p>",
+  "cta_text": "Texto corto para el botón principal"
+}
+4. Sobre la Identidad de Marca y tu "Prompt Engineering Oculto"
+El plan de leer la tabla brand_identity e inyectarla estáticamente es perfecto, ya que si ese texto supera los 1024 tokens, OpenAI lo guardará en caché automáticamente, bajando tus tiempos de respuesta y costos
+,
+.
+Aquí es donde entra tu requerimiento de "arreglar prompts malos" y poner restricciones. Diles a los desarrolladores que estructuren el payload construyendo el campo instructions (mensaje del Developer) de esta manera:
+El campo instructions (Estático - Backend):
+"Eres el Head of Copywriting de la empresa descrita a continuación. Tu objetivo es redactar un correo electrónico de alta conversión.
+[INSERTA AQUÍ LA IDENTIDAD DE MARCA COMPLETA Y GUÍAS DE ESTILO]
+REGLAS ESTRICTAS DE REDACCIÓN:
+Independientemente de si las ideas u objetivos proporcionados por el usuario son vagos, cortos, mal redactados o de baja calidad, tú debes asumir el control creativo. Expande la idea de forma profesional, lógica y alineada a la marca. No pidas aclaraciones, asume la mejor intención y genera un copy brillante.
+El contenido de cuerpo_html debe tener un máximo de 500 caracteres.
+Escribe directo al punto, ve al grano."
+El campo input (Dinámico - Lo que escribe el usuario):
+"Idea: [INSERTA CAMPO IDEA DEL USUARIO] Objetivo: [INSERTA CAMPO OBJETIVO DEL USUARIO]"
+Resumen para los devs: De esta forma, el motor de OpenAI lee todas las reglas y la marca primero (en el parámetro instructions), las entiende, y luego procesa los dos campitos pobres que escribió el usuario (en el parámetro input)
+,
+. Esto garantiza que nunca se salgan de tu control y siempre obtengas la estructura requerida.
