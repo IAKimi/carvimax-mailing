@@ -125,6 +125,9 @@ export async function generateEmailContent(
       text: {
         format: emailSchema,
       },
+      max_output_tokens: 800,
+      temperature: 0.7,
+      store: false,
     });
 
     const outputText = response.output_text;
@@ -148,6 +151,12 @@ export async function generateEmailContent(
     }
     if (err.status === 400 && err.message?.includes("content_policy")) {
       throw new Error("El contenido fue rechazado por las políticas de OpenAI. Intente con una idea diferente.");
+    }
+    if (err.status === 500 || err.status === 503) {
+      throw new Error("Los servidores de OpenAI no están disponibles en este momento. Intente de nuevo más tarde.");
+    }
+    if (err.code === "ETIMEDOUT" || err.code === "ECONNABORTED" || err.status === 408) {
+      throw new Error("La solicitud a OpenAI tardó demasiado. Intente de nuevo.");
     }
     throw err;
   }
