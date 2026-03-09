@@ -55,8 +55,76 @@ export function useUpdateVersion() {
       return api.campaignVersions.update.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
-      // Invalidate the versions list for this specific campaign
       queryClient.invalidateQueries({ queryKey: [api.campaignVersions.list.path, data.campaignId] });
+    },
+  });
+}
+
+export function useRegenerateText() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, corrections }: { campaignId: number; corrections: string }) => {
+      const url = buildUrl(api.campaignVersions.regenerateText.path, { id: campaignId });
+      const res = await fetch(url, {
+        method: api.campaignVersions.regenerateText.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ corrections }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Error regenerando texto" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.campaignVersions.list.path, campaignId] });
+    },
+  });
+}
+
+export function useRegenerateImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, imagePrompt }: { campaignId: number; imagePrompt: string }) => {
+      const url = buildUrl(api.campaignVersions.regenerateImage.path, { id: campaignId });
+      const res = await fetch(url, {
+        method: api.campaignVersions.regenerateImage.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagePrompt }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Error regenerando imagen" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.campaignVersions.list.path, campaignId] });
+    },
+  });
+}
+
+export function useEditImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, editPrompt }: { campaignId: number; editPrompt: string }) => {
+      const url = buildUrl(api.campaignVersions.editImage.path, { id: campaignId });
+      const res = await fetch(url, {
+        method: api.campaignVersions.editImage.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ editPrompt }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Error editando imagen" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.campaignVersions.list.path, campaignId] });
     },
   });
 }

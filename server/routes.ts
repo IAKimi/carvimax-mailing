@@ -3,8 +3,8 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { generateImage, isGeminiConfigured } from "./gemini";
-import { generateEmailContent, isOpenAIConfigured } from "./openai";
+import { generateImage, editImage, isGeminiConfigured } from "./gemini";
+import { generateEmailContent, regenerateEmailContent, isOpenAIConfigured } from "./openai";
 
 const registerSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -265,6 +265,156 @@ export async function registerRoutes(
       contentJson,
       imageUrl,
       isSelected: versionNumber === 1
+    });
+    res.status(201).json(newVersion);
+  });
+
+  app.post("/api/campaigns/:id/regenerate-text", requireAuth, async (req, res) => {
+    const campaignId = parseId(req.params.id);
+    if (!campaignId) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(campaignId);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    const versions = await storage.getCampaignVersions(campaignId);
+    const versionNumber = versions.length + 1;
+    if (versionNumber > 3) {
+      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    }
+
+    const { corrections } = req.body || {};
+    if (!corrections || typeof corrections !== "string") {
+      return res.status(400).json({ message: "Debe proporcionar correcciones de texto." });
+    }
+
+    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
+    if (!selectedVersion) {
+      return res.status(400).json({ message: "No hay versión previa para regenerar." });
+    }
+
+    const previousContent = selectedVersion.contentJson as any;
+    const previousEmail = {
+      asunto: previousContent?.asunto || "",
+      preheader: previousContent?.preheader || "",
+      cuerpo_html: previousContent?.cuerpo_html || previousContent?.html || "",
+      cta_text: previousContent?.cta_text || previousContent?.cta || "Ver más",
+    };
+
+    let contentJson;
+    try {
+      if (!isOpenAIConfigured()) {
+        return res.status(400).json({ message: "OpenAI no está configurado." });
+      }
+      const brandData = await storage.getBrandIdentity(req.session.userId!);
+      const emailContent = await regenerateEmailContent(
+        campaign.idea,
+        campaign.objective,
+        previousEmail,
+        corrections,
+        brandData || null
+      );
+      contentJson = {
+        asunto: emailContent.asunto,
+        preheader: emailContent.preheader,
+        cuerpo_html: emailContent.cuerpo_html,
+        cta_text: emailContent.cta_text,
+      };
+    } catch (err: any) {
+      console.error("Error regenerando texto con OpenAI:", err.message);
+      return res.status(500).json({ message: err.message || "Error regenerando texto." });
+    }
+
+    const newVersion = await storage.createCampaignVersion({
+      campaignId,
+      versionNumber,
+      contentJson,
+      imageUrl: selectedVersion.imageUrl,
+      isSelected: false,
+    });
+    res.status(201).json(newVersion);
+  });
+
+  app.post("/api/campaigns/:id/regenerate-image", requireAuth, async (req, res) => {
+    const campaignId = parseId(req.params.id);
+    if (!campaignId) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(campaignId);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    const versions = await storage.getCampaignVersions(campaignId);
+    const versionNumber = versions.length + 1;
+    if (versionNumber > 3) {
+      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    }
+
+    const { imagePrompt } = req.body || {};
+    if (!imagePrompt || typeof imagePrompt !== "string") {
+      return res.status(400).json({ message: "Debe proporcionar un prompt de imagen." });
+    }
+
+    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
+
+    let imageUrl: string;
+    try {
+      if (!isGeminiConfigured()) {
+        return res.status(400).json({ message: "Gemini no está configurado." });
+      }
+      imageUrl = await generateImage(imagePrompt);
+    } catch (err: any) {
+      console.error("Error regenerando imagen con Gemini:", err.message);
+      return res.status(500).json({ message: err.message || "Error regenerando imagen." });
+    }
+
+    const newVersion = await storage.createCampaignVersion({
+      campaignId,
+      versionNumber,
+      contentJson: selectedVersion?.contentJson || { asunto: "", preheader: "", cuerpo_html: "", cta_text: "Ver más" },
+      imageUrl,
+      isSelected: false,
+    });
+    res.status(201).json(newVersion);
+  });
+
+  app.post("/api/campaigns/:id/edit-image", requireAuth, async (req, res) => {
+    const campaignId = parseId(req.params.id);
+    if (!campaignId) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(campaignId);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    const versions = await storage.getCampaignVersions(campaignId);
+    const versionNumber = versions.length + 1;
+    if (versionNumber > 3) {
+      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    }
+
+    const { editPrompt } = req.body || {};
+    if (!editPrompt || typeof editPrompt !== "string") {
+      return res.status(400).json({ message: "Debe proporcionar instrucciones de edición." });
+    }
+
+    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
+    if (!selectedVersion?.imageUrl) {
+      return res.status(400).json({ message: "No hay imagen previa para editar." });
+    }
+
+    let imageUrl: string;
+    try {
+      if (!isGeminiConfigured()) {
+        return res.status(400).json({ message: "Gemini no está configurado." });
+      }
+      imageUrl = await editImage(selectedVersion.imageUrl, editPrompt);
+    } catch (err: any) {
+      console.error("Error editando imagen con Gemini:", err.message);
+      return res.status(500).json({ message: err.message || "Error editando imagen." });
+    }
+
+    const newVersion = await storage.createCampaignVersion({
+      campaignId,
+      versionNumber,
+      contentJson: selectedVersion.contentJson as Record<string, unknown>,
+      imageUrl,
+      isSelected: false,
     });
     res.status(201).json(newVersion);
   });

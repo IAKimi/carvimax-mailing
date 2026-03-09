@@ -1,15 +1,14 @@
 import OpenAI from "openai";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
 let openaiClient: OpenAI | null = null;
 
 function getClient(): OpenAI {
   if (!openaiClient) {
-    if (!OPENAI_API_KEY) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
       throw new Error("OPENAI_API_KEY no está configurada.");
     }
-    openaiClient = new OpenAI({ apiKey: OPENAI_API_KEY });
+    openaiClient = new OpenAI({ apiKey });
   }
   return openaiClient;
 }
@@ -108,6 +107,25 @@ const emailSchema = {
   strict: true,
 };
 
+function handleOpenAIError(err: any): never {
+  if (err.status === 401) {
+    throw new Error("API key de OpenAI inválida. Verifique la configuración.");
+  }
+  if (err.status === 429) {
+    throw new Error("Límite de solicitudes de OpenAI alcanzado. Intente de nuevo en unos minutos.");
+  }
+  if (err.status === 400 && err.message?.includes("content_policy")) {
+    throw new Error("El contenido fue rechazado por las políticas de OpenAI. Intente con una idea diferente.");
+  }
+  if (err.status === 500 || err.status === 503) {
+    throw new Error("Los servidores de OpenAI no están disponibles en este momento. Intente de nuevo más tarde.");
+  }
+  if (err.code === "ETIMEDOUT" || err.code === "ECONNABORTED" || err.status === 408) {
+    throw new Error("La solicitud a OpenAI tardó demasiado. Intente de nuevo.");
+  }
+  throw err;
+}
+
 export async function generateEmailContent(
   idea: string,
   objective: string,
@@ -143,25 +161,63 @@ export async function generateEmailContent(
 
     return parsed;
   } catch (err: any) {
-    if (err.status === 401) {
-      throw new Error("API key de OpenAI inválida. Verifique la configuración.");
+    handleOpenAIError(err);
+  }
+}
+
+export async function regenerateEmailContent(
+  originalIdea: string,
+  originalObjective: string,
+  previousEmailJson: EmailContent,
+  userCorrections: string,
+  brandIdentity: BrandIdentityData | null
+): Promise<EmailContent> {
+  const client = getClient();
+  const instructions = buildInstructions(brandIdentity);
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-5-mini",
+      instructions,
+      input: [
+        {
+          role: "user" as const,
+          content: `Idea: ${originalIdea}\nObjetivo: ${originalObjective}`,
+        },
+        {
+          role: "assistant" as const,
+          content: JSON.stringify(previousEmailJson),
+        },
+        {
+          role: "user" as const,
+          content: `Por favor aplica las siguientes correcciones al correo generado y devuelve la propuesta ajustada respetando el formato JSON original:\nCorrecciones: ${userCorrections}`,
+        },
+      ],
+      text: {
+        format: emailSchema,
+      },
+      max_output_tokens: 800,
+      temperature: 0.7,
+      store: false,
+    });
+
+    const outputText = response.output_text;
+    if (!outputText) {
+      throw new Error("OpenAI no devolvió contenido de texto.");
     }
-    if (err.status === 429) {
-      throw new Error("Límite de solicitudes de OpenAI alcanzado. Intente de nuevo en unos minutos.");
+
+    const parsed: EmailContent = JSON.parse(outputText);
+
+    if (!parsed.asunto || !parsed.cuerpo_html || !parsed.cta_text) {
+      throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos tras la corrección.");
     }
-    if (err.status === 400 && err.message?.includes("content_policy")) {
-      throw new Error("El contenido fue rechazado por las políticas de OpenAI. Intente con una idea diferente.");
-    }
-    if (err.status === 500 || err.status === 503) {
-      throw new Error("Los servidores de OpenAI no están disponibles en este momento. Intente de nuevo más tarde.");
-    }
-    if (err.code === "ETIMEDOUT" || err.code === "ECONNABORTED" || err.status === 408) {
-      throw new Error("La solicitud a OpenAI tardó demasiado. Intente de nuevo.");
-    }
-    throw err;
+
+    return parsed;
+  } catch (err: any) {
+    handleOpenAIError(err);
   }
 }
 
 export function isOpenAIConfigured(): boolean {
-  return !!OPENAI_API_KEY;
+  return !!process.env.OPENAI_API_KEY;
 }

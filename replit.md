@@ -16,7 +16,7 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 - **Iconos**: Lucide React + React Icons (SI)
 
 ## Estado Actual
-Todas las features conectadas a PostgreSQL. Autenticación real. Generación de imágenes con Gemini API integrada (requiere GEMINI_API_KEY). Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales. Solo light mode. Código limpio: sin páginas huérfanas ni datos mock.
+Todas las features conectadas a PostgreSQL. Autenticación real. Generación de imágenes con Gemini API integrada. Generación de texto con OpenAI Responses API integrada. Regeneración de texto con historial conversacional (correcciones del usuario). Regeneración de imagen con nuevo prompt. Edición de imagen con Nano Banana (image-to-image via Gemini). Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales. Solo light mode.
 
 ## Estructura del Proyecto
 ```
@@ -25,7 +25,7 @@ client/src/
 │   ├── Login.tsx          - Login + Registro (toggle entre ambos)
 │   ├── Home.tsx           - Bienvenida + 2 dropdowns (usa API para nombre de usuario)
 │   ├── BrandIdentity.tsx  - 2 dropdowns (Mi Empresa / Lineamientos) — datos de API
-│   ├── CalendarView.tsx   - Centro de trabajo: calendario + editor + Gemini AI
+│   ├── CalendarView.tsx   - Centro de trabajo: calendario + editor + Gemini/OpenAI AI + modales regeneración
 │   ├── Templates.tsx      - Galería de plantillas HTML — datos de API
 │   ├── MyEmails.tsx       - Historial de correos (sent/scheduled) — datos de API
 │   ├── Contacts.tsx       - Bases de contactos con CRUD — datos de API
@@ -37,20 +37,21 @@ client/src/
 │   ├── TipTapEditor.tsx   - Editor WYSIWYG
 │   └── ui/               - Componentes Shadcn
 ├── hooks/
-│   └── use-campaigns.ts   - Hooks para CampaignEditor
+│   ├── use-campaigns.ts   - Hooks para CampaignEditor
+│   └── use-campaign-versions.ts - Hooks: generate, update, regenerateText, regenerateImage, editImage
 └── lib/                   - Utilidades (queryClient, utils)
 
 server/
 ├── db.ts       - Conexión PostgreSQL (pg + drizzle-orm)
-├── gemini.ts   - Integración Gemini API (generación de imágenes)
-├── openai.ts   - Integración OpenAI Responses API (generación de texto)
-├── routes.ts   - API endpoints (auth + CRUD + generación IA dual)
+├── gemini.ts   - Integración Gemini API (generación + edición de imágenes)
+├── openai.ts   - Integración OpenAI Responses API (generación + regeneración de texto)
+├── routes.ts   - API endpoints (auth + CRUD + generación IA dual + regeneración + edición imagen)
 ├── storage.ts  - DatabaseStorage (PostgreSQL real, todas las operaciones)
 └── index.ts    - Server + session middleware
 
 shared/
 ├── schema.ts   - Modelos de datos (Drizzle + Zod) — 7 tablas
-└── routes.ts   - Contrato API
+└── routes.ts   - Contrato API (incluyendo regenerateText, regenerateImage, editImage)
 
 docs/
 └── gemini-context-prompt.md - Prompt para NotebookLM (configuración Gemini API)
@@ -81,21 +82,24 @@ docs/
 
 ### API de Datos
 - `GET/POST /api/campaigns` — listar/crear campañas (auto-status "scheduled" si tiene scheduledAt)
-- `GET/PATCH /api/campaigns/:id` — obtener/actualizar campaña (PATCH acepta status)
+- `GET/PATCH /api/campaigns/:id` — obtener/actualizar campaña
 - `GET /api/campaigns/:id/versions` — versiones de campaña
-- `POST /api/campaigns/:id/generate` — generar versión con Gemini AI (imagen) + texto placeholder
+- `POST /api/campaigns/:id/generate` — generar versión con Gemini AI (imagen) + OpenAI (texto) en paralelo
+- `POST /api/campaigns/:id/regenerate-text` — regenerar texto con correcciones del usuario (historial conversacional OpenAI)
+- `POST /api/campaigns/:id/regenerate-image` — regenerar imagen con nuevo prompt (nueva generación Gemini)
+- `POST /api/campaigns/:id/edit-image` — editar imagen existente con Nano Banana (image-to-image Gemini)
 - `PATCH /api/versions/:id` — actualizar versión (con ownership check)
 - `GET/POST /api/contact-databases` — listar/crear bases de contactos
 - `DELETE /api/contact-databases/:id` — eliminar base de contactos
 - `GET /api/contact-databases/:id/contacts` — listar contactos
 - `POST /api/contact-databases/:id/contacts` — crear contacto
-- `PATCH /api/contacts/:id` — actualizar contacto (con ownership check)
-- `DELETE /api/contacts/:id` — eliminar contacto (con ownership check)
+- `PATCH /api/contacts/:id` — actualizar contacto
+- `DELETE /api/contacts/:id` — eliminar contacto
 - `GET /api/brand-identity` — obtener identidad de marca del usuario
 - `PUT /api/brand-identity` — crear/actualizar identidad de marca (upsert)
 - `GET /api/templates` — listar plantillas del usuario
 - `POST /api/templates` — crear plantilla
-- `PATCH /api/templates/:id` — actualizar plantilla (favorite toggle, etc.)
+- `PATCH /api/templates/:id` — actualizar plantilla
 - `DELETE /api/templates/:id` — eliminar plantilla
 
 ## Flujo de Generación de Texto con OpenAI
@@ -108,31 +112,39 @@ docs/
 7. Si no hay OPENAI_API_KEY → usa texto placeholder
 8. Prompt Caching: la identidad de marca (estática) va primero para aprovechar el cache automático de OpenAI
 
-## Flujo de Generación de Imágenes con Gemini
-1. Usuario llena "Prompt de Imagen" (campo 3) en el formulario del calendario
-2. Clic en "Generar Correo" → POST /api/campaigns (guarda imagePrompt)
-3. Automáticamente se llama POST /api/campaigns/:id/generate
-4. Backend lee campaign.imagePrompt y lo envía SOLO ese texto a Gemini (sin mezclar idea ni objetivo)
-5. Configuración: responseModalities: ["IMAGE"] (exclusivo), imageConfig: { aspectRatio: "16:9" }
-6. Gemini devuelve imagen en base64 (inlineData)
-7. Se guarda como data URL en campaign_versions.imageUrl
-8. Si no hay imagePrompt → placeholder "Sin imagen"
-9. Si no hay GEMINI_API_KEY → placeholder "Sin API Key"
-10. Si Gemini bloquea por seguridad → error claro al usuario (finishReason/promptFeedback/safetyRatings)
+## Flujo de Regeneración de Texto con OpenAI
+1. POST /api/campaigns/:id/regenerate-text recibe `{ corrections: string }`
+2. Lee la versión seleccionada actual → extrae contentJson como `previousEmailJson`
+3. Llama `regenerateEmailContent()` con historial conversacional:
+   - input[0]: { role: "user", content: "Idea: X\nObjetivo: Y" }
+   - input[1]: { role: "assistant", content: JSON.stringify(previousEmailJson) }
+   - input[2]: { role: "user", content: "Correcciones: [lo que pidió el usuario]" }
+4. Mismo schema de Structured Outputs, mismas instrucciones de marca
+5. Se guarda como nueva versión con la imagen de la versión anterior
 
-## Flujo de Usuario
-1. Login/Registro → Home (bienvenida con nombre real del API)
-2. Identidad de Marca → 2 dropdowns colapsados, datos guardados en BD
-3. Calendario (centro de trabajo):
-   - Clic en día vacío → popup "Nuevo Correo"
-     - Campos: Idea, Objetivo, Prompt de Imagen / Subir Imagen, Plantilla (del API), BD destino (del API), Fecha+Hora
-   - Clic en día con correo → opción "Nuevo Correo" o "Editar existente"
-   - Editor: imagen (con loading overlay durante generación IA) + texto con preview colapsable
-   - "Cargar Imagen" en editor funciona (abre file picker, muestra preview local)
-   - "Publicar Ahora": visible cuando imagen Y texto aprobados
-4. Historial → lista de correos enviados/programados
-5. Plantillas → galería HTML con CRUD completo, favoritos
-6. Base de Datos → bases con contactos, edición inline, agregar contactos
+## Flujo de Generación de Imágenes con Gemini
+1. Usuario llena "Prompt de Imagen" en el formulario del calendario
+2. POST /api/campaigns/:id/generate → envía imagePrompt a Gemini
+3. Configuración: responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "16:9" }
+4. Gemini devuelve imagen en base64 (inlineData)
+5. Se guarda como data URL en campaign_versions.imageUrl
+
+## Flujo de Regeneración de Imagen con Gemini
+1. POST /api/campaigns/:id/regenerate-image recibe `{ imagePrompt: string }`
+2. Genera imagen completamente nueva con el nuevo prompt (misma llamada que la generación inicial)
+3. Se guarda como nueva versión con el texto de la versión anterior
+
+## Flujo de Edición de Imagen con Nano Banana (Image-to-Image)
+1. POST /api/campaigns/:id/edit-image recibe `{ editPrompt: string }`
+2. Lee la imagen actual de la versión seleccionada (base64 data URL)
+3. Envía a Gemini con inline_data (la imagen original) + text (instrucciones de edición)
+4. Gemini aplica edición semántica manteniendo el contexto visual
+5. Se guarda como nueva versión con el texto de la versión anterior
+
+## Modales de Regeneración en CalendarView
+- **Regenerar Texto**: modal con idea/objetivo original (read-only), último ajuste enviado, textarea de correcciones
+- **Regenerar Imagen**: modal con prompt original (read-only), textarea con nuevo prompt (pre-llenado con el original)
+- **Editar con Nano Banana**: modal con preview de imagen actual, textarea de instrucciones de edición, tip sobre límites de texto
 
 ## Sidebar
 - Desktop: colapsable con hover (module-level variable persiste estado entre remounts)
@@ -145,6 +157,9 @@ docs/
 - Solo light mode
 - Sidebar: fondo azul oscuro #002073 con texto blanco
 - Branding: "Post" + "IA" en rojo + "lo" + " Mail"
+- Botones de regenerar: azul (#2563eb)
+- Botón Nano Banana: amber (#f59e0b)
+- Botones de aprobar: verde esmeralda
 
 ## Notas Técnicas
 - Sesiones: express-session + connect-pg-simple
@@ -154,16 +169,18 @@ docs/
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
 - OpenAI: Responses API con openai.responses.create(), modelo gpt-5-mini, Structured Outputs json_schema
-- OpenAI instructions: identidad de marca + reglas de copywriter (developer role), idea+objetivo (user input)
+- OpenAI regeneración: usa historial conversacional con array de messages [{role, content}] en campo input
+- OpenAI env var: se lee con process.env.OPENAI_API_KEY en runtime (no al cargar módulo)
 - OpenAI contentJson: { asunto, preheader, cuerpo_html, cta_text }
-- Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2) con responseModalities ["IMAGE"] exclusivo, imageConfig aspectRatio "16:9"
-- Gemini safety: manejo de finishReason (SAFETY, RECITATION, PROHIBITED_CONTENT), promptFeedback.blockReason, y safetyRatings.blocked
-- Gemini prompt: solo se envía el campo imagePrompt del usuario, sin mezclar idea ni objetivo
+- Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2)
+- Gemini generación: responseModalities ["IMAGE"], imageConfig aspectRatio "16:9"
+- Gemini edición: inline_data con imagen en base64 + text con instrucciones, mismo modelo y endpoint
+- Gemini safety: manejo de finishReason (SAFETY, RECITATION, PROHIBITED_CONTENT), promptFeedback.blockReason, safetyRatings.blocked
+- Gemini request body: snake_case; response parsing: camelCase
 - Generación dual: OpenAI (texto) y Gemini (imagen) se ejecutan en paralelo con Promise.all
+- Límite: máximo 3 versiones por campaña
 
 ## Fases Futuras (Pendientes)
-- **Fase 3.5**: Integración con Nano Banana para edición de imágenes
 - **Fase 4**: Integración con Make.com (webhooks), Cloudinary (imágenes), Brevo (envío)
 - **Fase 4.5**: Envío automático por webhook al llegar la fecha/hora programada
 - **Fase 5**: Dashboard con métricas reales, WebSockets para feedback en tiempo real
-- **Fase 6**: Generación de texto con Gemini (actualmente placeholder)

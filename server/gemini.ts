@@ -1,4 +1,6 @@
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+function getApiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY;
+}
 
 interface SafetyRating {
   category: string;
@@ -31,11 +33,12 @@ interface GeminiImageResponse {
 }
 
 export async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
-  if (!GEMINI_API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
 
   const body = {
     contents: [
@@ -116,6 +119,103 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
   throw new Error("Gemini no generó una imagen. Intente con un prompt más descriptivo.");
 }
 
+export async function editImage(base64Image: string, editPrompt: string, aspectRatio: string = "16:9"): Promise<string> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
+  }
+
+  const imageData = base64Image.includes(",") ? base64Image.split(",")[1] : base64Image;
+  const mimeType = base64Image.match(/data:(.*?);/)?.[1] || "image/png";
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: imageData,
+            },
+          },
+          {
+            text: editPrompt,
+          },
+        ],
+      },
+    ],
+    generation_config: {
+      response_modalities: ["IMAGE"],
+      image_config: {
+        aspect_ratio: aspectRatio,
+      },
+    },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Gemini edit API error:", response.status, errorText);
+    throw new Error(`Error de la API de Gemini (${response.status}): ${errorText.substring(0, 200)}`);
+  }
+
+  const data: GeminiImageResponse = await response.json();
+
+  if (data.error) {
+    throw new Error(`Error de Gemini: ${data.error.message}`);
+  }
+
+  if (data.promptFeedback?.blockReason) {
+    throw new Error(`El prompt fue bloqueado por los filtros de seguridad de Google (${data.promptFeedback.blockReason}). Intente con un prompt diferente.`);
+  }
+
+  if (!data.candidates || data.candidates.length === 0) {
+    throw new Error("Gemini no devolvió resultados para la edición. Intente con instrucciones más específicas.");
+  }
+
+  const candidate = data.candidates[0];
+
+  const finishReason = candidate.finishReason;
+  if (finishReason === "SAFETY") {
+    throw new Error("La edición fue bloqueada por los filtros de seguridad de Google. Intente con instrucciones diferentes.");
+  }
+  if (finishReason === "RECITATION") {
+    throw new Error("La edición fue bloqueada por políticas de recitación. Intente reformular las instrucciones.");
+  }
+  if (finishReason === "PROHIBITED_CONTENT") {
+    throw new Error("El contenido solicitado está prohibido por las políticas de Google.");
+  }
+
+  const parts = candidate.content?.parts;
+  if (!parts || parts.length === 0) {
+    const blockedCategories = candidate.safetyRatings
+      ?.filter(r => r.blocked)
+      .map(r => r.category)
+      .join(", ");
+    if (blockedCategories) {
+      throw new Error(`Edición bloqueada por filtros de seguridad en las categorías: ${blockedCategories}.`);
+    }
+    throw new Error("Respuesta de Gemini sin contenido tras la edición.");
+  }
+
+  for (const part of parts) {
+    if (part.inlineData) {
+      const { mimeType: resMimeType, data: base64Data } = part.inlineData;
+      return `data:${resMimeType};base64,${base64Data}`;
+    }
+  }
+
+  throw new Error("Gemini no generó una imagen editada. Intente con instrucciones más descriptivas.");
+}
+
 export function isGeminiConfigured(): boolean {
-  return !!GEMINI_API_KEY;
+  return !!getApiKey();
 }

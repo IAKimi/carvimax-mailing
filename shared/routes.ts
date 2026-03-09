@@ -92,6 +92,33 @@ export const api = {
         200: z.custom<typeof campaignVersions.$inferSelect>(),
         404: errorSchemas.notFound,
       }
+    },
+    regenerateText: {
+      method: 'POST' as const,
+      path: '/api/campaigns/:id/regenerate-text' as const,
+      input: z.object({ corrections: z.string() }),
+      responses: {
+        201: z.custom<typeof campaignVersions.$inferSelect>(),
+        400: errorSchemas.validation,
+      }
+    },
+    regenerateImage: {
+      method: 'POST' as const,
+      path: '/api/campaigns/:id/regenerate-image' as const,
+      input: z.object({ imagePrompt: z.string() }),
+      responses: {
+        201: z.custom<typeof campaignVersions.$inferSelect>(),
+        400: errorSchemas.validation,
+      }
+    },
+    editImage: {
+      method: 'POST' as const,
+      path: '/api/campaigns/:id/edit-image' as const,
+      input: z.object({ editPrompt: z.string() }),
+      responses: {
+        201: z.custom<typeof campaignVersions.$inferSelect>(),
+        400: errorSchemas.validation,
+      }
     }
   },
   contacts: {

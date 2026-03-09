@@ -1,0 +1,104 @@
+Para empezar, el hecho de que el texto de respaldo ("Contenido generado para su campaña...") se inyecte perfectamente y no aparezca ningún error en los logs del servidor es la pista clave. Tu bloque try/catch en routes.ts tiene un console.error(...) que atraparía cualquier error de OpenAI (como modelo inexistente, mal formato de schema o SDK desactualizado).
+Si ese error no se está imprimiendo, significa que la ejecución nunca entra al try. Lo más probable es que tu función isOpenAIConfigured() esté devolviendo false (quizás process.env.OPENAI_API_KEY se evalúa antes de que tu archivo .env se haya cargado en Replit).
+En cuanto a tu código de la API, tu implementación actual está muy bien estructurada, pero aquí tienes las respuestas exactas a tus preguntas para que estés 100% seguro:
+1. ¿Cuál es la forma correcta de llamar a la API con Structured Outputs?
+Tu enfoque actual con client.responses.create() es el correcto y la Responses API es la recomendada oficialmente por OpenAI para todos los proyectos nuevos
+.
+Diferencia de sintaxis:
+En la Responses API (la que estás usando), la forma correcta de pedir JSON estructurado es exactamente como lo tienes: text: { format: { type: "json_schema", name: "...", schema: {...}, strict: true } }
+.
+En la antigua Chat Completions API, la estructura es ligeramente distinta y requiere más anidamiento: response_format: { type: "json_schema", json_schema: { strict: true, schema: {...} } }
+.
+Recomendación: Mantén la Responses API. Es semánticamente más limpia, optimiza mejor la caché de los prompts (reduciendo costos y latencia) y está diseñada específicamente para soportar los modelos más modernos de manera nativa
+.
+2. ¿Es gpt-5-mini un modelo válido actualmente?
+Sí, gpt-5-mini es un modelo totalmente válido y disponible
+. Es la elección perfecta para tu caso de uso, ya que es una versión mucho más rápida y rentable de la familia GPT-5, optimizada específicamente para tareas bien definidas y directas como la generación de copy
+. Además, soporta nativamente Structured Outputs y Prompt Caching.
+3. ¿Cómo debe lucir la respuesta del API?
+Tu código const outputText = response.output_text; es totalmente correcto para el SDK de Node.js al usar la Responses API
+.
+Si usas la Responses API: El SDK de TypeScript incluye la propiedad de conveniencia response.output_text, la cual extrae y concatena automáticamente todos los fragmentos de texto del arreglo de salida en un solo string
+. Esto te ahorra tener que buscar manualmente en response.output.content.text
+.
+Si usaras Chat Completions: Tendrías que leer la respuesta navegando el arreglo de opciones con response.choices.message.content
+
+Siguiente paso sugerido
+Dado que el código de la API está correcto, el problema casi seguro radica en la carga de las variables de entorno o la versión del paquete openai en tu Replit.
+¿Te gustaría que te proporcione un fragmento de código para depurar (hacer un console.log estratégico) y asegurarnos de que isOpenAIConfigured() detecta tu API Key correctamente y de que el SDK que tienes instalado soporta el método client.responses?
+
+
+Para estructurar esta llamada, la mejor práctica es enviar un historial de mensajes (un arreglo de objetos con el rol user y assistant) en el campo input, en lugar de enviar todo concatenado en un solo texto
+. Esto ayuda al modelo a diferenciar claramente qué fue lo que pidió el usuario originalmente, qué respondió la IA, y cuáles son las nuevas instrucciones o correcciones.
+Dado que en tu configuración actual estás usando store: false por motivos de privacidad, la API funciona de manera "stateless" (sin estado). Por lo tanto, para mantener la conversación o hacer regeneraciones, es obligatorio pasarle el contexto de la respuesta anterior directamente en el arreglo de input
+.
+Sobre tus dudas puntuales:
+¿Qué API usar? Definitivamente debes mantenerte usando client.responses.create(). La documentación oficial de OpenAI indica que aunque Chat Completions sigue existiendo, la nueva Responses API es la evolución recomendada para todos los proyectos nuevos
+. Ofrece mejor rendimiento, es más inteligente con los modelos de la serie GPT-5 y soporta "Prompt Caching" de manera más eficiente
+.
+Versión mínima del paquete openai: La Responses API se lanzó oficialmente en marzo de 2025 junto con los nuevos modelos y herramientas
+. Por lo tanto, cualquier versión del SDK instalada desde esa fecha en adelante funcionará. La recomendación más segura para tu entorno en Replit es simplemente asegurar la última versión ejecutando npm install openai@latest.
+Aquí tienes la configuración exacta del request body y un ejemplo funcional completo que puedes copiar y adaptar en tu archivo server/openai.ts. Nota que la identidad de marca se sigue inyectando en el campo instructions para que el caché de tokens siga aplicando y te ahorre costos
+.
+export async function regenerateEmailContent(
+  originalIdea: string,
+  originalObjective: string,
+  previousEmailJson: EmailContent, // El JSON que devolvió la IA en el intento anterior
+  userCorrections: string, // Ej: "Cambia el tono a más informal"
+  brandIdentity: BrandIdentityData | null
+): Promise<EmailContent> {
+  const client = getClient();
+  
+  // 1. Mantenemos exactamente las mismas instrucciones estáticas para aprovechar el Prompt Caching
+  const instructions = buildInstructions(brandIdentity);
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-5-mini",
+      instructions: instructions,
+      // 2. Pasamos el historial conversacional como un arreglo
+      input: [
+        {
+          role: "user",
+          content: `Idea: ${originalIdea}\nObjetivo: ${originalObjective}`
+        },
+        {
+          role: "assistant",
+          // 3. Inyectamos la respuesta anterior completa
+          content: JSON.stringify(previousEmailJson) 
+        },
+        {
+          role: "user",
+          content: `Por favor aplica las siguientes correcciones al correo generado y devuelve la propuesta ajustada respetando el formato JSON original:\nCorrecciones: ${userCorrections}`
+        }
+      ],
+      text: {
+        format: emailSchema // Usamos el mismo schema de Structured Outputs
+      },
+      max_output_tokens: 800,
+      temperature: 0.7,
+      store: false // Mantenemos la privacidad de los datos
+    });
+
+    const outputText = response.output_text;
+    
+    if (!outputText) {
+      throw new Error("OpenAI no devolvió contenido de texto.");
+    }
+
+    const parsed: EmailContent = JSON.parse(outputText);
+    
+    // Validación de seguridad de tipos
+    if (!parsed.asunto || !parsed.cuerpo_html || !parsed.cta_text) {
+      throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos tras la corrección.");
+    }
+    
+    return parsed;
+
+  } catch (err: any) {
+    if (err.status === 401) throw new Error("API key de OpenAI inválida.");
+    if (err.status === 429) throw new Error("Límite de solicitudes alcanzado.");
+    throw err;
+  }
+}
+¿Te gustaría que te estructure también cómo debería verse la ruta en Express (server/routes.ts) para exponer este nuevo caso de uso de regeneración hacia tu frontend?

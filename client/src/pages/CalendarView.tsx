@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
-  Type, Eye, ExternalLink, Send, Loader2
+  Type, Eye, Wand2, Send, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TipTapEditor } from "@/components/TipTapEditor";
@@ -47,6 +47,13 @@ export default function CalendarView() {
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [editorLocalImageUrl, setEditorLocalImageUrl] = useState<string | null>(null);
+  const [showRegenTextModal, setShowRegenTextModal] = useState(false);
+  const [showRegenImageModal, setShowRegenImageModal] = useState(false);
+  const [showEditImageModal, setShowEditImageModal] = useState(false);
+  const [regenTextCorrections, setRegenTextCorrections] = useState("");
+  const [regenImagePrompt, setRegenImagePrompt] = useState("");
+  const [editImagePrompt, setEditImagePrompt] = useState("");
+  const [lastTextCorrections, setLastTextCorrections] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -127,6 +134,55 @@ export default function CalendarView() {
     },
   });
 
+  const regenerateTextMutation = useMutation({
+    mutationFn: async ({ campaignId, corrections }: { campaignId: number; corrections: string }) => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/regenerate-text`, { corrections });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      setShowRegenTextModal(false);
+      setLastTextCorrections(regenTextCorrections);
+      setRegenTextCorrections("");
+      toast({ title: "Texto regenerado", description: "Nueva versión de texto disponible." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const regenerateImageMutation = useMutation({
+    mutationFn: async ({ campaignId, imagePrompt }: { campaignId: number; imagePrompt: string }) => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/regenerate-image`, { imagePrompt });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      setShowRegenImageModal(false);
+      setRegenImagePrompt("");
+      toast({ title: "Imagen regenerada", description: "Nueva versión de imagen disponible." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const editImageMutation = useMutation({
+    mutationFn: async ({ campaignId, editPrompt }: { campaignId: number; editPrompt: string }) => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/edit-image`, { editPrompt });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      setShowEditImageModal(false);
+      setEditImagePrompt("");
+      toast({ title: "Imagen editada", description: "Nueva versión con edición disponible." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   function prevMonth() { setCurrentDate(new Date(year, month - 1, 1)); }
   function nextMonth() { setCurrentDate(new Date(year, month + 1, 1)); }
 
@@ -204,12 +260,32 @@ export default function CalendarView() {
 
   function handleRegenerateText() {
     if (!editingCampaignId) return;
-    const textVersions = versions.filter(v => v.contentJson && !(v as any).isImageOnly);
-    if (textVersions.length >= 3) {
+    if (versions.length >= 3) {
       toast({ title: "Límite alcanzado", description: "Máximo 3 generaciones.", variant: "destructive" });
       return;
     }
-    generateVersionMutation.mutate(editingCampaignId);
+    setRegenTextCorrections("");
+    setShowRegenTextModal(true);
+  }
+
+  function handleRegenerateImage() {
+    if (!editingCampaignId) return;
+    if (versions.length >= 3) {
+      toast({ title: "Límite alcanzado", description: "Máximo 3 generaciones.", variant: "destructive" });
+      return;
+    }
+    setRegenImagePrompt(editingCampaign?.imagePrompt || "");
+    setShowRegenImageModal(true);
+  }
+
+  function handleEditWithNanoBanana() {
+    if (!editingCampaignId) return;
+    if (versions.length >= 3) {
+      toast({ title: "Límite alcanzado", description: "Máximo 3 generaciones.", variant: "destructive" });
+      return;
+    }
+    setEditImagePrompt("");
+    setShowEditImageModal(true);
   }
 
   function handleSelectVersion(versionId: number) {
@@ -315,7 +391,7 @@ export default function CalendarView() {
               Volver al Calendario
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl md:text-3xl font-extrabold truncate">{editingCampaign.name}</h1>
+              <h1 className="text-2xl md:text-3xl font-extrabold truncate">{selectedAsunto || editingCampaign.name}</h1>
               <p className="text-sm text-muted-foreground">
                 {editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt).toLocaleDateString("es") : "Sin fecha"} · {statusLabel}
               </p>
@@ -359,10 +435,12 @@ export default function CalendarView() {
                     alt="Vista previa de imagen"
                     className="w-full h-48 object-cover"
                   />
-                  {generateVersionMutation.isPending && (
+                  {(generateVersionMutation.isPending || regenerateImageMutation.isPending || editImageMutation.isPending) && (
                     <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-8 h-8 animate-spin text-white" />
-                      <span className="text-white text-sm font-medium">Generando imagen con IA...</span>
+                      <span className="text-white text-sm font-medium">
+                        {editImageMutation.isPending ? "Editando imagen con Nano Banana..." : "Generando imagen con IA..."}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -370,20 +448,19 @@ export default function CalendarView() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     data-testid="button-regenerate-image"
-                    variant="outline"
                     size="sm"
-                    className="rounded-xl gap-1"
-                    onClick={() => editingCampaignId && generateVersionMutation.mutate(editingCampaignId)}
-                    disabled={versions.length >= 3 || generateVersionMutation.isPending}
+                    className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleRegenerateImage}
+                    disabled={versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     Regenerar ({Math.max(0, 3 - versions.length)})
                   </Button>
                   <Button
                     data-testid="button-upload-image"
                     variant="outline"
                     size="sm"
-                    className="rounded-xl gap-1"
+                    className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
                     onClick={() => editorFileInputRef.current?.click()}
                   >
                     <Upload className="w-3.5 h-3.5" />
@@ -407,17 +484,18 @@ export default function CalendarView() {
                   />
                   <Button
                     data-testid="button-nano-banana"
-                    variant="outline"
                     size="sm"
-                    className="rounded-xl gap-1"
+                    className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={handleEditWithNanoBanana}
+                    disabled={versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                     Editar con Nano Banana
                   </Button>
                   {versions.length > 1 && (
                     <Button
                       data-testid="button-image-history"
-                      variant={showImageHistory ? "default" : "outline"}
+                      variant={showImageHistory ? "default" : "secondary"}
                       size="sm"
                       className="rounded-xl gap-1"
                       onClick={() => setShowImageHistory(!showImageHistory)}
@@ -516,20 +594,19 @@ export default function CalendarView() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     data-testid="button-regenerate-text"
-                    variant="outline"
                     size="sm"
-                    className="rounded-xl gap-1"
+                    className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleRegenerateText}
-                    disabled={versions.length >= 3 || generateVersionMutation.isPending}
+                    disabled={versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     Regenerar Texto ({Math.max(0, 3 - versions.length)})
                   </Button>
                   <Button
                     data-testid="button-edit-text-toggle"
                     variant={textEditMode ? "default" : "outline"}
                     size="sm"
-                    className="rounded-xl gap-1"
+                    className="rounded-xl gap-1 border-slate-300"
                     onClick={() => setTextEditMode(!textEditMode)}
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -538,7 +615,7 @@ export default function CalendarView() {
                   {versions.length > 1 && (
                     <Button
                       data-testid="button-text-history"
-                      variant={showTextHistory ? "default" : "outline"}
+                      variant={showTextHistory ? "default" : "secondary"}
                       size="sm"
                       className="rounded-xl gap-1"
                       onClick={() => setShowTextHistory(!showTextHistory)}
@@ -644,6 +721,148 @@ export default function CalendarView() {
             )}
           </AnimatePresence>
         </div>
+
+        <Dialog open={showRegenTextModal} onOpenChange={setShowRegenTextModal}>
+          <DialogContent className="sm:max-w-lg rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-blue-600" />
+                Regenerar Texto
+              </DialogTitle>
+              <DialogDescription>
+                Describa los ajustes que desea aplicar al texto del correo.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Idea original</Label>
+                <div data-testid="text-regen-original-idea" className="text-sm bg-muted/50 rounded-xl px-3 py-2 text-muted-foreground">
+                  {editingCampaign?.idea || "—"}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Objetivo</Label>
+                <div data-testid="text-regen-original-objective" className="text-sm bg-muted/50 rounded-xl px-3 py-2 text-muted-foreground">
+                  {editingCampaign?.objective || "—"}
+                </div>
+              </div>
+              {lastTextCorrections && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Último ajuste enviado</Label>
+                  <div data-testid="text-regen-last-corrections" className="text-sm bg-muted/50 rounded-xl px-3 py-2 text-muted-foreground italic">
+                    {lastTextCorrections}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Correcciones</Label>
+                <Textarea
+                  data-testid="input-regen-text-corrections"
+                  placeholder="Ej: Cambia el tono a más informal, hazlo más corto, enfócate en los beneficios..."
+                  value={regenTextCorrections}
+                  onChange={e => setRegenTextCorrections(e.target.value)}
+                  className="rounded-xl min-h-[100px]"
+                />
+              </div>
+              <Button
+                data-testid="button-confirm-regen-text"
+                onClick={() => editingCampaignId && regenerateTextMutation.mutate({ campaignId: editingCampaignId, corrections: regenTextCorrections })}
+                disabled={!regenTextCorrections.trim() || regenerateTextMutation.isPending}
+                className="w-full rounded-xl gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {regenerateTextMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Regenerar con Ajustes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showRegenImageModal} onOpenChange={setShowRegenImageModal}>
+          <DialogContent className="sm:max-w-lg rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-blue-600" />
+                Regenerar Imagen
+              </DialogTitle>
+              <DialogDescription>
+                Modifique el prompt para generar una imagen completamente nueva.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prompt original</Label>
+                <div data-testid="text-regen-image-original" className="text-sm bg-muted/50 rounded-xl px-3 py-2 text-muted-foreground">
+                  {editingCampaign?.imagePrompt || "Sin prompt original"}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Nuevo prompt</Label>
+                <Textarea
+                  data-testid="input-regen-image-prompt"
+                  placeholder="Escriba un nuevo prompt completo para la imagen..."
+                  value={regenImagePrompt}
+                  onChange={e => setRegenImagePrompt(e.target.value)}
+                  className="rounded-xl min-h-[100px]"
+                />
+              </div>
+              <Button
+                data-testid="button-confirm-regen-image"
+                onClick={() => editingCampaignId && regenerateImageMutation.mutate({ campaignId: editingCampaignId, imagePrompt: regenImagePrompt })}
+                disabled={!regenImagePrompt.trim() || regenerateImageMutation.isPending}
+                className="w-full rounded-xl gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {regenerateImageMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Regenerar Imagen
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showEditImageModal} onOpenChange={setShowEditImageModal}>
+          <DialogContent className="sm:max-w-lg rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-amber-500" />
+                Editar con Nano Banana
+              </DialogTitle>
+              <DialogDescription>
+                Describa los cambios que desea aplicar sobre la imagen actual. La imagen original se mantendrá como base.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="border border-border rounded-xl overflow-hidden bg-white">
+                <img
+                  data-testid="img-edit-preview"
+                  src={selectedImageUrl}
+                  alt="Imagen actual"
+                  className="w-full h-40 object-cover"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Instrucciones de edición</Label>
+                <Textarea
+                  data-testid="input-edit-image-prompt"
+                  placeholder="Ej: Cambia el color de la camisa a verde, agrega un logo en la esquina, cambia el fondo a azul..."
+                  value={editImagePrompt}
+                  onChange={e => setEditImagePrompt(e.target.value)}
+                  className="rounded-xl min-h-[100px]"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tip: Sea específico con los cambios. Para texto en imagen, limite a 25 caracteres o menos.
+                </p>
+              </div>
+              <Button
+                data-testid="button-confirm-edit-image"
+                onClick={() => editingCampaignId && editImageMutation.mutate({ campaignId: editingCampaignId, editPrompt: editImagePrompt })}
+                disabled={!editImagePrompt.trim() || editImageMutation.isPending}
+                className="w-full rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                {editImageMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                Aplicar Edición
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </Layout>
     );
   }

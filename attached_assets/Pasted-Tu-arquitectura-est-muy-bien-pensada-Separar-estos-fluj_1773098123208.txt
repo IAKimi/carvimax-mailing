@@ -1,0 +1,98 @@
+Tu arquitectura está muy bien pensada. Separar estos flujos y ejecutar la orquestación en el backend con Promise.all te dará un rendimiento excelente.
+Aquí tienes las respuestas directas a tus preguntas y los fragmentos de código exactos para implementar ambos flujos.
+Flujo 1: "Regenerar Imagen" (Generación desde cero)
+Respuesta a tu pregunta: Sí, la llamada a la API para "Regenerar" es exactamente idéntica a la generación inicial
+. Utilizas el mismo endpoint (generateContent), el mismo modelo (gemini-3.1-flash-image-preview) y el mismo formato. Simplemente envías el nuevo prompt de texto como si fuera la primera vez
+. No necesitas ningún parámetro adicional.
+Código TypeScript para Flujo 1 (Request en snake_case):
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`;
+
+const newPrompt = "Un nuevo prompt modificado por el usuario...";
+
+const bodyRegenerate = {
+  contents: [
+    {
+      parts: [
+        { text: newPrompt }
+      ]
+    }
+  ],
+  generation_config: {
+    response_modalities: ["IMAGE"],
+    image_config: {
+      aspect_ratio: "16:9" // Mantiene el formato para el email
+    }
+  }
+};
+
+const response = await fetch(url, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(bodyRegenerate),
+});
+
+// El parsing sigue siendo en camelCase:
+// const data = await response.json();
+// const base64Image = data.candidates.content.parts.inlineData.data;
+
+--------------------------------------------------------------------------------
+Flujo 2: "Editar con Nano Banana" (Image-to-Image)
+Aquí tienes las respuestas a tus preguntas específicas sobre la edición:
+¿Gemini puede recibir una imagen y editarla? ¿Qué modelo/endpoint usar? Sí, Gemini admite de forma nativa la edición de imágenes y la transferencia de estilo
+. Debes usar exactamente el mismo modelo (gemini-3.1-flash-image-preview) y el mismo endpoint (generateContent). Este modelo está optimizado para flujos de trabajo de creación y modificación complejos
+.
+¿Cómo envío la imagen existente? Debes enviarla codificada en base64 dentro de un objeto inline_data (en snake_case) junto con el texto de edición, todo dentro del array parts del usuario
+.
+¿Cuál es el formato exacto del request? Agregas dos objetos dentro de parts: uno con la imagen original y otro con la instrucción de texto (ver código abajo)
+.
+¿El modelo soporta edición o necesito otro? gemini-3.1-flash-image-preview lo soporta perfectamente. Cuenta con capacidades de "Enmascaramiento semántico" (Inpainting), lo que le permite entender comandos como "cambia solo el sofá azul" o "agrega un sombrero" dejando el resto intacto
+.
+¿Hay limitaciones con "cambiar color" o "agregar texto"?
+Cambiar color/elementos: Funciona de maravilla. El modelo coincidirá con el estilo, la iluminación y la perspectiva de la imagen original
+.
+Agregar texto: Es posible, pero para obtener los mejores resultados, Google recomienda ser breve (limitar el texto a 25 caracteres o menos), usar hasta 3 frases distintas como máximo, y especificar el tamaño (pequeño, mediano, grande) o estilo de fuente de forma descriptiva
+.
+Código TypeScript para Flujo 2 (Request en snake_case):
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`;
+
+// La imagen actual (original) en base64 sin el prefijo "data:image/jpeg;base64,"
+const currentImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAE..."; 
+const editPrompt = "Cambia el color de la camisa a verde y mantén el resto de la imagen igual";
+
+const bodyEdit = {
+  contents: [
+    {
+      role: "user",
+      parts: [
+        {
+          inline_data: {
+            mime_type: "image/jpeg", // Asegúrate de enviar el mime_type correcto (jpeg, png, webp)
+            data: currentImageBase64
+          }
+        },
+        { 
+          text: editPrompt 
+        }
+      ]
+    }
+  ],
+  generation_config: {
+    response_modalities: ["IMAGE"],
+    image_config: {
+      aspect_ratio: "16:9" // Mantén el aspect ratio para que devuelva la imagen en las mismas dimensiones
+    }
+  }
+};
+
+const responseEdit = await fetch(url, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(bodyEdit),
+});
+
+// El parsing de respuesta es idéntico al Flujo 1 (usando camelCase)
+// const dataEdit = await responseEdit.json();
+// const newBase64Image = dataEdit.candidates.content.parts.inlineData.data;
+Nota sobre la edición: Al estructurar la petición enviando la imagen y el texto juntos como una instrucción nueva del usuario (como se muestra arriba), el modelo tratará la imagen como una "referencia visual" para aplicar la edición semántica
+. Esto es ideal y más sencillo para un backend web sin estado como el tuyo.
+¿Te gustaría que te ayude a armar el prompt base o las instrucciones del sistema (System Instructions) para asegurarnos de que OpenAI y Gemini compartan el mismo contexto estético al ejecutar ese Promise.all?
