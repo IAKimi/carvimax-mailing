@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Layout } from "@/components/Layout";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +29,55 @@ const FONTS = [
   "Lora", "Playfair Display", "Merriweather", "DM Sans", "Plus Jakarta Sans"
 ];
 
+const BRAND_FIELDS: { key: string; default: string }[] = [
+  { key: "companyName", default: "" },
+  { key: "industry", default: "" },
+  { key: "website", default: "" },
+  { key: "whatsapp", default: "" },
+  { key: "mission", default: "" },
+  { key: "vision", default: "" },
+  { key: "products", default: "" },
+  { key: "history", default: "" },
+  { key: "styleGuide", default: "" },
+  { key: "targetAudience", default: "" },
+  { key: "tone", default: "profesional" },
+  { key: "primaryColor", default: "#002073" },
+  { key: "secondaryColor", default: "#e3001b" },
+  { key: "accentColor", default: "#F59E0B" },
+  { key: "headingFont", default: "Inter" },
+  { key: "bodyFont", default: "Inter" },
+];
+
+function getProgressColor(pct: number): string {
+  if (pct <= 25) return "#e3001b";
+  if (pct <= 50) return "#f59e0b";
+  if (pct <= 75) return "#f97316";
+  return "#16a34a";
+}
+
+function getProgressLabel(pct: number): string {
+  if (pct === 0) return "Sin completar";
+  if (pct <= 25) return "Apenas comenzando";
+  if (pct <= 50) return "En progreso";
+  if (pct <= 75) return "Casi listo";
+  if (pct < 100) return "Últimos detalles";
+  return "¡Completo!";
+}
+
+function getGradientStyle(pct: number): string {
+  const clamp = Math.max(0, Math.min(100, pct));
+  if (clamp <= 25) {
+    return `linear-gradient(90deg, #dc2626, #ef4444)`;
+  }
+  if (clamp <= 50) {
+    return `linear-gradient(90deg, #dc2626, #f59e0b)`;
+  }
+  if (clamp <= 75) {
+    return `linear-gradient(90deg, #dc2626, #f59e0b, #f97316)`;
+  }
+  return `linear-gradient(90deg, #dc2626, #f59e0b, #22c55e)`;
+}
+
 export default function BrandIdentity() {
   const { toast } = useToast();
   const [saved, setSaved] = useState(false);
@@ -45,8 +93,8 @@ export default function BrandIdentity() {
     styleGuide: "",
     targetAudience: "",
     tone: "profesional",
-    primaryColor: "#7C3AED",
-    secondaryColor: "#3B82F6",
+    primaryColor: "#002073",
+    secondaryColor: "#e3001b",
     accentColor: "#F59E0B",
     headingFont: "Inter",
     bodyFont: "Inter",
@@ -66,6 +114,26 @@ export default function BrandIdentity() {
     });
   }
 
+  const completionPct = useMemo(() => {
+    const fieldsToCheck = BRAND_FIELDS.filter(f => f.key !== "tone" && f.key !== "headingFont" && f.key !== "bodyFont");
+    const defaults = Object.fromEntries(BRAND_FIELDS.map(f => [f.key, f.default]));
+    let filled = 0;
+    for (const f of fieldsToCheck) {
+      const val = (brand as any)[f.key] || "";
+      if (val.trim() !== "" && val !== defaults[f.key]) {
+        filled++;
+      }
+    }
+    const toneChanged = brand.tone !== "profesional" ? 1 : 0;
+    const headingChanged = brand.headingFont !== "Inter" ? 1 : 0;
+    const bodyChanged = brand.bodyFont !== "Inter" ? 1 : 0;
+    const total = fieldsToCheck.length + 3;
+    const totalFilled = filled + toneChanged + headingChanged + bodyChanged;
+    return Math.round((totalFilled / total) * 100);
+  }, [brand]);
+
+  const progressColor = getProgressColor(completionPct);
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -83,6 +151,26 @@ export default function BrandIdentity() {
             {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             {saved ? "Guardado" : "Guardar"}
           </Button>
+        </div>
+
+        <div data-testid="brand-progress-bar" className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: progressColor }} />
+              <span className="text-sm font-semibold">{getProgressLabel(completionPct)}</span>
+            </div>
+            <span className="text-sm font-bold" style={{ color: progressColor }}>{completionPct}%</span>
+          </div>
+          <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${completionPct}%`,
+                background: getGradientStyle(completionPct),
+              }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">Complete todos los campos para que la IA genere contenido más preciso y personalizado.</p>
         </div>
 
         <Accordion type="multiple" defaultValue={["general", "identity"]} className="space-y-3">

@@ -97,7 +97,7 @@ export default function CampaignsList() {
 function StatusBadge({ status }: { status: string }) {
   const config = {
     draft: { color: "bg-slate-100 text-slate-600", icon: FileText, label: "Draft" },
-    generating: { color: "bg-purple-100 text-purple-600", icon: Sparkles, label: "AI Generating" },
+    generating: { color: "bg-primary/10 text-primary", icon: Sparkles, label: "AI Generating" },
     review: { color: "bg-amber-100 text-amber-700", icon: AlertCircle, label: "Needs Review" },
     scheduled: { color: "bg-blue-100 text-blue-700", icon: Calendar, label: "Scheduled" },
     sent: { color: "bg-emerald-100 text-emerald-700", icon: Send, label: "Sent" },

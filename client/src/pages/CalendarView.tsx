@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Plus, Sparkles, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -15,8 +16,15 @@ interface ScheduledEmail {
   date: string;
   idea: string;
   objective: string;
-  imagePrompt: string;
+  templateId: string;
+  scheduledDate: string;
 }
+
+const AVAILABLE_TEMPLATES = [
+  { id: "1", name: "Promoción Simple" },
+  { id: "2", name: "Newsletter Corporativo" },
+  { id: "3", name: "Bienvenida al Cliente" },
+];
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -28,10 +36,10 @@ export default function CalendarView() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [emails, setEmails] = useState<ScheduledEmail[]>([
-    { id: 1, date: "2026-03-15", idea: "Promoción de primavera", objective: "Aumentar ventas", imagePrompt: "Flores coloridas con logo" },
-    { id: 2, date: "2026-03-22", idea: "Newsletter semanal", objective: "Informar clientes", imagePrompt: "Diseño minimalista corporativo" },
+    { id: 1, date: "2026-03-15", idea: "Promoción de primavera", objective: "Aumentar ventas", templateId: "1", scheduledDate: "2026-03-15" },
+    { id: 2, date: "2026-03-22", idea: "Newsletter semanal", objective: "Informar clientes", templateId: "2", scheduledDate: "2026-03-22" },
   ]);
-  const [form, setForm] = useState({ idea: "", objective: "", imagePrompt: "" });
+  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", scheduledDate: "" });
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -49,7 +57,8 @@ export default function CalendarView() {
 
   function openDay(day: number) {
     setSelectedDay(day);
-    setForm({ idea: "", objective: "", imagePrompt: "" });
+    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    setForm({ idea: "", objective: "", templateId: "", scheduledDate: dateStr });
     setShowDialog(true);
   }
 
@@ -66,7 +75,8 @@ export default function CalendarView() {
       date: dateStr,
       idea: form.idea,
       objective: form.objective,
-      imagePrompt: form.imagePrompt,
+      templateId: form.templateId,
+      scheduledDate: form.scheduledDate || dateStr,
     };
     setEmails(prev => [...prev, newEmail]);
     setShowDialog(false);
@@ -97,7 +107,7 @@ export default function CalendarView() {
         <span className={`text-xs font-semibold ${isToday ? "text-primary" : ""}`}>{day}</span>
         {dayEmails.length > 0 && (
           <div className="mt-auto w-full">
-            {dayEmails.slice(0, 2).map((e, i) => (
+            {dayEmails.slice(0, 2).map((e) => (
               <div key={e.id} className="w-full bg-primary/15 text-primary text-[10px] font-medium rounded px-1 py-0.5 truncate mt-0.5">
                 {e.idea}
               </div>
@@ -146,43 +156,58 @@ export default function CalendarView() {
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
+        <DialogContent className="sm:max-w-xl rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Sparkles className="w-5 h-5 text-primary" />
-              Nuevo Correo - {selectedDay} de {MONTHS[month]}
+              Nuevo Correo — {selectedDay} de {MONTHS[month]} {year}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
+          <div className="space-y-5 mt-3">
             <div className="space-y-2">
               <Label>Idea / Tema</Label>
-              <Input
+              <Textarea
                 data-testid="input-calendar-idea"
-                placeholder="Ej: Promoción de verano con 30% de descuento"
+                placeholder="Ej: Promoción de verano con 30% de descuento en todo el catálogo"
                 value={form.idea}
                 onChange={e => setForm(f => ({ ...f, idea: e.target.value }))}
-                className="rounded-xl"
+                className="rounded-xl min-h-[80px]"
               />
             </div>
             <div className="space-y-2">
               <Label>Objetivo</Label>
-              <Input
+              <Textarea
                 data-testid="input-calendar-objective"
-                placeholder="Ej: Aumentar ventas del catálogo nuevo"
+                placeholder="Ej: Aumentar ventas del catálogo nuevo, generar tráfico al sitio web"
                 value={form.objective}
                 onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
-                className="rounded-xl"
+                className="rounded-xl min-h-[70px]"
               />
             </div>
             <div className="space-y-2">
-              <Label>Prompt de Imagen</Label>
-              <Textarea
-                data-testid="input-calendar-image-prompt"
-                placeholder="Describa la imagen que desea generar para el correo..."
-                value={form.imagePrompt}
-                onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
-                className="rounded-xl min-h-[80px]"
+              <Label>Plantilla</Label>
+              <Select value={form.templateId} onValueChange={(v) => setForm(f => ({ ...f, templateId: v }))}>
+                <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
+                  <SelectValue placeholder="Seleccione una plantilla..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_TEMPLATES.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Elija una de sus plantillas guardadas para aplicar al correo.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Fecha de Programación</Label>
+              <Input
+                data-testid="input-calendar-date"
+                type="date"
+                value={form.scheduledDate}
+                onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
+                className="rounded-xl"
               />
+              <p className="text-xs text-muted-foreground">Seleccione en qué fecha desea que se envíe el correo.</p>
             </div>
             <Button
               data-testid="button-generate-email"

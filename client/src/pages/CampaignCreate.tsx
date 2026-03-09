@@ -48,7 +48,7 @@ export default function CampaignCreate() {
       <div className="max-w-3xl mx-auto py-12">
         <div className="text-center mb-12">
           <span className="inline-block px-4 py-1.5 rounded-full bg-accent/10 text-accent font-bold text-sm mb-4">New Campaign Wizard</span>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-foreground mb-4">Let's create something <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-purple-400">magic</span></h1>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-foreground mb-4">Let's create something <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/70">magic</span></h1>
           <p className="text-lg text-muted-foreground">Give the AI a few hints, and it will write and design the perfect email.</p>
         </div>
 

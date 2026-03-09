@@ -50,14 +50,17 @@ shared/
 ## Flujo de Usuario
 1. Login → Home (bienvenida)
 2. Identidad de Marca → configurar empresa, colores, tipografías
-3. Calendario → clic en día → popup para crear correo (Idea, Objetivo, Prompt)
+3. Calendario → clic en día → popup para crear correo (Idea, Objetivo, Selector de Plantilla, Fecha de Programación)
 4. Mis Correos → lista de correos generados, editor TipTap, versiones (hasta 3)
 5. Plantillas → galería HTML, cargar nuevas plantillas
 6. Contactos → tabla de contactos con segmentación
 
 ## Tema Visual
-- Primary: purple hsl(262 83% 58%)
-- Dark background: hsl(224 71% 4%)
+- Primary (azul PostIAlo): #002073 / hsl(223 100% 23%)
+- Accent/Secondary (rojo PostIAlo): #e3001b / hsl(353 100% 45%)
+- Blanco como fondo principal en light mode
+- Sidebar: fondo azul oscuro #002073 con texto blanco
+- Branding: "Post" en foreground, "IA" en rojo #e3001b, "lo" en foreground, ".mail" en azul/tenue
 - Font: Inter
 - Border radius: 12-16px (rounded-xl/2xl)
 - Dark mode: toggle in header, persisted via localStorage "theme"

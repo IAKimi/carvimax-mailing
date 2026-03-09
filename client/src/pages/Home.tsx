@@ -152,7 +152,7 @@ export default function Home() {
 
         <FadeInSection delay={0.3}>
           <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-2xl p-8 border border-primary/10 text-center">
-            <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
+            <Sparkles className="w-8 h-8 text-accent mx-auto mb-3" />
             <h3 className="text-xl font-bold mb-2">¿Listo para empezar?</h3>
             <p className="text-muted-foreground mb-4">Comience definiendo su identidad de marca para que la IA pueda crear contenido a su medida.</p>
             <Link href="/brand">
