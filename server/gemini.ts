@@ -25,7 +25,7 @@ export async function generateImage(prompt: string): Promise<string> {
 
   const enhancedPrompt = `Generate a professional, clean image for an email marketing campaign. The image should have no text overlaid on it, use a clean background suitable for email clients. Style: modern, professional, high quality. Description: ${prompt}`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`;
 
   const body = {
     contents: [
