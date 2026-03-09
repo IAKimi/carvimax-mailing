@@ -1,8 +1,10 @@
 import { Layout } from "@/components/Layout";
-import { motion } from "framer-motion";
-import { Sparkles, Image, CalendarDays, Send, Palette, PenTool, LayoutTemplate, Rocket } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, Image, CalendarDays, Send, Palette, PenTool, LayoutTemplate, Rocket, ChevronDown, Package } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useState } from "react";
 
 const features = [
   {
@@ -67,8 +69,64 @@ function FadeInSection({ children, delay = 0 }: { children: React.ReactNode; del
   );
 }
 
+function DropdownSection({
+  title,
+  icon: Icon,
+  isOpen,
+  onToggle,
+  children,
+  testId
+}: {
+  title: string;
+  icon: React.ElementType;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  testId: string;
+}) {
+  return (
+    <Card className="overflow-visible">
+      <button
+        data-testid={testId}
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 p-4 text-left cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Icon className="w-5 h-5 text-primary" />
+          </div>
+          <span className="text-lg font-bold">{title}</span>
+        </div>
+        <motion.div
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <ChevronDown className="w-5 h-5 text-muted-foreground" />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  );
+}
+
 export default function Home() {
   const userName = localStorage.getItem("postIAlo_user") || "Usuario";
+  const [productOpen, setProductOpen] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
 
   return (
     <Layout>
@@ -100,58 +158,68 @@ export default function Home() {
         </FadeInSection>
 
         <FadeInSection delay={0.1}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {features.map((feature, i) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div
-                  key={i}
-                  whileHover={{ scale: 1.02, y: -2 }}
-                  transition={{ duration: 0.2 }}
-                  className="bg-card rounded-2xl border border-border p-6 shadow-sm"
-                >
-                  <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                    <Icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-                </motion.div>
-              );
-            })}
-          </div>
-        </FadeInSection>
-
-        <FadeInSection delay={0.2}>
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-extrabold mb-2">¿Cómo funciona?</h2>
-            <p className="text-muted-foreground">Siga estos pasos para crear sus campañas de email</p>
-          </div>
-
-          <div className="relative">
-            <div className="hidden md:block absolute top-12 left-[calc(12.5%+20px)] right-[calc(12.5%+20px)] h-0.5 bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30" />
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {steps.map((step, i) => {
-                const Icon = step.icon;
-                return (
-                  <FadeInSection key={i} delay={0.1 * i}>
-                    <div className="flex flex-col items-center text-center">
-                      <div className="relative z-10 w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25 mb-4">
-                        <Icon className="w-6 h-6 text-primary-foreground" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DropdownSection
+              title="Mi Producto"
+              icon={Package}
+              isOpen={productOpen}
+              onToggle={() => setProductOpen(!productOpen)}
+              testId="button-toggle-product"
+            >
+              <p className="text-sm font-semibold text-primary/80 uppercase tracking-wider mb-4">Beneficios</p>
+              <div className="space-y-4">
+                {features.map((feature, i) => {
+                  const FeatureIcon = feature.icon;
+                  return (
+                    <div key={i} className="flex items-start gap-3" data-testid={`feature-item-${i}`}>
+                      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <FeatureIcon className="w-4 h-4 text-primary" />
                       </div>
-                      <span className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-1">Paso {step.number}</span>
-                      <h3 className="font-bold mb-2">{step.title}</h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                      <div>
+                        <h4 className="text-sm font-bold mb-0.5">{feature.title}</h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                      </div>
                     </div>
-                  </FadeInSection>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </DropdownSection>
+
+            <DropdownSection
+              title="¿Cómo funciona?"
+              icon={Rocket}
+              isOpen={howOpen}
+              onToggle={() => setHowOpen(!howOpen)}
+              testId="button-toggle-how"
+            >
+              <div className="space-y-5">
+                {steps.map((step, i) => {
+                  const StepIcon = step.icon;
+                  return (
+                    <div key={i} className="flex items-start gap-3" data-testid={`step-item-${i}`}>
+                      <div className="relative flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
+                          <StepIcon className="w-5 h-5 text-primary-foreground" />
+                        </div>
+                        {i < steps.length - 1 && (
+                          <div className="w-0.5 h-5 bg-primary/20 mt-1" />
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-primary/60 uppercase tracking-widest">Paso {step.number}</span>
+                        <h4 className="text-sm font-bold mb-0.5">{step.title}</h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </DropdownSection>
           </div>
         </FadeInSection>
 
         <FadeInSection delay={0.3}>
-          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-2xl p-8 border border-primary/10 text-center">
+          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-md p-8 border border-primary/10 text-center">
             <Sparkles className="w-8 h-8 text-accent mx-auto mb-3" />
             <h3 className="text-xl font-bold mb-2">¿Listo para empezar?</h3>
             <p className="text-muted-foreground mb-4">Comience definiendo su identidad de marca para que la IA pueda crear contenido a su medida.</p>

@@ -7,7 +7,7 @@ import {
   CalendarDays,
   LayoutTemplate,
   Mail,
-  Users,
+  Database,
   Sun,
   Moon,
   Menu,
@@ -21,7 +21,7 @@ const NAV_ITEMS = [
   { icon: CalendarDays, label: "Calendario", href: "/calendar" },
   { icon: LayoutTemplate, label: "Plantillas", href: "/templates" },
   { icon: Mail, label: "Historial", href: "/emails" },
-  { icon: Users, label: "Contactos", href: "/contacts" },
+  { icon: Database, label: "Base de Datos", href: "/contacts" },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {

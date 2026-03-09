@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
-  Type, Eye, ExternalLink
+  Type, Eye, ExternalLink, Send
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TipTapEditor } from "@/components/TipTapEditor";
@@ -98,6 +98,7 @@ export default function CalendarView() {
   const [showImageHistory, setShowImageHistory] = useState(false);
   const [showTextHistory, setShowTextHistory] = useState(false);
   const [textEditMode, setTextEditMode] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [emails, setEmails] = useState<ScheduledEmail[]>(INITIAL_EMAILS);
   const [form, setForm] = useState({ idea: "", objective: "", templateId: "", scheduledDate: "" });
 
@@ -120,7 +121,7 @@ export default function CalendarView() {
     setSelectedDay(day);
     const dayEmails = getEmailsForDay(day);
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setForm({ idea: "", objective: "", templateId: "", scheduledDate: dateStr });
+    setForm({ idea: "", objective: "", templateId: "", scheduledDate: `${dateStr}T09:00` });
 
     if (dayEmails.length === 0) {
       setShowNewDialog(true);
@@ -147,6 +148,11 @@ export default function CalendarView() {
     setShowImageHistory(false);
     setShowTextHistory(false);
     setTextEditMode(false);
+    setShowPreview(false);
+  }
+
+  function handlePublishNow() {
+    toast({ title: "Publicación en proceso", description: "Su correo está siendo enviado ahora mismo." });
   }
 
   function handleGenerate() {
@@ -308,6 +314,16 @@ export default function CalendarView() {
               <h1 className="text-2xl md:text-3xl font-extrabold truncate">{editingEmail.subject}</h1>
               <p className="text-sm text-muted-foreground">{editingEmail.date} · {editingEmail.status}</p>
             </div>
+            {editingEmail.textApproved && editingEmail.imageApproved && (
+              <Button
+                data-testid="button-publish-now"
+                onClick={handlePublishNow}
+                className="rounded-xl gap-2 bg-destructive text-destructive-foreground"
+              >
+                <Send className="w-4 h-4" />
+                Publicar Ahora
+              </Button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -518,26 +534,48 @@ export default function CalendarView() {
             </div>
           </div>
 
-          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-            <h3 className="font-bold flex items-center gap-2 mb-4">
-              <Eye className="w-4 h-4 text-primary" />
-              Vista Previa del Correo
-            </h3>
-            <div className="border border-border rounded-xl overflow-hidden bg-white">
-              <iframe
-                data-testid="iframe-email-preview"
-                srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
-                  <div style="max-width:600px;margin:0 auto">
-                    <img src="${selectedImage.url}" style="width:100%;height:200px;object-fit:cover" />
-                    <div style="padding:24px">${selectedText.html}</div>
-                    <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">© 2026 Mi Empresa. Todos los derechos reservados.</div>
+          <Button
+            data-testid="button-toggle-preview"
+            variant="outline"
+            onClick={() => setShowPreview(!showPreview)}
+            className="w-full rounded-xl gap-2"
+          >
+            <Eye className="w-4 h-4" />
+            {showPreview ? "Ocultar Vista Previa" : "Vista Previa"}
+          </Button>
+
+          <AnimatePresence>
+            {showPreview && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                  <h3 className="font-bold flex items-center gap-2 mb-4">
+                    <Eye className="w-4 h-4 text-primary" />
+                    Vista Previa del Correo
+                  </h3>
+                  <div className="border border-border rounded-xl overflow-hidden bg-white">
+                    <iframe
+                      data-testid="iframe-email-preview"
+                      srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
+                        <div style="max-width:600px;margin:0 auto">
+                          <img src="${selectedImage.url}" style="width:100%;height:200px;object-fit:cover" />
+                          <div style="padding:24px">${selectedText.html}</div>
+                          <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">© 2026 Mi Empresa. Todos los derechos reservados.</div>
+                        </div>
+                      </body></html>`}
+                      className="w-full h-[400px]"
+                      title="Vista previa completa"
+                    />
                   </div>
-                </body></html>`}
-                className="w-full h-[400px]"
-                title="Vista previa completa"
-              />
-            </div>
-          </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </Layout>
     );
@@ -663,10 +701,10 @@ export default function CalendarView() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Fecha de Programación</Label>
+              <Label>Fecha y Hora de Programación</Label>
               <Input
                 data-testid="input-calendar-date"
-                type="date"
+                type="datetime-local"
                 value={form.scheduledDate}
                 onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
                 className="rounded-xl"
