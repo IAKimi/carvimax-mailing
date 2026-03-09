@@ -1,0 +1,62 @@
+Te doy un poco de contexto para que entiendas de dónde viene esto. Básicamente nosotros hemos creado una plataforma que se llama PostIAlo, la cual fue creada como un software as a service que se enfocaba en satisfacer una necesidad particular. Nosotros queríamos automatizar las publicaciones de redes sociales utilizando una plataforma que te permitiera generar el contenido de texto y de imagen utilizando inteligencia artificial. Entonces esta herramienta lo que te permite es poder hacer una programación mensual, por ejemplo, de una publicación utilizando herramientas de inteligencia artificial. Hay un apartado en donde vos tenés tu identidad de marca, en donde vos pones, por ejemplo, la identidad de tu empresa: qué es lo que vende, la misión y la visión, producto y servicios. Hay un apartado donde tú pones el objetivo de comunicación, es decir, cuál es la tonalidad, el público objetivo y la estructura de los copies. Entonces tú llenas toda una estructura de cómo quieres que sea tu identidad de marca y, de esta forma, utilizamos estos parámetros como unos insumos para que, cuando la inteligencia artificial se ponga a crear las publicaciones a nivel de texto y a nivel de imagen, o utilice estos parámetros que tú escribís en identidad de marca como base de que esos son los lineamientos base de la empresa. Adicionalmente, tu le pones tres parámetros más como idea, objetivo y prompt para imagen. Estos tres parámetros son tres micro prompts que son adicionales a la identidad de marca. Entonces el proceso por detrás agarra los tres prompts que vos pones, que son estos tres que te acabo de decir, para crear un post y se envían esos a una API generativa. Agarra esos tres micro prompts y les pega el prompt de la identidad de marca para generarte una propuesta de textos e imágenes para publicar en redes sociales. Entonces básicamente esto lo que nos ha permitido es crear un portal que les facilita enormemente a los usuarios poder publicar su contenido sin necesidad de ser expertos en marketing ni nada de ese estilo. Y también nos ha permitido, en gran medida, poder vender un producto o crear un producto que solucione una necesidad crucial a nivel de la consistencia de publicación. Entonces este es el contexto inicial de esta plataforma. Ahora porque te cuento todo este contexto,
+
+Basado en esto: 
+
+Este es un prompt de contextualización profunda para iniciar el desarrollo de una plataforma SaaS de automatización de correos electrónicos en Replit. El objetivo es que tú (Agente de Replit) entiendas el ecosistema y colabores con Antigravity (IA de planificación) para la ejecución.
+1. Contexto del Proyecto
+Estamos migrando una herramienta artesanal ("Frankenstein") basada en Google Sheets, Apps Script y Make.com hacia un portal SaaS moderno e inteligente. El proyecto ha evolucionado a través de dos etapas críticas:
+•	Etapa 1 (Estabilización): Sustituir Excel por una DB SQL y automatizar el flujo de envío actual gestionado por Javier Cornejo.
+•	Etapa 2 (Escalabilidad Comercial): Convertir la herramienta en un producto tipo PostIAlo, con diseño flexible generado por IA y gestión profesional de cuentas.
+2. Arquitectura de la Solución
+•	Backend/Frontend: Portal desarrollado en Replit (se sugiere Node.js/React o similar).
+•	Base de Datos: PostgreSQL para usuarios, bases de contactos, logs y activos de marca.
+•	Orquestación: Make.com se mantiene como middleware de envío hacia Brevo, pero el portal ahora le enviará payloads HTML completos y assets finales vía Webhook.
+•	Inteligencia Artificial: Integración con modelos de lenguaje y generación de imágenes (GPT-4 / DALL-E) para crear el contenido de las campañas.
+3. Requerimientos Funcionales Críticos
+A. Motor de Generación y Diseño (PostIAlo Style)
+•	Generación de Estructura: El usuario ingresa Idea, Objetivo y Tono. La IA genera Texto, Imagen y Layout HTML (Header, Body, Secciones, Footer).
+•	Control de Intentos: El sistema debe manejar un historial con 3 intentos de regeneración por pieza de contenido.
+•	Editor AI Designer: Un editor visual (WYSIWYG) que permita al usuario editar el HTML generado (cambiar fuentes, colores, tamaños y estilos) antes de aprobar el envío.
+B. Gestión de Contactos y Dashboard
+•	Carga masiva de contactos vía CSV/SQL con segmentación geográfica.
+•	Dashboard de Monitoreo: Visualización de contador de ejecuciones, uso por país (mapa/gráficos) y frecuencia temporal (Looker Studio style).
+C. Conectividad y Seguridad (OAuth-Style)
+•	Investigación prioritaria: Implementar un flujo donde el cliente conecte su propia cuenta de Brevo (autorización profesional) sin que nosotros almacenemos sus credenciales en texto plano.
+4. Dinámica de Trabajo: AI Talking
+Este proyecto se desarrollará en una modalidad de colaboración entre IAs:
+1.	Yo (Usuario) te paso este contexto.
+2.	Tu Misión: Analiza estos requerimientos y genera todas las preguntas técnicas, dudas de arquitectura o puntos de fricción que identifiques.
+3.	No inicies el código hasta que el flujo de trabajo esté 100% claro para ambas partes.
+4.	Una vez aclarado, yo compartiré tus dudas con Antigravity (mi IA de planificación) y te traeré sus respuestas.
+5. Preguntas Iniciales para Ti
+Antes de empezar:
+1.	¿Qué stack técnico (Framework, DB específica, Librerías de Editor HTML) propones para cumplir con el requerimiento de "Editor AI Designer" de forma eficiente en Replit?
+2.	¿Cómo estructurarías la base de datos para manejar el historial de versiones (3 intentos) sin generar redundancia innecesaria?
+3.	¿Qué desafíos ves en la conexión Make.com <-> SaaS para asegurar que el feedback de "Enviado exitosamente" sea capturado por el dashboard en tiempo real?
+Espero tus dudas y valoración técnica para proceder.
+
+Según mi entendimiento, de esto identifiqué lo siguiente: 
+
+Este documento desglosa las funcionalidades discutidas y su viabilidad para ser implementadas en Replit utilizando IA (Replit Agent / Antigravity).
+1. Viabilidad Alta (Implementación Directa)
+Estas funciones son estándar en desarrollo web moderno y la IA las maneja con precisión.
+•	Gestión de Bases de Datos SQL (PostgreSQL): VIABLE. Almacenamiento de contactos, usuarios y logs.
+•	Micro-prompts (Idea/Objetivo/Imagen): VIABLE. Integración con APIs de OpenAI/Gemini/DALL-E.
+•	Scheduler (Programación de Envíos): VIABLE. Uso de Cron Jobs o Workers en Node.js.
+•	Dashboard de Métricas: VIABLE. Creación de gráficos con librerías como Chart.js o integración con Looker Studio.
+•	Historial de Versiones: VIABLE. Estructura de tablas para guardar iteraciones de texto e imagen.
+•	Middleware con Make.com: VIABLE. Disparo de webhooks y recepción de callbacks HTTP.
+2. Viabilidad Media (Requiere Desarrollo UX/UI)
+Funcionalidades que dependen de una buena estructuración del frontend para que sean útiles.
+•	Editor HTML Visual (WYSIWYG): VIABLE. Se pueden integrar librerías como Quill o TipTap para permitir negritas, fuentes y colores.
+•	Generación de Layouts Dinámicos: VIABLE. La IA puede generar el código HTML; el reto es que el usuario pueda manipularlo visualmente sin romperlo.
+•	Límites de Regeneración (Créditos): VIABLE. Lógica simple de contador en la base de datos.
+•	Previsualización en Tiempo Real: VIABLE. Renderizado dinámico del HTML generado antes del envío.
+3. Viabilidad a Investigar (Complejidad Técnica)
+Puntos que requieren validación de APIs externas o investigación de seguridad.
+•	Conexión OAuth con Brevo: INVESTIGAR. Brevo permite API Keys, pero el flujo OAuth completo para que el cliente "autorice" sin dar la llave requiere verificar los permisos de la App en Brevo.
+•	Edición Estilo "AI Designer" (Arrastrar y Soltar): DIFÍCIL / INVESTIGAR. Implementar un editor de arrastrar y soltar (tipo Wix) desde cero en Replit es complejo, pero se puede lograr una versión simplificada basada en bloques predefinidos.
+
+Antes de que vayamos a proceder con cualquier tipo de diseño, necesito que me digas si entendes exactamente el objetivo de lo que yo quiero hacer o si queres indagar algo más. Honestamente prefiero que me hagas una rafaga de preguntas para que te las podamos responder antes de que nos pongamos a diseñar el proyecto y para que tú entiendas exactamente qué es lo que tenemos que hacer.
+
+Entonces si algo no te queda claro o si tú quisieras reconfirmarme dándome un texto explicativo de lo que tú entendes que es este proyecto, sería perfecto antes de que nos pongamos a construir.
