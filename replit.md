@@ -8,6 +8,7 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 - **Backend**: Express.js (Node.js)
 - **Base de Datos**: PostgreSQL (Drizzle ORM) - conectada con DatabaseStorage
 - **Autenticación**: bcryptjs (hash de contraseñas) + express-session (sesiones en PostgreSQL via connect-pg-simple)
+- **IA / Texto**: OpenAI Responses API (modelo gpt-5-mini con Structured Outputs)
 - **IA / Imágenes**: Gemini API (modelo gemini-3.1-flash-image-preview / Nano Banana 2 con responseModalities IMAGE)
 - **Editor WYSIWYG**: TipTap
 - **Animaciones**: Framer Motion
@@ -42,7 +43,8 @@ client/src/
 server/
 ├── db.ts       - Conexión PostgreSQL (pg + drizzle-orm)
 ├── gemini.ts   - Integración Gemini API (generación de imágenes)
-├── routes.ts   - API endpoints (auth + CRUD + generación IA)
+├── openai.ts   - Integración OpenAI Responses API (generación de texto)
+├── routes.ts   - API endpoints (auth + CRUD + generación IA dual)
 ├── storage.ts  - DatabaseStorage (PostgreSQL real, todas las operaciones)
 └── index.ts    - Server + session middleware
 
@@ -57,6 +59,7 @@ docs/
 ## Variables de Entorno
 - `DATABASE_URL` — conexión PostgreSQL (auto-configurada)
 - `SESSION_SECRET` — secreto para sesiones express
+- `OPENAI_API_KEY` — clave API de OpenAI (requerida para generación de texto)
 - `GEMINI_API_KEY` — clave API de Google Gemini (requerida para generación de imágenes)
 
 ## Base de Datos (PostgreSQL)
@@ -94,6 +97,16 @@ docs/
 - `POST /api/templates` — crear plantilla
 - `PATCH /api/templates/:id` — actualizar plantilla (favorite toggle, etc.)
 - `DELETE /api/templates/:id` — eliminar plantilla
+
+## Flujo de Generación de Texto con OpenAI
+1. POST /api/campaigns/:id/generate lee la brand_identity del usuario
+2. Arma el campo `instructions` (developer): prompt de copywriter + identidad de marca completa + reglas estrictas
+3. Arma el campo `input` (user): "Idea: [idea]\nObjetivo: [objetivo]"
+4. Llama `openai.responses.create()` con modelo `gpt-5-mini`
+5. Structured Output (`text.format = json_schema`): devuelve `{ asunto, preheader, cuerpo_html, cta_text }`
+6. Se guarda en campaign_versions.contentJson
+7. Si no hay OPENAI_API_KEY → usa texto placeholder
+8. Prompt Caching: la identidad de marca (estática) va primero para aprovechar el cache automático de OpenAI
 
 ## Flujo de Generación de Imágenes con Gemini
 1. Usuario llena "Prompt de Imagen" (campo 3) en el formulario del calendario
@@ -140,9 +153,13 @@ docs/
 - localStorage: solo `postIAlo_auth` como fast UI guard (la verificación real es /api/auth/me)
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
+- OpenAI: Responses API con openai.responses.create(), modelo gpt-5-mini, Structured Outputs json_schema
+- OpenAI instructions: identidad de marca + reglas de copywriter (developer role), idea+objetivo (user input)
+- OpenAI contentJson: { asunto, preheader, cuerpo_html, cta_text }
 - Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2) con responseModalities ["IMAGE"] exclusivo, imageConfig aspectRatio "16:9"
 - Gemini safety: manejo de finishReason (SAFETY, RECITATION, PROHIBITED_CONTENT), promptFeedback.blockReason, y safetyRatings.blocked
 - Gemini prompt: solo se envía el campo imagePrompt del usuario, sin mezclar idea ni objetivo
+- Generación dual: OpenAI (texto) y Gemini (imagen) se ejecutan en paralelo con Promise.all
 
 ## Fases Futuras (Pendientes)
 - **Fase 3.5**: Integración con Nano Banana para edición de imágenes

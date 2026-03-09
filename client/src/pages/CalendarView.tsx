@@ -224,7 +224,12 @@ export default function CalendarView() {
   }
 
   function handleTextChange(versionId: number, newHtml: string) {
-    updateVersionMutation.mutate({ id: versionId, updates: { contentJson: { html: newHtml } } });
+    const version = versions.find(v => v.id === versionId);
+    const existing = (version?.contentJson as any) || {};
+    const updatedContent = existing.cuerpo_html !== undefined
+      ? { ...existing, cuerpo_html: newHtml }
+      : { ...existing, html: newHtml };
+    updateVersionMutation.mutate({ id: versionId, updates: { contentJson: updatedContent } });
     setTextApproved(false);
   }
 
@@ -241,12 +246,18 @@ export default function CalendarView() {
 
   const editingCampaign = campaigns.find(c => c.id === editingCampaignId);
   const selectedVersion = versions.find(v => v.isSelected) || versions[0];
-  const selectedHtml = selectedVersion?.contentJson
-    ? typeof selectedVersion.contentJson === "object" && (selectedVersion.contentJson as any).html
-      ? (selectedVersion.contentJson as any).html
-      : typeof selectedVersion.contentJson === "object" && (selectedVersion.contentJson as any).body
-        ? `<h2>${(selectedVersion.contentJson as any).title || ""}</h2><p>${(selectedVersion.contentJson as any).body}</p>`
-        : ""
+  const contentData = selectedVersion?.contentJson as any;
+  const selectedAsunto = contentData?.asunto || contentData?.title || "";
+  const selectedPreheader = contentData?.preheader || "";
+  const selectedCtaText = contentData?.cta_text || contentData?.cta || "Ver más";
+  const selectedHtml = contentData
+    ? contentData.cuerpo_html
+      ? contentData.cuerpo_html
+      : contentData.html
+        ? contentData.html
+        : contentData.body
+          ? `<p>${contentData.body}</p>`
+          : ""
     : "";
   const selectedImageUrl = editorLocalImageUrl || selectedVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
 
@@ -467,6 +478,19 @@ export default function CalendarView() {
                   )}
                 </div>
 
+                {selectedAsunto && (
+                  <div className="space-y-1">
+                    <p data-testid="text-email-asunto" className="font-bold text-sm">
+                      <span className="text-muted-foreground font-normal">Asunto: </span>{selectedAsunto}
+                    </p>
+                    {selectedPreheader && (
+                      <p data-testid="text-email-preheader" className="text-xs text-muted-foreground italic">
+                        {selectedPreheader}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="border border-border rounded-xl overflow-hidden">
                   {textEditMode && selectedVersion ? (
                     <TipTapEditor
@@ -480,6 +504,14 @@ export default function CalendarView() {
                     />
                   )}
                 </div>
+
+                {selectedCtaText && (
+                  <div className="flex justify-center">
+                    <span data-testid="text-email-cta" className="inline-block px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm">
+                      {selectedCtaText}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -527,11 +559,11 @@ export default function CalendarView() {
                     >
                       <div className="space-y-2 pt-2 border-t border-border">
                         {versions.map(v => {
-                          const html = typeof v.contentJson === "object" && (v.contentJson as any).html
-                            ? (v.contentJson as any).html
-                            : typeof v.contentJson === "object" && (v.contentJson as any).body
-                              ? (v.contentJson as any).body
-                              : "";
+                          const vContent = v.contentJson as any;
+                          const html = vContent?.cuerpo_html
+                            || vContent?.html
+                            || vContent?.body
+                            || "";
                           return (
                             <button
                               key={v.id}
@@ -595,13 +627,16 @@ export default function CalendarView() {
                       data-testid="iframe-email-preview"
                       srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
                         <div style="max-width:600px;margin:0 auto">
+                          ${selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${selectedAsunto}</h2>${selectedPreheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${selectedPreheader}</p>` : ""}</div>` : ""}
                           <img src="${selectedImageUrl}" style="width:100%;height:200px;object-fit:cover" />
                           <div style="padding:24px">${selectedHtml}</div>
+                          ${selectedCtaText ? `<div style="padding:0 24px 24px;text-align:center"><a style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${selectedCtaText}</a></div>` : ""}
                           <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">© 2026 Mi Empresa. Todos los derechos reservados.</div>
                         </div>
                       </body></html>`}
                       className="w-full h-[400px]"
                       title="Vista previa completa"
+                      sandbox=""
                     />
                   </div>
                 </div>

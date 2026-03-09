@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, isGeminiConfigured } from "./gemini";
+import { generateEmailContent, isOpenAIConfigured } from "./openai";
 
 const registerSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -214,27 +215,54 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
     }
 
-    let imageUrl = "https://placehold.co/600x300/002073/white?text=Sin+imagen";
-
-    if (campaign.imagePrompt && isGeminiConfigured()) {
-      try {
-        imageUrl = await generateImage(campaign.imagePrompt);
-      } catch (err: any) {
-        console.error("Error generando imagen con Gemini:", err.message);
-        imageUrl = "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
+    const imagePromise = (async () => {
+      if (campaign.imagePrompt && isGeminiConfigured()) {
+        try {
+          return await generateImage(campaign.imagePrompt);
+        } catch (err: any) {
+          console.error("Error generando imagen con Gemini:", err.message);
+          return "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
+        }
       }
-    } else if (!isGeminiConfigured()) {
-      imageUrl = "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
-    }
+      if (!isGeminiConfigured()) {
+        return "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
+      }
+      return "https://placehold.co/600x300/002073/white?text=Sin+imagen";
+    })();
+
+    const textPromise = (async () => {
+      if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
+        try {
+          const brandData = await storage.getBrandIdentity(req.session.userId!);
+          return await generateEmailContent(campaign.idea, campaign.objective, brandData || null);
+        } catch (err: any) {
+          console.error("Error generando texto con OpenAI:", err.message);
+          return null;
+        }
+      }
+      return null;
+    })();
+
+    const [imageUrl, emailContent] = await Promise.all([imagePromise, textPromise]);
+
+    const contentJson = emailContent
+      ? {
+          asunto: emailContent.asunto,
+          preheader: emailContent.preheader,
+          cuerpo_html: emailContent.cuerpo_html,
+          cta_text: emailContent.cta_text,
+        }
+      : {
+          asunto: campaign.idea || "Sin asunto",
+          preheader: "",
+          cuerpo_html: `<p>Contenido generado para su campaña: "${campaign.idea}". Objetivo: ${campaign.objective}. Puede editar este texto libremente.</p>`,
+          cta_text: "Ver más",
+        };
 
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber,
-      contentJson: {
-        title: campaign.idea,
-        body: `Contenido generado para su campaña: "${campaign.idea}". Objetivo: ${campaign.objective}. Puede editar este texto libremente.`,
-        cta: "Ver más"
-      },
+      contentJson,
       imageUrl,
       isSelected: versionNumber === 1
     });
