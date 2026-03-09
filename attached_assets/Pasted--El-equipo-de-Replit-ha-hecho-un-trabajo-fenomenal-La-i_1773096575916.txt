@@ -1,0 +1,33 @@
+¡El equipo de Replit ha hecho un trabajo fenomenal! La implementación que enviaron en el desglose técnico está excelentemente alineada con las mejores prácticas de la nueva arquitectura. Han captado perfectamente la transición de Chat Completions a la Responses API.
+Aquí tienes la auditoría punto por punto con las respuestas exactas que necesitan para estar 100% seguros en producción:
+1. ¿Es client.responses.create() el método correcto del SDK? Sí, es absolutamente correcto. Los SDKs oficiales de OpenAI incluyen este método específicamente diseñado para interactuar con la nueva Responses API
+.
+2. ¿El campo instructions es el correcto para el rol developer? Sí, es el correcto. En la Responses API, el campo de primer nivel instructions reemplaza la antigua necesidad de enviar un objeto con role: "developer" o role: "system" dentro del arreglo de mensajes
+. El texto que inyecten ahí tendrá la máxima autoridad para el modelo
+.
+3. ¿El campo input acepta un string directo? Sí, acepta un string directo. El parámetro input es muy flexible y cuando le pasas un string de texto directamente, la API lo interpreta automáticamente como si fuera un mensaje con el rol de user
+.
+4. ¿text.format con json_schema es la forma correcta? ¿O es response_format? text.format es la forma correcta. Una de las diferencias clave al migrar a la Responses API es que el antiguo response_format a nivel raíz ya no se usa; ahora la configuración estructurada debe ir anidada dentro de text.format
+. Lo implementaron perfecto.
+5. ¿response.output_text es el campo correcto para leer la respuesta? Sí. Aunque la respuesta en crudo de la API devuelve un arreglo complejo de ítems en la propiedad output, los SDKs de Node.js y Python incluyen la propiedad de conveniencia output_text que extrae y concatena automáticamente el texto generado, ahorrándoles el trabajo de parsear manualmente el arreglo
+.
+6. ¿El schema soporta maxLength para strings? Es mejor no usarlo en el JSON Schema. La funcionalidad de Structured Outputs con strict: true soporta solo un subconjunto específico de JSON Schema y rechaza propiedades no soportadas con un error de la API
+. Para strings, OpenAI soporta pattern y format
+, pero el control estricto de longitud de caracteres (maxLength) suele dar problemas o no estar soportado en todos los modelos. Recomendación: Mantengan el control de longitud exactamente como lo tienen ahora: especificándolo en el campo description del schema y en las reglas del prompt, y hagan un slice o validación en su backend si es estrictamente necesario.
+7. ¿El modelo gpt-5-mini es el identificador correcto? Sí, es válido. gpt-5-mini es el identificador correcto que apunta a la versión más reciente y estable de ese modelo
+.
+8. ¿Hay algún parámetro adicional recomendado? Sí, sugiero agregar estos tres a su llamada client.responses.create:
+max_output_tokens: Ojo, en la Responses API se llama max_output_tokens (no max_tokens)
+. Es buena práctica definirlo (ej. 800) para evitar que un error genere textos infinitos y les consuma saldo.
+temperature: El valor por defecto es 1.0
+. Para copywriting y correos electrónicos, un valor entre 0.7 y 0.8 suele dar un buen balance entre creatividad y coherencia.
+store: false: Por defecto, la Responses API guarda los datos generados por 30 días
+. Al ser un SaaS, es una excelente práctica de privacidad agregar store: false para asegurarles a sus clientes que sus correos corporativos no se guardan en los servidores de OpenAI
+.
+9. ¿El Prompt Caching funciona automáticamente? Sí, es 100% automático. Cualquier petición que supere los 1024 tokens evaluará el prefijo estático (sus instructions) y lo cacheará automáticamente, reduciendo la latencia y el costo
+.
+10. ¿El manejo de errores cubre todos los casos? Están cubriendo los más comunes (401, 429, 400), pero para un SaaS robusto deberían agregar:
+Errores 500/503 (server_error): Para cuando OpenAI está caído
+.
+Errores de Timeout (408): Aunque el SDK reintenta automáticamente un par de veces los timeouts
+, si falla definitivamente, deben mostrarle al usuario un mensaje amigable.
