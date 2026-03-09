@@ -10,19 +10,19 @@ interface GeminiImageResponse {
   candidates?: Array<{
     content?: {
       parts?: Array<{
-        inlineData?: {
-          mimeType: string;
+        inline_data?: {
+          mime_type: string;
           data: string;
         };
         text?: string;
       }>;
     };
-    finishReason?: string;
-    safetyRatings?: SafetyRating[];
+    finish_reason?: string;
+    safety_ratings?: SafetyRating[];
   }>;
-  promptFeedback?: {
-    blockReason?: string;
-    safetyRatings?: SafetyRating[];
+  prompt_feedback?: {
+    block_reason?: string;
+    safety_ratings?: SafetyRating[];
   };
   error?: {
     message: string;
@@ -47,10 +47,10 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
         ],
       },
     ],
-    generationConfig: {
-      responseModalities: ["IMAGE"],
-      imageConfig: {
-        aspectRatio,
+    generation_config: {
+      response_modalities: ["IMAGE"],
+      image_config: {
+        aspect_ratio: aspectRatio,
       },
     },
   };
@@ -73,8 +73,8 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
     throw new Error(`Error de Gemini: ${data.error.message}`);
   }
 
-  if (data.promptFeedback?.blockReason) {
-    throw new Error(`El prompt fue bloqueado por los filtros de seguridad de Google (${data.promptFeedback.blockReason}). Intente con un prompt diferente.`);
+  if (data.prompt_feedback?.block_reason) {
+    throw new Error(`El prompt fue bloqueado por los filtros de seguridad de Google (${data.prompt_feedback.block_reason}). Intente con un prompt diferente.`);
   }
 
   if (!data.candidates || data.candidates.length === 0) {
@@ -83,7 +83,7 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
 
   const candidate = data.candidates[0];
 
-  const finishReason = candidate.finishReason;
+  const finishReason = candidate.finish_reason;
   if (finishReason === "SAFETY") {
     throw new Error("El prompt fue bloqueado por los filtros de seguridad de Google. Intente con un prompt diferente que no contenga contenido sensible.");
   }
@@ -96,7 +96,7 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
 
   const parts = candidate.content?.parts;
   if (!parts || parts.length === 0) {
-    const blockedCategories = candidate.safetyRatings
+    const blockedCategories = candidate.safety_ratings
       ?.filter(r => r.blocked)
       .map(r => r.category)
       .join(", ");
@@ -107,9 +107,9 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
   }
 
   for (const part of parts) {
-    if (part.inlineData) {
-      const { mimeType, data: base64Data } = part.inlineData;
-      return `data:${mimeType};base64,${base64Data}`;
+    if (part.inline_data) {
+      const { mime_type, data: base64Data } = part.inline_data;
+      return `data:${mime_type};base64,${base64Data}`;
     }
   }
 
