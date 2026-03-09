@@ -22,6 +22,8 @@ const createCampaignSchema = z.object({
   objective: z.string().min(1),
   tone: z.string().min(1),
   layoutPreference: z.string().optional(),
+  imagePrompt: z.string().nullable().optional(),
+  targetDatabase: z.string().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
 });
 
@@ -147,11 +149,13 @@ export async function registerRoutes(
   app.post("/api/campaigns", requireAuth, async (req, res) => {
     try {
       const input = createCampaignSchema.parse(req.body);
+      const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
       const campaign = await storage.createCampaign({
         ...input,
         userId: req.session.userId!,
-        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
-      });
+        scheduledAt,
+        status: scheduledAt ? "scheduled" : "draft",
+      } as any);
       res.status(201).json(campaign);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -169,8 +173,13 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
     try {
-      const input = updateCampaignSchema.parse(req.body);
-      const campaign = await storage.updateCampaign(id, input);
+      const { status, ...rest } = req.body;
+      const input = updateCampaignSchema.parse(rest);
+      const updates: any = { ...input };
+      if (status && ["draft", "scheduled", "sent"].includes(status)) {
+        updates.status = status;
+      }
+      const campaign = await storage.updateCampaign(id, updates);
       res.json(campaign);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -220,6 +229,16 @@ export async function registerRoutes(
   app.patch("/api/versions/:id", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
+    const allCampaigns = await storage.getCampaigns(req.session.userId!);
+    const campaignIds = new Set(allCampaigns.map(c => c.id));
+    const existingVersions = [];
+    for (const cId of campaignIds) {
+      const vs = await storage.getCampaignVersions(cId);
+      existingVersions.push(...vs);
+    }
+    if (!existingVersions.some(v => v.id === id)) {
+      return res.status(404).json({ message: "Versión no encontrada." });
+    }
     const version = await storage.updateCampaignVersion(id, req.body);
     if (!version) {
       return res.status(404).json({ message: "Versión no encontrada." });
@@ -289,6 +308,10 @@ export async function registerRoutes(
   app.patch("/api/contacts/:id", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
+    const existing = await storage.getContact(id);
+    if (!existing || existing.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Contacto no encontrado." });
+    }
     try {
       const input = updateContactSchema.parse(req.body);
       const contact = await storage.updateContact(id, input);
@@ -305,8 +328,52 @@ export async function registerRoutes(
   app.delete("/api/contacts/:id", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
+    const existing = await storage.getContact(id);
+    if (!existing || existing.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Contacto no encontrado." });
+    }
     await storage.deleteContact(id);
     res.json({ message: "Eliminado." });
+  });
+
+  app.get("/api/brand-identity", requireAuth, async (req, res) => {
+    const brand = await storage.getBrandIdentity(req.session.userId!);
+    res.json(brand || null);
+  });
+
+  app.put("/api/brand-identity", requireAuth, async (req, res) => {
+    const brand = await storage.upsertBrandIdentity(req.session.userId!, req.body);
+    res.json(brand);
+  });
+
+  app.get("/api/templates", requireAuth, async (req, res) => {
+    const tpls = await storage.getTemplates(req.session.userId!);
+    res.json(tpls);
+  });
+
+  app.post("/api/templates", requireAuth, async (req, res) => {
+    const { name, html } = req.body;
+    if (!name || !html) return res.status(400).json({ message: "Nombre y HTML son requeridos." });
+    const tpl = await storage.createTemplate({ userId: req.session.userId!, name, html, favorite: false });
+    res.status(201).json(tpl);
+  });
+
+  app.patch("/api/templates/:id", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const tpls = await storage.getTemplates(req.session.userId!);
+    if (!tpls.some(t => t.id === id)) return res.status(404).json({ message: "Plantilla no encontrada." });
+    const tpl = await storage.updateTemplate(id, req.body);
+    res.json(tpl);
+  });
+
+  app.delete("/api/templates/:id", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const tpls = await storage.getTemplates(req.session.userId!);
+    if (!tpls.some(t => t.id === id)) return res.status(404).json({ message: "Plantilla no encontrada." });
+    await storage.deleteTemplate(id);
+    res.json({ message: "Eliminada." });
   });
 
   return httpServer;

@@ -19,6 +19,8 @@ export const campaigns = pgTable("campaigns", {
   tone: text("tone").notNull(),
   status: text("status").notNull().default("draft"),
   layoutPreference: text("layout_preference").notNull().default("Hero_Centered"),
+  imagePrompt: text("image_prompt"),
+  targetDatabase: text("target_database"),
   scheduledAt: timestamp("scheduled_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -51,11 +53,44 @@ export const contacts = pgTable("contacts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const brandIdentity = pgTable("brand_identity", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique(),
+  companyName: text("company_name"),
+  industry: text("industry"),
+  website: text("website"),
+  whatsapp: text("whatsapp"),
+  mission: text("mission"),
+  vision: text("vision"),
+  products: text("products"),
+  history: text("history"),
+  styleGuide: text("style_guide"),
+  targetAudience: text("target_audience"),
+  tone: text("tone"),
+  primaryColor: text("primary_color"),
+  secondaryColor: text("secondary_color"),
+  accentColor: text("accent_color"),
+  headingFont: text("heading_font"),
+  bodyFont: text("body_font"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  html: text("html").notNull(),
+  favorite: boolean("favorite").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true });
 export const insertCampaignVersionSchema = createInsertSchema(campaignVersions).omit({ id: true, createdAt: true });
 export const insertContactDatabaseSchema = createInsertSchema(contactDatabases).omit({ id: true, createdAt: true });
 export const insertContactSchema = createInsertSchema(contacts).omit({ id: true, createdAt: true });
+export const insertBrandIdentitySchema = createInsertSchema(brandIdentity).omit({ id: true, updatedAt: true });
+export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -71,3 +106,9 @@ export type InsertContactDatabase = z.infer<typeof insertContactDatabaseSchema>;
 
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
+
+export type BrandIdentity = typeof brandIdentity.$inferSelect;
+export type InsertBrandIdentity = z.infer<typeof insertBrandIdentitySchema>;
+
+export type Template = typeof templates.$inferSelect;
+export type InsertTemplate = z.infer<typeof insertTemplateSchema>;

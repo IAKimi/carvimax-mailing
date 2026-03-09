@@ -15,7 +15,7 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 - **Iconos**: Lucide React + React Icons (SI)
 
 ## Estado Actual
-PostgreSQL conectada. Autenticación real con registro/login (email + contraseña hasheada). Sesiones persistidas en la base de datos. Frontend con datos mock en Calendario y Contactos (estos se migrarán a la BD en fases futuras). No hay dark mode (solo light mode).
+Todas las features conectadas a PostgreSQL. Autenticación real con registro/login. Sesiones persistidas en BD. Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales del servidor. No hay dark mode (solo light mode).
 
 ## Estructura del Proyecto
 ```
@@ -23,11 +23,11 @@ client/src/
 ├── pages/
 │   ├── Login.tsx          - Login + Registro (toggle entre ambos)
 │   ├── Home.tsx           - Bienvenida + 2 dropdowns (Mi Producto / ¿Cómo funciona?)
-│   ├── BrandIdentity.tsx  - 2 dropdowns colapsados por defecto (Mi Empresa / Lineamientos y Branding)
-│   ├── CalendarView.tsx   - Centro de trabajo: calendario + editor + 2 botones de imagen
-│   ├── Templates.tsx      - Galería de plantillas HTML
-│   ├── MyEmails.tsx       - Historial de correos enviados/programados (solo lectura)
-│   ├── Contacts.tsx       - Base de Datos: CRUD de bases con contactos, edición inline
+│   ├── BrandIdentity.tsx  - 2 dropdowns (Mi Empresa / Lineamientos) — datos de API
+│   ├── CalendarView.tsx   - Centro de trabajo: calendario + editor — datos de API
+│   ├── Templates.tsx      - Galería de plantillas HTML — datos de API
+│   ├── MyEmails.tsx       - Historial de correos (sent/scheduled) — datos de API
+│   ├── Contacts.tsx       - Bases de contactos con CRUD — datos de API
 │   ├── CampaignEditor.tsx - Editor de campaña individual (legacy, no en nav)
 │   └── not-found.tsx      - 404
 ├── components/
@@ -40,22 +40,24 @@ client/src/
 
 server/
 ├── db.ts       - Conexión PostgreSQL (pg + drizzle-orm)
-├── routes.ts   - API endpoints (auth + CRUD)
-├── storage.ts  - DatabaseStorage (PostgreSQL real)
+├── routes.ts   - API endpoints (auth + CRUD completo)
+├── storage.ts  - DatabaseStorage (PostgreSQL real, todas las operaciones)
 └── index.ts    - Server + session middleware
 
 shared/
-├── schema.ts   - Modelos de datos (Drizzle + Zod)
-└── routes.ts   - Contrato API (paths + validación, usado por hooks del frontend)
+├── schema.ts   - Modelos de datos (Drizzle + Zod) — 7 tablas
+└── routes.ts   - Contrato API
 ```
 
 ## Base de Datos (PostgreSQL)
 ### Tablas
 - **users**: id, name, email (unique), password (bcrypt hash), company
-- **campaigns**: id, userId, name, idea, objective, tone, status, layoutPreference, scheduledAt, createdAt
+- **campaigns**: id, userId, name, idea, objective, tone, status, layoutPreference, imagePrompt, targetDatabase, scheduledAt, createdAt
 - **campaign_versions**: id, campaignId, versionNumber, contentJson (JSONB), imageUrl, isSelected, createdAt
 - **contact_databases**: id, userId, name, createdAt
 - **contacts**: id, userId, databaseId, email, name, country, segment, createdAt
+- **brand_identity**: id, userId (unique), companyName, industry, website, whatsapp, mission, vision, products, history, styleGuide, targetAudience, tone, primaryColor, secondaryColor, accentColor, headingFont, bodyFont, updatedAt
+- **templates**: id, userId, name, html, favorite, createdAt
 - **session** (auto-created by connect-pg-simple)
 
 ### API de Autenticación
@@ -66,7 +68,7 @@ shared/
 
 ### API de Datos
 - `GET/POST /api/campaigns` — listar/crear campañas
-- `GET/PATCH /api/campaigns/:id` — obtener/actualizar campaña
+- `GET/PATCH /api/campaigns/:id` — obtener/actualizar campaña (PATCH acepta status)
 - `GET /api/campaigns/:id/versions` — versiones de campaña
 - `POST /api/campaigns/:id/generate` — generar versión con IA (mock)
 - `PATCH /api/versions/:id` — actualizar versión
@@ -76,21 +78,25 @@ shared/
 - `POST /api/contact-databases/:id/contacts` — crear contacto
 - `PATCH /api/contacts/:id` — actualizar contacto
 - `DELETE /api/contacts/:id` — eliminar contacto
+- `GET /api/brand-identity` — obtener identidad de marca del usuario
+- `PUT /api/brand-identity` — crear/actualizar identidad de marca (upsert)
+- `GET /api/templates` — listar plantillas del usuario
+- `POST /api/templates` — crear plantilla
+- `PATCH /api/templates/:id` — actualizar plantilla (favorite toggle, etc.)
+- `DELETE /api/templates/:id` — eliminar plantilla
 
 ## Flujo de Usuario
 1. Login/Registro → Home (bienvenida con 2 dropdowns)
-2. Identidad de Marca → 2 dropdowns colapsados
+2. Identidad de Marca → 2 dropdowns colapsados, datos guardados en BD
 3. Calendario (centro de trabajo):
    - Clic en día vacío → popup "Nuevo Correo"
-     - Campos: Idea, Objetivo, 2 botones de imagen (Prompt de Imagen / Subir Imagen), Plantilla, Base de Datos destino, Fecha+Hora
-     - "Prompt de Imagen": despliega un textarea para escribir prompt de IA
-     - "Subir Imagen": abre explorador de archivos del usuario
+     - Campos: Idea, Objetivo, 2 botones de imagen (Prompt de Imagen / Subir Imagen), Plantilla (del API), Base de Datos destino (del API), Fecha+Hora
    - Clic en día con correo → opción "Nuevo Correo" o "Editar existente"
-   - Editor: imagen + texto con preview colapsable
-   - "Publicar Ahora": visible cuando imagen Y texto aprobados
-4. Historial → lista de correos enviados/programados (solo lectura)
-5. Plantillas → galería HTML
-6. Base de Datos → bases con contactos, edición inline, confirmación de eliminación
+   - Editor: imagen + texto con preview colapsable, versiones desde BD
+   - "Publicar Ahora": visible cuando imagen Y texto aprobados, actualiza status a "sent"
+4. Historial → lista de correos enviados/programados filtrados desde campañas reales
+5. Plantillas → galería HTML con CRUD completo, favoritos
+6. Base de Datos → bases con contactos, edición inline, agregar contactos, confirmación de eliminación
 
 ## Sidebar
 - Desktop: colapsable con hover (module-level variable persiste estado entre remounts). Icons-only (4.5rem) → hover expande (16rem).
@@ -112,6 +118,7 @@ shared/
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
 - CalendarView: 2 botones de imagen (prompt IA / subir archivo), mutuamente excluyentes
+- Plantilla y BD destino en calendario usan datos reales del usuario (GET /api/templates, GET /api/contact-databases)
 
 ## Fases Futuras (Pendientes)
 - **Fase 3**: Integración con IA (OpenAI/Gemini para generación de contenido e imágenes)

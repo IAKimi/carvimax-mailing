@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2,
   Palette,
@@ -14,8 +16,11 @@ import {
   Save,
   Check,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { BrandIdentity as BrandIdentityType } from "@shared/schema";
 
 const FONTS = [
   "Inter", "Roboto", "Open Sans", "Montserrat", "Poppins",
@@ -40,6 +45,25 @@ const BRAND_FIELDS: { key: string; default: string }[] = [
   { key: "headingFont", default: "Inter" },
   { key: "bodyFont", default: "Inter" },
 ];
+
+const DEFAULT_BRAND = {
+  companyName: "",
+  industry: "",
+  website: "",
+  whatsapp: "",
+  mission: "",
+  vision: "",
+  products: "",
+  history: "",
+  styleGuide: "",
+  targetAudience: "",
+  tone: "profesional",
+  primaryColor: "#002073",
+  secondaryColor: "#e3001b",
+  accentColor: "#F59E0B",
+  headingFont: "Inter",
+  bodyFont: "Inter",
+};
 
 function getProgressColor(pct: number): string {
   if (pct <= 25) return "#e3001b";
@@ -86,23 +110,59 @@ export default function BrandIdentity() {
   const [saved, setSaved] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
-  const [brand, setBrand] = useState({
-    companyName: "",
-    industry: "",
-    website: "",
-    whatsapp: "",
-    mission: "",
-    vision: "",
-    products: "",
-    history: "",
-    styleGuide: "",
-    targetAudience: "",
-    tone: "profesional",
-    primaryColor: "#002073",
-    secondaryColor: "#e3001b",
-    accentColor: "#F59E0B",
-    headingFont: "Inter",
-    bodyFont: "Inter",
+  const [brand, setBrand] = useState({ ...DEFAULT_BRAND });
+  const [initialized, setInitialized] = useState(false);
+
+  const { data: brandData, isLoading } = useQuery<BrandIdentityType | null>({
+    queryKey: ["/api/brand-identity"],
+  });
+
+  useEffect(() => {
+    if (brandData && !initialized) {
+      setBrand({
+        companyName: brandData.companyName || "",
+        industry: brandData.industry || "",
+        website: brandData.website || "",
+        whatsapp: brandData.whatsapp || "",
+        mission: brandData.mission || "",
+        vision: brandData.vision || "",
+        products: brandData.products || "",
+        history: brandData.history || "",
+        styleGuide: brandData.styleGuide || "",
+        targetAudience: brandData.targetAudience || "",
+        tone: brandData.tone || "profesional",
+        primaryColor: brandData.primaryColor || "#002073",
+        secondaryColor: brandData.secondaryColor || "#e3001b",
+        accentColor: brandData.accentColor || "#F59E0B",
+        headingFont: brandData.headingFont || "Inter",
+        bodyFont: brandData.bodyFont || "Inter",
+      });
+      setInitialized(true);
+    } else if (brandData === null && !initialized) {
+      setInitialized(true);
+    }
+  }, [brandData, initialized]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof brand) => {
+      const res = await apiRequest("PUT", "/api/brand-identity", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      setSaved(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/brand-identity"] });
+      toast({
+        title: "Identidad guardada",
+        description: "Los datos de su marca han sido guardados correctamente.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudieron guardar los datos. Intente de nuevo.",
+        variant: "destructive",
+      });
+    },
   });
 
   function updateField(field: string, value: string) {
@@ -111,12 +171,7 @@ export default function BrandIdentity() {
   }
 
   function handleSave() {
-    localStorage.setItem("postIAlo_brand", JSON.stringify(brand));
-    setSaved(true);
-    toast({
-      title: "Identidad guardada",
-      description: "Los datos de su marca han sido guardados correctamente.",
-    });
+    saveMutation.mutate(brand);
   }
 
   const completionPct = useMemo(() => {
@@ -139,6 +194,27 @@ export default function BrandIdentity() {
 
   const progressColor = getProgressColor(completionPct);
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <Skeleton className="h-10 w-64 mb-2" />
+              <Skeleton className="h-5 w-96" />
+            </div>
+            <Skeleton className="h-10 w-32" />
+          </div>
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Skeleton className="h-16 w-full rounded-2xl" />
+            <Skeleton className="h-16 w-full rounded-2xl" />
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -150,11 +226,18 @@ export default function BrandIdentity() {
           <Button
             data-testid="button-save-brand"
             onClick={handleSave}
+            disabled={saveMutation.isPending}
             className="rounded-xl gap-2"
             size="lg"
           >
-            {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {saved ? "Guardado" : "Guardar"}
+            {saveMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saved ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saveMutation.isPending ? "Guardando..." : saved ? "Guardado" : "Guardar"}
           </Button>
         </div>
 

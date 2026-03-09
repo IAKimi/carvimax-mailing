@@ -1,12 +1,14 @@
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, campaigns, campaignVersions, contacts, contactDatabases,
+  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
   type User, type InsertUser,
   type Campaign, type InsertCampaign,
   type CampaignVersion, type InsertCampaignVersion,
   type Contact, type InsertContact,
-  type ContactDatabase, type InsertContactDatabase
+  type ContactDatabase, type InsertContactDatabase,
+  type BrandIdentity, type InsertBrandIdentity,
+  type Template, type InsertTemplate
 } from "@shared/schema";
 
 export interface IStorage {
@@ -26,13 +28,22 @@ export interface IStorage {
   getDashboardStats(userId: number): Promise<any>;
 
   getContactDatabases(userId: number): Promise<ContactDatabase[]>;
-  createContactDatabase(db: InsertContactDatabase): Promise<ContactDatabase>;
+  createContactDatabase(data: InsertContactDatabase): Promise<ContactDatabase>;
   deleteContactDatabase(id: number): Promise<void>;
 
   getContacts(databaseId: number): Promise<Contact[]>;
+  getContact(id: number): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined>;
   deleteContact(id: number): Promise<void>;
+
+  getBrandIdentity(userId: number): Promise<BrandIdentity | undefined>;
+  upsertBrandIdentity(userId: number, data: Partial<InsertBrandIdentity>): Promise<BrandIdentity>;
+
+  getTemplates(userId: number): Promise<Template[]>;
+  createTemplate(data: InsertTemplate): Promise<Template>;
+  updateTemplate(id: number, updates: Partial<InsertTemplate>): Promise<Template | undefined>;
+  deleteTemplate(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -114,6 +125,11 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(contacts).where(eq(contacts.databaseId, databaseId));
   }
 
+  async getContact(id: number): Promise<Contact | undefined> {
+    const [contact] = await db.select().from(contacts).where(eq(contacts.id, id));
+    return contact;
+  }
+
   async createContact(contact: InsertContact): Promise<Contact> {
     const [created] = await db.insert(contacts).values(contact).returning();
     return created;
@@ -126,6 +142,44 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContact(id: number): Promise<void> {
     await db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  async getBrandIdentity(userId: number): Promise<BrandIdentity | undefined> {
+    const [brand] = await db.select().from(brandIdentity).where(eq(brandIdentity.userId, userId));
+    return brand;
+  }
+
+  async upsertBrandIdentity(userId: number, data: Partial<InsertBrandIdentity>): Promise<BrandIdentity> {
+    const existing = await this.getBrandIdentity(userId);
+    if (existing) {
+      const [updated] = await db.update(brandIdentity)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(brandIdentity.userId, userId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(brandIdentity)
+      .values({ ...data, userId })
+      .returning();
+    return created;
+  }
+
+  async getTemplates(userId: number): Promise<Template[]> {
+    return db.select().from(templates).where(eq(templates.userId, userId));
+  }
+
+  async createTemplate(data: InsertTemplate): Promise<Template> {
+    const [created] = await db.insert(templates).values(data).returning();
+    return created;
+  }
+
+  async updateTemplate(id: number, updates: Partial<InsertTemplate>): Promise<Template | undefined> {
+    const [updated] = await db.update(templates).set(updates).where(eq(templates.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTemplate(id: number): Promise<void> {
+    await db.delete(templates).where(eq(templates.id, id));
   }
 }
 

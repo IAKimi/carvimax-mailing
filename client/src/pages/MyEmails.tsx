@@ -1,30 +1,30 @@
 import { Layout } from "@/components/Layout";
 import { motion } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight } from "lucide-react";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import type { Campaign } from "@shared/schema";
 
-interface SentEmail {
-  id: number;
-  subject: string;
-  idea: string;
-  status: "programado" | "enviado";
-  sentDate: string;
-}
-
-const MOCK_HISTORY: SentEmail[] = [
-  { id: 1, subject: "Promoción Black Friday - 50% dto", idea: "Black Friday", status: "enviado", sentDate: "2026-02-28" },
-  { id: 2, subject: "Newsletter Febrero 2026", idea: "Newsletter mensual", status: "enviado", sentDate: "2026-02-15" },
-  { id: 3, subject: "Bienvenida nuevos suscriptores", idea: "Onboarding", status: "enviado", sentDate: "2026-02-01" },
-  { id: 4, subject: "Newsletter - Tendencias de Marzo", idea: "Newsletter semanal", status: "programado", sentDate: "2026-03-22" },
-];
-
-const statusConfig = {
-  programado: { label: "Programado", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300", icon: CalendarDays },
-  enviado: { label: "Enviado", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300", icon: Check },
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  scheduled: { label: "Programado", color: "bg-blue-100 text-blue-700", icon: CalendarDays },
+  sent: { label: "Enviado", color: "bg-emerald-100 text-emerald-700", icon: Check },
+  draft: { label: "Borrador", color: "bg-gray-100 text-gray-700", icon: Clock },
 };
 
 export default function MyEmails() {
+  const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
+    queryKey: ["/api/campaigns"],
+  });
+
+  const history = campaigns
+    .filter(c => c.status === "sent" || c.status === "scheduled")
+    .sort((a, b) => {
+      const dateA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
+      const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -41,31 +41,38 @@ export default function MyEmails() {
           </Link>
         </div>
 
-        {MOCK_HISTORY.length > 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : history.length > 0 ? (
           <div className="space-y-3">
-            {MOCK_HISTORY.map((email, i) => {
-              const config = statusConfig[email.status];
+            {history.map((campaign, i) => {
+              const config = statusConfig[campaign.status] || statusConfig.draft;
               const StatusIcon = config.icon;
+              const displayDate = campaign.scheduledAt
+                ? new Date(campaign.scheduledAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })
+                : "Sin fecha";
               return (
                 <motion.div
-                  key={email.id}
+                  key={campaign.id}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.3 }}
-                  data-testid={`email-history-item-${email.id}`}
+                  data-testid={`email-history-item-${campaign.id}`}
                   className="bg-card rounded-2xl border border-border p-5 flex items-center gap-4 shadow-sm"
                 >
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    {email.status === "enviado" ? (
+                    {campaign.status === "sent" ? (
                       <Send className="w-5 h-5 text-primary" />
                     ) : (
                       <Clock className="w-5 h-5 text-primary" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold truncate">{email.subject}</h3>
+                    <h3 className="font-bold truncate">{campaign.name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {email.status === "enviado" ? "Enviado" : "Programado para"} el {new Date(email.sentDate).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })}
+                      {campaign.status === "sent" ? "Enviado" : "Programado para"} el {displayDate}
                     </p>
                   </div>
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 flex-shrink-0 ${config.color}`}>
