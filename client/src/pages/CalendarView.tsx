@@ -842,13 +842,13 @@ export default function CalendarView() {
                 <Label className="text-xs font-semibold uppercase tracking-wide">Instrucciones de edición</Label>
                 <Textarea
                   data-testid="input-edit-image-prompt"
-                  placeholder="Ej: Cambia el color de la camisa a verde, agrega un logo en la esquina, cambia el fondo a azul..."
+                  placeholder="Ej: Cambia solo el color del fondo a azul oscuro y mantén el resto de la imagen igual..."
                   value={editImagePrompt}
                   onChange={e => setEditImagePrompt(e.target.value)}
                   className="rounded-xl min-h-[100px]"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Tip: Sea específico con los cambios. Para texto en imagen, limite a 25 caracteres o menos.
+                  Tip: Sea específico con lo que desea cambiar e indique que el resto se mantenga igual. Para texto en imagen, limite a 25 caracteres o menos.
                 </p>
               </div>
               <Button

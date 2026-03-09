@@ -398,6 +398,15 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
 
+    const base64Portion = selectedVersion.imageUrl.includes(",")
+      ? selectedVersion.imageUrl.split(",")[1]
+      : selectedVersion.imageUrl;
+    const imageSizeBytes = Math.ceil((base64Portion.length * 3) / 4);
+    const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
+    if (imageSizeBytes > MAX_IMAGE_SIZE) {
+      return res.status(400).json({ message: "La imagen es demasiado grande para editar (máximo 20 MB)." });
+    }
+
     let imageUrl: string;
     try {
       if (!isGeminiConfigured()) {
