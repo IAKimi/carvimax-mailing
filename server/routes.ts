@@ -3,6 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { generateImage, isGeminiConfigured } from "./gemini";
 
 const registerSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
@@ -212,16 +213,29 @@ export async function registerRoutes(
     if (versionNumber > 3) {
       return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
     }
+
+    let imageUrl = "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
+    const imagePrompt = campaign.imagePrompt || `Imagen profesional para email marketing sobre: ${campaign.idea}`;
+
+    if (isGeminiConfigured()) {
+      try {
+        imageUrl = await generateImage(imagePrompt);
+      } catch (err: any) {
+        console.error("Error generando imagen con Gemini:", err.message);
+        imageUrl = "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
+      }
+    }
+
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber,
       contentJson: {
-        title: `Propuesta generada #${versionNumber}`,
-        body: `Cuerpo del correo generado por IA para: ${campaign.idea}.`,
+        title: campaign.idea,
+        body: `Contenido generado para su campaña: "${campaign.idea}". Objetivo: ${campaign.objective}. Puede editar este texto libremente.`,
         cta: "Ver más"
       },
-      imageUrl: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?q=80&w=2070&auto=format&fit=crop",
-      isSelected: false
+      imageUrl,
+      isSelected: versionNumber === 1
     });
     res.status(201).json(newVersion);
   });

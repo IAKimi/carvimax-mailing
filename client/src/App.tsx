@@ -25,8 +25,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
           setStatus("ok");
         } else {
           localStorage.removeItem("postIAlo_auth");
-          localStorage.removeItem("postIAlo_user");
-          localStorage.removeItem("postIAlo_userId");
           setStatus("denied");
         }
       })

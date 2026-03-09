@@ -26,8 +26,6 @@ export default function Login() {
       const res = await apiRequest("POST", "/api/auth/login", { email, password });
       const user = await res.json();
       localStorage.setItem("postIAlo_auth", "true");
-      localStorage.setItem("postIAlo_user", user.name || user.email);
-      localStorage.setItem("postIAlo_userId", String(user.id));
       setLocation("/");
     } catch (err: any) {
       const msg = err.message?.includes("401")
@@ -51,8 +49,6 @@ export default function Login() {
       });
       const user = await res.json();
       localStorage.setItem("postIAlo_auth", "true");
-      localStorage.setItem("postIAlo_user", user.name || user.email);
-      localStorage.setItem("postIAlo_userId", String(user.id));
       setLocation("/");
     } catch (err: any) {
       const msg = err.message?.includes("409")

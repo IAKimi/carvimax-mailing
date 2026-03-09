@@ -5,6 +5,8 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 
 const features = [
   {
@@ -124,7 +126,11 @@ function DropdownSection({
 }
 
 export default function Home() {
-  const userName = localStorage.getItem("postIAlo_user") || "Usuario";
+  const { data: user } = useQuery<{ id: number; name: string; email: string } | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+  const userName = user?.name || "Usuario";
   const [productOpen, setProductOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 

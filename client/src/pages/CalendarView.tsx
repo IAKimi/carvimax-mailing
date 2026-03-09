@@ -46,7 +46,9 @@ export default function CalendarView() {
   const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "" });
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  const [editorLocalImageUrl, setEditorLocalImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorFileInputRef = useRef<HTMLInputElement>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -171,6 +173,7 @@ export default function CalendarView() {
     setShowPreview(false);
     setTextApproved(false);
     setImageApproved(false);
+    setEditorLocalImageUrl(null);
   }
 
   function handlePublishNow() {
@@ -245,7 +248,7 @@ export default function CalendarView() {
         ? `<h2>${(selectedVersion.contentJson as any).title || ""}</h2><p>${(selectedVersion.contentJson as any).body}</p>`
         : ""
     : "";
-  const selectedImageUrl = selectedVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
+  const selectedImageUrl = editorLocalImageUrl || selectedVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
 
   const calendarCells = [];
   for (let i = 0; i < startDayOfWeek; i++) {
@@ -338,13 +341,19 @@ export default function CalendarView() {
                   )}
                 </div>
 
-                <div className="border border-border rounded-xl overflow-hidden bg-white">
+                <div className="border border-border rounded-xl overflow-hidden bg-white relative">
                   <img
                     data-testid="img-email-preview"
                     src={selectedImageUrl}
                     alt="Vista previa de imagen"
                     className="w-full h-48 object-cover"
                   />
+                  {generateVersionMutation.isPending && (
+                    <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-8 h-8 animate-spin text-white" />
+                      <span className="text-white text-sm font-medium">Generando imagen con IA...</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -364,10 +373,27 @@ export default function CalendarView() {
                     variant="outline"
                     size="sm"
                     className="rounded-xl gap-1"
+                    onClick={() => editorFileInputRef.current?.click()}
                   >
                     <Upload className="w-3.5 h-3.5" />
                     Cargar Imagen
                   </Button>
+                  <input
+                    ref={editorFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = URL.createObjectURL(file);
+                        setEditorLocalImageUrl(url);
+                        setImageApproved(false);
+                        toast({ title: "Imagen cargada", description: "Vista previa actualizada." });
+                      }
+                      e.target.value = "";
+                    }}
+                  />
                   <Button
                     data-testid="button-nano-banana"
                     variant="outline"

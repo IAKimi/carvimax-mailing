@@ -12,6 +12,8 @@ import {
   LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 
 const NAV_ITEMS = [
   { icon: Home, label: "Inicio", href: "/" },
@@ -29,7 +31,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(_sidebarMouseInside);
   const sidebarRef = useRef<HTMLElement>(null);
-  const userName = localStorage.getItem("postIAlo_user") || "Usuario";
+  const { data: currentUser } = useQuery<{ id: number; name: string; email: string } | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+  const userName = currentUser?.name || "Usuario";
 
   useEffect(() => {
     document.documentElement.classList.remove("dark");
@@ -52,8 +58,6 @@ export function Layout({ children }: { children: ReactNode }) {
   function handleLogout() {
     fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => {
       localStorage.removeItem("postIAlo_auth");
-      localStorage.removeItem("postIAlo_user");
-      localStorage.removeItem("postIAlo_userId");
       setLocation("/login");
     });
   }
