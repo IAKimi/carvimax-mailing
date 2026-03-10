@@ -121,7 +121,7 @@ function sanitizeHtml(html: string): string {
     .replace(/javascript\s*:/gi, "");
 }
 
-function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null }) {
+function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null; role: string; createdAt: Date | null }) {
   const { password, ...safe } = user;
   return safe;
 }
@@ -196,7 +196,13 @@ export async function registerRoutes(
     if (!user) {
       return res.status(401).json({ message: "Usuario no encontrado." });
     }
-    res.json(sanitizeUser(user));
+    const result: any = sanitizeUser(user);
+    if (req.session.originalAdminId) {
+      result.impersonating = true;
+      result.impersonatingUserName = req.session.impersonatingUserName;
+      result.originalAdminId = req.session.originalAdminId;
+    }
+    res.json(result);
   });
 
   app.post("/api/auth/logout", (req, res) => {
@@ -1138,6 +1144,141 @@ export async function registerRoutes(
       selected.imageUrl || null
     );
     res.json({ html: result.html, missingFields: result.missingFields, templateName: template.name });
+  });
+
+  async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "No autenticado." });
+    }
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ message: "Acceso denegado. Se requieren permisos de administrador." });
+    }
+    next();
+  }
+
+  app.get("/api/admin/stats", requireAdmin, async (_req, res) => {
+    const stats = await storage.getAdminStats();
+    res.json(stats);
+  });
+
+  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    const allUsers = await storage.getAllUsers();
+    const usersWithStats = await Promise.all(
+      allUsers.map(async (u) => {
+        const stats = await storage.getUserStats(u.id);
+        const { password, ...safe } = u;
+        return { ...safe, stats };
+      })
+    );
+    res.json(usersWithStats);
+  });
+
+  app.get("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    const stats = await storage.getUserStats(id);
+    const { password, ...safe } = user;
+    res.json({ ...safe, stats });
+  });
+
+  const adminUpdateUserSchema = z.object({
+    name: z.string().min(1).max(200).optional(),
+    email: z.string().email().max(255).optional(),
+    company: z.string().max(200).nullable().optional(),
+  });
+
+  app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    try {
+      const input = adminUpdateUserSchema.parse(req.body);
+      const updates: any = {};
+      if (input.name !== undefined) updates.name = input.name.trim();
+      if (input.email !== undefined) {
+        const cleanEmail = input.email.trim().toLowerCase();
+        if (cleanEmail !== user.email) {
+          const existing = await storage.getUserByEmail(cleanEmail);
+          if (existing) return res.status(409).json({ message: "Ya existe un usuario con ese correo electrónico." });
+        }
+        updates.email = cleanEmail;
+      }
+      if (input.company !== undefined) updates.company = input.company ? input.company.trim() : null;
+      const updated = await storage.updateUser(id, updates);
+      if (!updated) return res.status(500).json({ message: "Error actualizando usuario." });
+      const { password, ...safe } = updated;
+      res.json(safe);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  const adminResetPasswordSchema = z.object({
+    newPassword: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").max(128, "La contraseña no puede exceder 128 caracteres"),
+  });
+
+  app.post("/api/admin/users/:id/reset-password", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    try {
+      const input = adminResetPasswordSchema.parse(req.body);
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      await storage.updateUserPassword(id, hashedPassword);
+      res.json({ message: "Contraseña restablecida exitosamente." });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    if (id === req.session.userId) {
+      return res.status(400).json({ message: "No puede eliminarse a sí mismo." });
+    }
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    if (user.role === "admin") {
+      return res.status(400).json({ message: "No puede eliminar a otro administrador." });
+    }
+    await storage.deleteUser(id);
+    res.json({ message: "Usuario eliminado exitosamente." });
+  });
+
+  app.post("/api/admin/impersonate/:id", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    if (id === req.session.userId) {
+      return res.status(400).json({ message: "No puede impersonarse a sí mismo." });
+    }
+    const targetUser = await storage.getUserById(id);
+    if (!targetUser) return res.status(404).json({ message: "Usuario no encontrado." });
+    if (targetUser.role === "admin") {
+      return res.status(400).json({ message: "No puede impersonar a otro administrador." });
+    }
+    req.session.originalAdminId = req.session.userId;
+    req.session.impersonatingUserName = targetUser.name;
+    req.session.userId = id;
+    res.json({ message: `Ahora estás viendo como ${targetUser.name}.` });
+  });
+
+  app.post("/api/admin/stop-impersonate", requireAuth, async (req, res) => {
+    if (!req.session.originalAdminId) {
+      return res.status(400).json({ message: "No estás en modo de impersonación." });
+    }
+    const adminId = req.session.originalAdminId;
+    req.session.userId = adminId;
+    delete req.session.originalAdminId;
+    delete req.session.impersonatingUserName;
+    res.json({ message: "Has vuelto a tu cuenta de administrador." });
   });
 
   return httpServer;

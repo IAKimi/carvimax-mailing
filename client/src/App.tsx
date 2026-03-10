@@ -13,15 +13,23 @@ import Templates from "@/pages/Templates";
 import MyEmails from "@/pages/MyEmails";
 import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
+import AdminUsers from "@/pages/AdminUsers";
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
+function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<"loading" | "ok" | "denied">("loading");
+  const [status, setStatus] = useState<"loading" | "ok" | "denied" | "forbidden">("loading");
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => {
+      .then(async (res) => {
         if (res.ok) {
+          if (adminOnly) {
+            const data = await res.json();
+            if (data.role !== "admin") {
+              setStatus("forbidden");
+              return;
+            }
+          }
           setStatus("ok");
         } else {
           localStorage.removeItem("postIAlo_auth");
@@ -42,6 +50,9 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
   if (status === "denied") {
     return <Redirect to="/login" />;
+  }
+  if (status === "forbidden") {
+    return <Redirect to="/" />;
   }
   return <Component />;
 }
@@ -81,6 +92,8 @@ function Router() {
       <Route path="/emails">{() => <ProtectedRoute component={MyEmails} />}</Route>
       <Route path="/contacts">{() => <ProtectedRoute component={Contacts} />}</Route>
       <Route path="/campaigns/:id">{() => <ProtectedRoute component={CampaignEditor} />}</Route>
+      <Route path="/admin/users">{() => <ProtectedRoute component={AdminUsers} adminOnly />}</Route>
+      <Route path="/admin">{() => <Redirect to="/admin/users" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

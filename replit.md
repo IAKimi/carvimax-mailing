@@ -29,7 +29,7 @@ The application is built with a modern web stack.
 
 ### Data Management
 - **Database**: PostgreSQL, managed with Drizzle ORM.
-- **Schema**: Seven core tables: `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity` (includes `logoUrl` for base64 logo), `templates`, plus an auto-created `session` table.
+- **Schema**: Seven core tables: `users` (with `role` and `createdAt` fields), `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity` (includes `logoUrl` for base64 logo), `templates`, plus an auto-created `session` table.
 - **Campaign Versioning**: Stores `contentJson` (OpenAI output) and `imageUrl` (Gemini output) for each version. Supports up to 3 versions per campaign.
 - **Template Versioning**: When AI generates/edits templates, creates separate version records (up to 3) linked by `parentTemplateId`. Users compare versions side-by-side and confirm one; others are deleted. Fields: `isConfirmed`, `parentTemplateId`, `versionNumber`. Display logic: confirmed parents are hidden from the template list when they have unconfirmed children (only the latest unconfirmed version shows).
 - **AI Integration Logic**:
@@ -97,10 +97,20 @@ Key files:
 - **CSV deduplication**: Emails deduplicated within CSV batch and against existing database contacts
 - **Contact update**: Prevents changing email to one already used in same database
 
+### Admin Panel
+- **Access Control**: Users have a `role` field ("user" or "admin"). Admin-only routes are protected by `requireAdmin` middleware on backend and role-based gating on frontend.
+- **Admin Page**: `/admin/users` — accessible only to admin users. Shows global platform stats (users, campaigns, templates, contacts, databases) and a searchable users table.
+- **User Management**: Admin can edit user credentials (name, email, company), reset passwords, and delete users (with all their data).
+- **Impersonation**: Admin can "view as" any non-admin user. Sets `originalAdminId` in session, swaps `userId` to target user. An amber banner shows across all pages during impersonation with a "Volver al Panel" button.
+- **Safety Rules**: Admin cannot delete themselves, impersonate another admin, or delete an admin user.
+- **Sidebar**: Admin users see "Usuarios" nav item (Shield icon) in the sidebar. Not shown during impersonation.
+- **API Routes**: `GET /api/admin/stats`, `GET /api/admin/users`, `GET /api/admin/users/:id`, `PATCH /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `DELETE /api/admin/users/:id`, `POST /api/admin/impersonate/:id`, `POST /api/admin/stop-impersonate`
+
 ### Project Structure
 - `client/`: Frontend React application.
 - `server/`: Backend Express.js application, including database connection, API routes, and AI integrations.
 - `shared/`: Shared data models (Drizzle + Zod schemas) and API contracts.
+- `client/src/pages/AdminUsers.tsx`: Admin panel — user management, stats dashboard, impersonation.
 - `client/src/components/CalendarCell.tsx`: Memoized calendar cell with campaign name + status + image thumbnails.
 
 ## External Dependencies

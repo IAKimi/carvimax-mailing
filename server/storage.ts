@@ -1,4 +1,4 @@
-import { eq, and, ne, gte, lt, isNull, or, sql, inArray } from "drizzle-orm";
+import { eq, and, ne, gte, lt, isNull, or, sql, inArray, count } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
@@ -56,6 +56,13 @@ export interface IStorage {
   getTemplateVersions(parentTemplateId: number): Promise<Template[]>;
   deleteTemplatesByParent(parentTemplateId: number, excludeId: number): Promise<void>;
   confirmTemplate(id: number, parentId: number): Promise<Template>;
+
+  getAllUsers(): Promise<User[]>;
+  updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string }>): Promise<User | undefined>;
+  updateUserPassword(id: number, hashedPassword: string): Promise<void>;
+  deleteUser(id: number): Promise<void>;
+  getAdminStats(): Promise<{ totalUsers: number; totalCampaigns: number; totalCampaignsByStatus: Record<string, number>; totalTemplates: number; totalContacts: number; totalDatabases: number }>;
+  getUserStats(userId: number): Promise<{ campaigns: number; templates: number; contacts: number; databases: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -296,6 +303,66 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return confirmed;
     });
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  async updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string }>): Promise<User | undefined> {
+    const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
+  async updateUserPassword(id: number, hashedPassword: string): Promise<void> {
+    await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    const userCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.userId, id));
+    for (const c of userCampaigns) {
+      await db.delete(campaignVersions).where(eq(campaignVersions.campaignId, c.id));
+    }
+    await db.delete(campaigns).where(eq(campaigns.userId, id));
+    await db.delete(contacts).where(eq(contacts.userId, id));
+    await db.delete(contactDatabases).where(eq(contactDatabases.userId, id));
+    await db.delete(templates).where(eq(templates.userId, id));
+    await db.delete(brandIdentity).where(eq(brandIdentity.userId, id));
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getAdminStats(): Promise<{ totalUsers: number; totalCampaigns: number; totalCampaignsByStatus: Record<string, number>; totalTemplates: number; totalContacts: number; totalDatabases: number }> {
+    const [userCount] = await db.select({ c: count() }).from(users);
+    const [campaignCount] = await db.select({ c: count() }).from(campaigns);
+    const [templateCount] = await db.select({ c: count() }).from(templates);
+    const [contactCount] = await db.select({ c: count() }).from(contacts);
+    const [dbCount] = await db.select({ c: count() }).from(contactDatabases);
+    const allCampaigns = await db.select({ status: campaigns.status }).from(campaigns);
+    const byStatus: Record<string, number> = {};
+    for (const c of allCampaigns) {
+      byStatus[c.status] = (byStatus[c.status] || 0) + 1;
+    }
+    return {
+      totalUsers: userCount.c,
+      totalCampaigns: campaignCount.c,
+      totalCampaignsByStatus: byStatus,
+      totalTemplates: templateCount.c,
+      totalContacts: contactCount.c,
+      totalDatabases: dbCount.c,
+    };
+  }
+
+  async getUserStats(userId: number): Promise<{ campaigns: number; templates: number; contacts: number; databases: number }> {
+    const [campaignCount] = await db.select({ c: count() }).from(campaigns).where(eq(campaigns.userId, userId));
+    const [templateCount] = await db.select({ c: count() }).from(templates).where(eq(templates.userId, userId));
+    const [contactCount] = await db.select({ c: count() }).from(contacts).where(eq(contacts.userId, userId));
+    const [dbCount] = await db.select({ c: count() }).from(contactDatabases).where(eq(contactDatabases.userId, userId));
+    return {
+      campaigns: campaignCount.c,
+      templates: templateCount.c,
+      contacts: contactCount.c,
+      databases: dbCount.c,
+    };
   }
 }
 
