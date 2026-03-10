@@ -55,7 +55,7 @@ const updateCampaignSchema = createCampaignSchema.partial();
 const createContactSchema = z.object({
   email: z.string().email("Correo electrónico inválido").max(255, "El correo no puede exceder 255 caracteres"),
   name: z.string().max(200, "El nombre no puede exceder 200 caracteres").optional(),
-  country: z.string().max(100, "El país no puede exceder 100 caracteres").optional(),
+  position: z.string().max(100, "El cargo no puede exceder 100 caracteres").optional(),
   segment: z.string().max(100, "El segmento no puede exceder 100 caracteres").optional(),
 });
 
@@ -807,8 +807,13 @@ export async function registerRoutes(
         aiEditCount: 0,
         originalHtml: sanitizedHtml,
         hasAllPlaceholders: validation.valid,
+        isConfirmed: false,
+        versionNumber: 1,
       });
-      res.status(201).json(tpl);
+      const confirmed = await storage.updateTemplate(tpl.id, {
+        parentTemplateId: tpl.id,
+      });
+      res.status(201).json(confirmed);
     } catch (err: any) {
       console.error("Error generando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error generando plantilla." });
@@ -821,8 +826,11 @@ export async function registerRoutes(
     const tpls = await storage.getTemplates(req.session.userId!);
     const tpl = tpls.find(t => t.id === id);
     if (!tpl) return res.status(404).json({ message: "Plantilla no encontrada." });
-    if ((tpl.aiEditCount || 0) >= 3) {
-      return res.status(400).json({ message: "Máximo 3 ediciones con IA alcanzado. Use la edición manual." });
+    const parentId = tpl.parentTemplateId || tpl.id;
+    const siblings = await storage.getTemplateVersions(parentId);
+    const totalVersions = siblings.length;
+    if (totalVersions >= 3) {
+      return res.status(400).json({ message: "Máximo 3 versiones alcanzado. Confirme una versión antes de generar más." });
     }
     const { instructions } = req.body || {};
     if (!instructions || typeof instructions !== "string") {
@@ -839,16 +847,48 @@ export async function registerRoutes(
       const editedHtml = await editTemplateHtml(tpl.html, instructions, brandData || null);
       const sanitizedHtml = sanitizeHtml(editedHtml);
       const validation = validateTemplatePlaceholders(sanitizedHtml);
-      const updated = await storage.updateTemplate(id, {
+      const newVersion = await storage.createTemplate({
+        userId: req.session.userId!,
+        name: tpl.name + ` (v${totalVersions + 1})`,
         html: sanitizedHtml,
+        favorite: false,
+        isAiGenerated: true,
         aiEditCount: (tpl.aiEditCount || 0) + 1,
+        originalHtml: tpl.originalHtml,
         hasAllPlaceholders: validation.valid,
+        isConfirmed: false,
+        parentTemplateId: parentId,
+        versionNumber: totalVersions + 1,
       });
-      res.json(updated);
+      res.status(201).json(newVersion);
     } catch (err: any) {
       console.error("Error editando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error editando plantilla." });
     }
+  });
+
+  app.get("/api/templates/:id/versions", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const tpl = await storage.getTemplate(id);
+    if (!tpl || tpl.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Plantilla no encontrada." });
+    }
+    const parentId = tpl.parentTemplateId || tpl.id;
+    const versions = await storage.getTemplateVersions(parentId);
+    res.json(versions);
+  });
+
+  app.post("/api/templates/:id/confirm", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const tpl = await storage.getTemplate(id);
+    if (!tpl || tpl.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Plantilla no encontrada." });
+    }
+    const parentId = tpl.parentTemplateId || tpl.id;
+    const confirmed = await storage.confirmTemplate(id, parentId);
+    res.json(confirmed);
   });
 
   app.get("/api/campaigns/:id/preview-final", requireAuth, async (req, res) => {

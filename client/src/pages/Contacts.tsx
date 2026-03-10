@@ -34,18 +34,18 @@ import type { ContactDatabase as ContactDatabaseType, Contact } from "@shared/sc
 interface EditingContact {
   name: string;
   email: string;
-  country: string;
+  position: string;
   segment: string;
 }
 
 interface NewContactForm {
   name: string;
   email: string;
-  country: string;
+  position: string;
   segment: string;
 }
 
-const EMPTY_NEW_CONTACT: NewContactForm = { name: "", email: "", country: "", segment: "" };
+const EMPTY_NEW_CONTACT: NewContactForm = { name: "", email: "", position: "", segment: "" };
 
 function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: {
   db: ContactDatabaseType;
@@ -106,7 +106,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
       [contact.id]: {
         name: contact.name || "",
         email: contact.email,
-        country: contact.country || "",
+        position: (contact as any).position || "",
         segment: contact.segment || "",
       },
     }));
@@ -136,8 +136,8 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
 
   function handleAddContact() {
     if (!newContact.email.trim()) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.email.trim())) {
-      toast({ title: "Email inválido", description: "Por favor ingrese un email con formato válido.", variant: "destructive" });
+    if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(newContact.email.trim())) {
+      toast({ title: "Email inv\u00e1lido", description: "Por favor ingrese un email con formato v\u00e1lido.", variant: "destructive" });
       return;
     }
     addContactMutation.mutate(newContact);
@@ -217,7 +217,8 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
             <thead>
               <tr className="bg-muted/50 border-b border-border">
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Contacto</th>
-                <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Pa\u00eds</th>
+                <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Correo Electr\u00f3nico</th>
+                <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Cargo</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Segmento</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-right">
                   {isEditMode ? "Acciones" : "Agregado"}
@@ -228,33 +229,33 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
               {addingContact && (
                 <tr data-testid={`row-new-contact-${db.id}`} className="bg-muted/20">
                   <td className="px-4 py-2">
-                    <div className="space-y-1">
-                      <Input
-                        data-testid={`input-new-contact-name-${db.id}`}
-                        placeholder="Nombre"
-                        maxLength={200}
-                        value={newContact.name}
-                        onChange={(e) => setNewContact((prev) => ({ ...prev, name: e.target.value }))}
-                        className="text-sm"
-                      />
-                      <Input
-                        data-testid={`input-new-contact-email-${db.id}`}
-                        type="email"
-                        placeholder="correo@ejemplo.com"
-                        maxLength={255}
-                        value={newContact.email}
-                        onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
-                        className="text-sm"
-                      />
-                    </div>
+                    <Input
+                      data-testid={`input-new-contact-name-${db.id}`}
+                      placeholder="Nombre"
+                      maxLength={200}
+                      value={newContact.name}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, name: e.target.value }))}
+                      className="text-sm"
+                    />
                   </td>
                   <td className="px-4 py-2">
                     <Input
-                      data-testid={`input-new-contact-country-${db.id}`}
-                      placeholder="Pa\u00eds"
+                      data-testid={`input-new-contact-email-${db.id}`}
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      maxLength={255}
+                      value={newContact.email}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
+                      className="text-sm"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <Input
+                      data-testid={`input-new-contact-position-${db.id}`}
+                      placeholder="Cargo"
                       maxLength={100}
-                      value={newContact.country}
-                      onChange={(e) => setNewContact((prev) => ({ ...prev, country: e.target.value }))}
+                      value={newContact.position}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, position: e.target.value }))}
                       className="text-sm"
                     />
                   </td>
@@ -297,7 +298,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
               )}
               {contactsLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6">
+                  <td colSpan={5} className="px-4 py-6">
                     <div className="space-y-2">
                       <Skeleton className="h-4 w-full" />
                       <Skeleton className="h-4 w-3/4" />
@@ -307,7 +308,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground text-sm">
+                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground text-sm">
                     No se encontraron contactos.
                   </td>
                 </tr>
@@ -320,30 +321,30 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                     return (
                       <tr key={contact.id} data-testid={`row-contact-editing-${contact.id}`} className="bg-muted/20">
                         <td className="px-4 py-2">
-                          <div className="space-y-1">
-                            <Input
-                              data-testid={`input-edit-name-${contact.id}`}
-                              maxLength={200}
-                              value={editData.name}
-                              onChange={(e) => updateEditingField(contact.id, "name", e.target.value)}
-                              className="text-sm"
-                            />
-                            <Input
-                              data-testid={`input-edit-email-${contact.id}`}
-                              type="email"
-                              maxLength={255}
-                              value={editData.email}
-                              onChange={(e) => updateEditingField(contact.id, "email", e.target.value)}
-                              className="text-sm"
-                            />
-                          </div>
+                          <Input
+                            data-testid={`input-edit-name-${contact.id}`}
+                            maxLength={200}
+                            value={editData.name}
+                            onChange={(e) => updateEditingField(contact.id, "name", e.target.value)}
+                            className="text-sm"
+                          />
                         </td>
                         <td className="px-4 py-2">
                           <Input
-                            data-testid={`input-edit-country-${contact.id}`}
+                            data-testid={`input-edit-email-${contact.id}`}
+                            type="email"
+                            maxLength={255}
+                            value={editData.email}
+                            onChange={(e) => updateEditingField(contact.id, "email", e.target.value)}
+                            className="text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <Input
+                            data-testid={`input-edit-position-${contact.id}`}
                             maxLength={100}
-                            value={editData.country}
-                            onChange={(e) => updateEditingField(contact.id, "country", e.target.value)}
+                            value={editData.position}
+                            onChange={(e) => updateEditingField(contact.id, "position", e.target.value)}
                             className="text-sm"
                           />
                         </td>
@@ -391,9 +392,9 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                     >
                       <td className="px-4 py-3">
                         <div className="font-semibold">{contact.name || "-"}</div>
-                        <div className="text-sm text-muted-foreground">{contact.email}</div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{contact.country || "-"}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">{contact.email}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{(contact as any).position || "-"}</td>
                       <td className="px-4 py-3">
                         <Badge variant="secondary" className="text-xs">
                           {contact.segment || "General"}
@@ -566,53 +567,39 @@ export default function Contacts() {
                       onClick={() => toggleExpand(db.id)}
                     >
                       <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Database className="w-4 h-4 text-primary" />
+                        <Database className="w-5 h-5 text-primary" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <span className="font-semibold" data-testid={`text-db-name-${db.id}`}>{db.name}</span>
                       </div>
+                      {isExpanded ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
                     </button>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            data-testid={`button-delete-db-${db.id}`}
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={(e) => e.stopPropagation()}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button data-testid={`button-delete-db-${db.id}`} variant="ghost" size="icon" className="text-red-500 h-8 w-8">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Eliminar base de datos</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acci\u00f3n eliminar\u00e1 la base de datos "{db.name}" y todos sus contactos. No se puede deshacer.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            data-testid={`button-confirm-delete-db-${db.id}`}
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => deleteDbMutation.mutate(db.id)}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminar base de datos</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              ¿Est\u00e1 seguro de que desea eliminar "{db.name}"? Esta acci\u00f3n no se puede deshacer y se perder\u00e1n todos los contactos asociados.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel data-testid={`button-cancel-delete-db-${db.id}`}>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              data-testid={`button-confirm-delete-db-${db.id}`}
-                              onClick={() => deleteDbMutation.mutate(db.id)}
-                              className="bg-destructive text-destructive-foreground"
-                              disabled={deleteDbMutation.isPending}
-                            >
-                              Eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                      {isExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                      )}
-                    </div>
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
-
                   {isExpanded && (
                     <ContactsTable
                       db={db}
@@ -626,11 +613,10 @@ export default function Contacts() {
               );
             })
           )}
-
           {!databasesLoading && databases.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground" data-testid="text-empty-databases">
-              <Database className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <p className="text-lg font-medium">No hay bases de datos</p>
+            <div className="text-center py-16 text-muted-foreground">
+              <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No tiene bases de datos a\u00fan</p>
               <p className="text-sm mt-1">Cree su primera base de datos para comenzar a organizar sus contactos.</p>
             </div>
           )}

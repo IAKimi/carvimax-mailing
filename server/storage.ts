@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
@@ -42,9 +42,13 @@ export interface IStorage {
   upsertBrandIdentity(userId: number, data: Partial<InsertBrandIdentity>): Promise<BrandIdentity>;
 
   getTemplates(userId: number): Promise<Template[]>;
+  getTemplate(id: number): Promise<Template | undefined>;
   createTemplate(data: InsertTemplate): Promise<Template>;
   updateTemplate(id: number, updates: Partial<InsertTemplate>): Promise<Template | undefined>;
   deleteTemplate(id: number): Promise<void>;
+  getTemplateVersions(parentTemplateId: number): Promise<Template[]>;
+  deleteTemplatesByParent(parentTemplateId: number, excludeId: number): Promise<void>;
+  confirmTemplate(id: number, parentId: number): Promise<Template>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -173,6 +177,11 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(templates).where(eq(templates.userId, userId));
   }
 
+  async getTemplate(id: number): Promise<Template | undefined> {
+    const [tpl] = await db.select().from(templates).where(eq(templates.id, id));
+    return tpl;
+  }
+
   async createTemplate(data: InsertTemplate): Promise<Template> {
     const [created] = await db.insert(templates).values(data).returning();
     return created;
@@ -185,6 +194,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTemplate(id: number): Promise<void> {
     await db.delete(templates).where(eq(templates.id, id));
+  }
+
+  async getTemplateVersions(parentTemplateId: number): Promise<Template[]> {
+    return db.select().from(templates).where(eq(templates.parentTemplateId, parentTemplateId));
+  }
+
+  async deleteTemplatesByParent(parentTemplateId: number, excludeId: number): Promise<void> {
+    await db.delete(templates).where(
+      and(eq(templates.parentTemplateId, parentTemplateId), eq(templates.isConfirmed, false))
+    );
+  }
+
+  async confirmTemplate(id: number, parentId: number): Promise<Template> {
+    return await db.transaction(async (tx) => {
+      await tx.delete(templates).where(
+        and(
+          eq(templates.parentTemplateId, parentId),
+          ne(templates.id, id)
+        )
+      );
+      const [confirmed] = await tx.update(templates)
+        .set({ isConfirmed: true, parentTemplateId: id, versionNumber: 1 })
+        .where(eq(templates.id, id))
+        .returning();
+      return confirmed;
+    });
   }
 }
 

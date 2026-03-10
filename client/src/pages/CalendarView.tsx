@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
+import { CalendarCell } from "@/components/CalendarCell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -469,52 +470,37 @@ export default function CalendarView() {
     );
   }
 
+  const campaignsByDay = useMemo(() => {
+    const map: Record<number, Campaign[]> = {};
+    for (let day = 1; day <= totalDays; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      map[day] = campaigns.filter(c => campaignToDateStr(c) === dateStr);
+    }
+    return map;
+  }, [campaigns, year, month, totalDays]);
+
+  const handleDayClick = useCallback((day: number) => {
+    openDay(day);
+  }, [campaigns, year, month]);
+
+  const todayDay = new Date().getDate();
+  const todayMonth = new Date().getMonth();
+  const todayYear = new Date().getFullYear();
+
   const calendarCells = [];
   for (let i = 0; i < startDayOfWeek; i++) {
     calendarCells.push(<div key={`empty-${i}`} className="aspect-square" />);
   }
   for (let day = 1; day <= totalDays; day++) {
-    const dayCampaigns = getCampaignsForDay(day);
-    const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year;
+    const isToday = todayDay === day && todayMonth === month && todayYear === year;
     calendarCells.push(
-      <motion.button
+      <CalendarCell
         key={day}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => openDay(day)}
-        data-testid={`calendar-day-${day}`}
-        className={`
-          aspect-square rounded-xl border border-border p-1.5 flex flex-col items-start justify-start
-          text-sm transition-all duration-200 relative
-          ${isToday ? "bg-primary/10 border-primary/30 font-bold" : "bg-card hover:border-primary/30 hover:shadow-sm"}
-        `}
-      >
-        <span className={`text-xs font-semibold ${isToday ? "text-primary" : ""}`}>{day}</span>
-        {dayCampaigns.length > 0 && (
-          <div className="mt-auto w-full">
-            {dayCampaigns.slice(0, 2).map((c) => (
-              <div key={c.id} data-testid={`calendar-campaign-${c.id}`} className={`w-full text-[10px] font-medium rounded px-1 py-0.5 mt-0.5 flex items-center gap-1 ${
-                c.status === "cancelled" ? "bg-red-100 text-red-500 line-through opacity-60" :
-                c.status === "sent" ? "bg-emerald-100 text-emerald-700" :
-                "bg-primary/15 text-primary"
-              }`}>
-                {c.selectedImageUrl && (
-                  <img
-                    src={c.selectedImageUrl}
-                    alt=""
-                    loading="lazy"
-                    className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
-                  />
-                )}
-                <span className="truncate">{c.idea}</span>
-              </div>
-            ))}
-            {dayCampaigns.length > 2 && (
-              <span className="text-[10px] text-muted-foreground">+{dayCampaigns.length - 2} más</span>
-            )}
-          </div>
-        )}
-      </motion.button>
+        day={day}
+        isToday={isToday}
+        campaigns={campaignsByDay[day] || []}
+        onDayClick={handleDayClick}
+      />
     );
   }
 

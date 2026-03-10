@@ -30,6 +30,7 @@ The application is built with a modern web stack.
 - **Database**: PostgreSQL, managed with Drizzle ORM.
 - **Schema**: Seven core tables: `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity`, `templates`, plus an auto-created `session` table.
 - **Campaign Versioning**: Stores `contentJson` (OpenAI output) and `imageUrl` (Gemini output) for each version. Supports up to 3 versions per campaign.
+- **Template Versioning**: When AI generates/edits templates, creates separate version records (up to 3) linked by `parentTemplateId`. Users compare versions side-by-side and confirm one; others are deleted. Fields: `isConfirmed`, `parentTemplateId`, `versionNumber`.
 - **AI Integration Logic**:
     - **OpenAI (Text Generation)**: Uses `gpt-4.1-mini` with Structured Outputs (JSON schema for `asunto`, `preheader`, `cuerpo_html`, `cta_text`). Utilizes `brand_identity` for context and conversational history for text regeneration. Includes retry logic and refusal handling.
     - **Gemini (Image Generation/Editing)**: Uses `gemini-3.1-flash-image-preview` (Nano Banana 2). Generates images with `responseModalities: ["IMAGE"]` and `aspectRatio: "16:9"`. Supports image-to-image editing by sending original image as `inline_data` and edit instructions as `text`. Includes safety checks for `finishReason` and `safetyRatings`.
@@ -49,10 +50,22 @@ Key files:
 - `shared/schema.ts`: `TEMPLATE_PLACEHOLDERS` constant and `ALL_PLACEHOLDER_KEYS` array
 - `server/templates.ts`: `validateTemplatePlaceholders()` and `renderTemplateWithContent()` utilities
 
+### Contacts System
+- **Fields**: `name`, `email`, `position` (cargo/puesto), `segment`
+- **Note**: The `country` column was renamed to `position` — the schema uses `position` throughout
+- **Validation**: RFC 5322-compliant email regex on frontend; Zod `.email()` on backend
+
+### Calendar Optimization
+- Calendar cells use memoized `CalendarCell` component (`client/src/components/CalendarCell.tsx`)
+- Campaign indicators are colored dots (not thumbnails): green=sent, blue=scheduled, gray=draft, red=cancelled
+- Tooltip on hover shows campaign name and status
+- `campaignsByDay` is memoized to avoid recalculation on re-renders
+
 ### Project Structure
 - `client/`: Frontend React application.
 - `server/`: Backend Express.js application, including database connection, API routes, and AI integrations.
 - `shared/`: Shared data models (Drizzle + Zod schemas) and API contracts.
+- `client/src/components/CalendarCell.tsx`: Memoized calendar cell with dot indicators.
 
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.

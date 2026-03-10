@@ -50,7 +50,7 @@ export const contacts = pgTable("contacts", {
   databaseId: integer("database_id").notNull(),
   email: text("email").notNull(),
   name: text("name"),
-  country: text("country"),
+  position: text("position"),
   segment: text("segment"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -87,6 +87,9 @@ export const templates = pgTable("templates", {
   aiEditCount: integer("ai_edit_count").default(0),
   originalHtml: text("original_html"),
   hasAllPlaceholders: boolean("has_all_placeholders").default(false),
+  isConfirmed: boolean("is_confirmed").default(true),
+  parentTemplateId: integer("parent_template_id"),
+  versionNumber: integer("version_number").default(1),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

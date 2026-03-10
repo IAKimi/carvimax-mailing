@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -40,20 +40,51 @@ export default function Templates() {
   const [editAiInstructions, setEditAiInstructions] = useState("");
   const [manualHtml, setManualHtml] = useState("");
   const [previewId, setPreviewId] = useState<number | null>(null);
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [showVersionsDialog, setShowVersionsDialog] = useState(false);
+  const [versionsParentId, setVersionsParentId] = useState<number | null>(null);
 
   const { data: templates = [], isLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
   });
 
+  const displayTemplates = useMemo(() => {
+    const parentGroups = new Map<number, Template[]>();
+    for (const t of templates) {
+      const parentId = (t as any).parentTemplateId;
+      if (parentId && !(t as any).isConfirmed) {
+        if (!parentGroups.has(parentId)) parentGroups.set(parentId, []);
+        parentGroups.get(parentId)!.push(t);
+      }
+    }
+    const shown = new Set<number>();
+    const result: Template[] = [];
+    for (const t of templates) {
+      const parentId = (t as any).parentTemplateId;
+      if (parentId && !(t as any).isConfirmed) {
+        if (!shown.has(parentId)) {
+          shown.add(parentId);
+          const group = parentGroups.get(parentId)!;
+          result.push(group.sort((a, b) => ((b as any).versionNumber || 1) - ((a as any).versionNumber || 1))[0]);
+        }
+      } else {
+        result.push(t);
+      }
+    }
+    return result;
+  }, [templates]);
+
   const sortedTemplates = useMemo(() => {
-    return [...templates].sort((a, b) => {
+    return [...displayTemplates].sort((a, b) => {
       if (a.favorite && !b.favorite) return -1;
       if (!a.favorite && b.favorite) return 1;
       if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
       if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
       return 0;
     });
-  }, [templates]);
+  }, [displayTemplates]);
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; html: string }) => {
@@ -139,6 +170,71 @@ export default function Templates() {
       toast({ title: "Plantilla eliminada" });
     },
   });
+
+  const renameMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const res = await apiRequest("PATCH", `/api/templates/${id}`, { name });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      setRenamingId(null);
+      setRenameValue("");
+      toast({ title: "Nombre actualizado" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo renombrar la plantilla.", variant: "destructive" });
+    },
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/templates/${id}/confirm`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      setShowVersionsDialog(false);
+      setVersionsParentId(null);
+      toast({ title: "Plantilla confirmada", description: "Las otras versiones han sido eliminadas." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const { data: versionsList = [] } = useQuery<Template[]>({
+    queryKey: ["/api/templates", versionsParentId, "versions"],
+    enabled: !!versionsParentId,
+  });
+
+  function openVersions(template: Template) {
+    const parentId = (template as any).parentTemplateId || template.id;
+    setVersionsParentId(parentId);
+    setShowVersionsDialog(true);
+  }
+
+  function getVersionCount(template: Template): number {
+    const parentId = (template as any).parentTemplateId || template.id;
+    return templates.filter(t => (t as any).parentTemplateId === parentId).length;
+  }
+
+  function startRename(template: Template) {
+    setRenamingId(template.id);
+    setRenameValue(template.name);
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  }
+
+  function confirmRename() {
+    if (renamingId && renameValue.trim()) {
+      renameMutation.mutate({ id: renamingId, name: renameValue.trim() });
+    }
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setRenameValue("");
+  }
 
   function handleSaveTemplate() {
     if (!newName.trim() || !newHtml.trim()) return;
@@ -272,13 +368,64 @@ export default function Templates() {
                 </div>
                 <div className="p-4 space-y-2">
                   <div className="flex items-center justify-between gap-1">
-                    <h3 className="font-bold truncate flex-1">{template.name}</h3>
+                    {renamingId === template.id ? (
+                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                        <Input
+                          ref={renameInputRef}
+                          data-testid={`input-rename-template-${template.id}`}
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") confirmRename();
+                            if (e.key === "Escape") cancelRename();
+                          }}
+                          className="h-8 text-sm font-bold flex-1"
+                          maxLength={200}
+                        />
+                        <Button
+                          data-testid={`button-confirm-rename-${template.id}`}
+                          variant="ghost"
+                          size="icon"
+                          onClick={confirmRename}
+                          disabled={!renameValue.trim() || renameMutation.isPending}
+                        >
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        </Button>
+                        <Button
+                          data-testid={`button-cancel-rename-${template.id}`}
+                          variant="ghost"
+                          size="icon"
+                          onClick={cancelRename}
+                        >
+                          <X className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <h3
+                        data-testid={`text-template-name-${template.id}`}
+                        className="font-bold truncate flex-1 cursor-pointer"
+                        onClick={() => startRename(template)}
+                        title="Clic para renombrar"
+                      >
+                        {template.name}
+                      </h3>
+                    )}
                     <div className="flex items-center gap-0.5 flex-shrink-0">
+                      {renamingId !== template.id && (
+                        <Button
+                          data-testid={`button-rename-template-${template.id}`}
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => startRename(template)}
+                          title="Renombrar plantilla"
+                        >
+                          <Pencil className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      )}
                       <Button
                         data-testid={`button-favorite-${template.id}`}
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
                         onClick={() => toggleFavorite(template.id)}
                       >
                         {template.favorite ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> : <StarOff className="w-4 h-4 text-muted-foreground" />}
@@ -287,7 +434,6 @@ export default function Templates() {
                         data-testid={`button-preview-template-${template.id}`}
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
                         onClick={() => setPreviewId(template.id)}
                       >
                         <Eye className="w-4 h-4 text-muted-foreground" />
@@ -296,16 +442,46 @@ export default function Templates() {
                         data-testid={`button-delete-template-${template.id}`}
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
                         onClick={() => deleteTemplate(template.id)}
                       >
                         <Trash2 className="w-4 h-4 text-muted-foreground" />
                       </Button>
                     </div>
                   </div>
+                  {!(template as any).isConfirmed && (template as any).parentTemplateId && (
+                    <div className="flex items-center gap-2">
+                      <span data-testid={`badge-unconfirmed-${template.id}`} className="inline-flex items-center gap-1 text-[10px] font-semibold bg-orange-100 text-orange-700 rounded-full px-2 py-0.5">
+                        <GitBranch className="w-3 h-3" />
+                        Sin confirmar
+                      </span>
+                      {getVersionCount(template) > 1 && (
+                        <Button
+                          data-testid={`button-view-versions-${template.id}`}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl gap-1 text-xs"
+                          onClick={() => openVersions(template)}
+                        >
+                          <GitBranch className="w-3 h-3" />
+                          Ver {getVersionCount(template)} versiones
+                        </Button>
+                      )}
+                      <Button
+                        data-testid={`button-confirm-template-${template.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1 text-xs bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => confirmMutation.mutate(template.id)}
+                        disabled={confirmMutation.isPending}
+                      >
+                        {confirmMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                        Confirmar
+                      </Button>
+                    </div>
+                  )}
                   {template.isAiGenerated && (
                     <div className="flex items-center gap-2">
-                      {(template.aiEditCount || 0) < 3 ? (
+                      {getVersionCount(template) < 3 ? (
                         <Button
                           data-testid={`button-edit-ai-template-${template.id}`}
                           variant="outline"
@@ -314,7 +490,7 @@ export default function Templates() {
                           onClick={() => openEditAi(template)}
                         >
                           <Wand2 className="w-3 h-3" />
-                          Editar con IA ({3 - (template.aiEditCount || 0)})
+                          {(template as any).isConfirmed ? "Editar con IA" : "Nueva versi\u00f3n IA"}
                         </Button>
                       ) : (
                         <Button
@@ -329,7 +505,7 @@ export default function Templates() {
                         </Button>
                       )}
                       <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {template.aiEditCount || 0}/3 ediciones IA
+                        {getVersionCount(template)}/3 versiones
                       </span>
                     </div>
                   )}
@@ -609,6 +785,62 @@ export default function Templates() {
               className="w-full h-[500px]"
               title="preview-full"
             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showVersionsDialog} onOpenChange={(open) => { setShowVersionsDialog(open); if (!open) setVersionsParentId(null); }}>
+        <DialogContent data-testid="dialog-versions" className="sm:max-w-4xl rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="w-5 h-5 text-blue-600" />
+              Comparar Versiones
+            </DialogTitle>
+            <DialogDescription>
+              Seleccione la versi&oacute;n que desea conservar. Las dem&aacute;s ser&aacute;n eliminadas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            {versionsList.map((v) => (
+              <div key={v.id} data-testid={`version-card-${v.id}`} className="border border-border rounded-xl overflow-hidden">
+                <div className="h-40 bg-white overflow-hidden">
+                  <iframe
+                    srcDoc={v.html}
+                    sandbox=""
+                    className="w-full h-full pointer-events-none"
+                    style={{ transform: "scale(0.4)", transformOrigin: "top left", width: "250%", height: "250%" }}
+                    title={`version-${(v as any).versionNumber}`}
+                  />
+                </div>
+                <div className="p-3 space-y-2 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">Versi&oacute;n {(v as any).versionNumber || 1}</span>
+                    {v.hasAllPlaceholders ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Compatible
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">
+                        <AlertTriangle className="w-3 h-3" />
+                        Incompleta
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{v.name}</p>
+                  <Button
+                    data-testid={`button-confirm-version-${v.id}`}
+                    onClick={() => confirmMutation.mutate(v.id)}
+                    disabled={confirmMutation.isPending}
+                    className="w-full rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    size="sm"
+                  >
+                    {confirmMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                    Confirmar esta versi&oacute;n
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
