@@ -1,0 +1,76 @@
+📋 CRONOGRAMA DE TAREAS — PostIAlo Mail
+═══════════════════════════════════════
+LUNES 9 DE MARZO 2026 — Día 1: Fundación
+═══════════════════════════════════════
+#	Tarea	Estado
+1	Setup inicial del proyecto — Stack: React+Vite+TypeScript (frontend), Express.js (backend), PostgreSQL+Drizzle ORM, Shadcn UI, TailwindCSS	✅ Completado
+2	Homepage/Dashboard — Página de inicio con secciones colapsables, estadísticas rápidas y acciones directas	✅ Completado
+3	Sistema de autenticación — Registro, login, sesiones con express-session + connect-pg-simple, hash con bcryptjs	✅ Completado
+4	Sidebar animada — Navegación lateral con hover para expandir (desktop) y hamburguesa (mobile), color #002073	✅ Completado
+5	Gestión de bases de datos de contactos — CRUD de bases de datos, agregar contactos manualmente, tabla de 5 columnas (nombre, email, posición, segmento)	✅ Completado
+6	Vista de Calendario mensual — Grid mensual navegable, creación de correos por día, diálogos de creación	✅ Completado
+7	Integración con Gemini para imágenes — Generación de imágenes con gemini-2.0-flash-exp, configuración de API key, múltiples iteraciones de modelo/parámetros	✅ Completado
+8	Integración con OpenAI para texto — Generación de asunto, preheader, cuerpo HTML y CTA con gpt-4.1-mini, Structured Outputs	✅ Completado
+9	Generación paralela texto+imagen — Promise.all para ejecutar OpenAI y Gemini simultáneamente al crear un correo	✅ Completado
+10	Sistema de versiones de campaña — Hasta 3 versiones por campaña, cada una con contentJson (texto) + imageUrl (imagen)	✅ Completado
+11	Regeneración de texto con correcciones — Historial conversacional para que la IA corrija basándose en feedback del usuario	✅ Completado
+12	Regeneración y edición de imágenes — Nuevo prompt para regenerar, edición con instrucciones en lenguaje natural	✅ Completado
+13	Validaciones de entrada y seguridad — Rate limiting en auth y rutas AI, sanitización HTML, validación Zod en todos los endpoints, límites de caracteres	✅ Completado
+14	Cancelación de campañas — Flujo de cancelación con confirmación (AlertDialog), estado "cancelled"	✅ Completado
+15	Editor unificado de campaña — Layout tarjeta (imagen izq, texto der), campos editables inline con TipTap, aprobación individual de imagen y texto	✅ Completado
+16	CTA URL + Vista previa final — Campo cta_url en el editor, endpoint preview-final que renderiza plantilla con contenido real en iframe	✅ Completado
+17	Identidad de marca — Página completa para configurar misión, productos, audiencia, colores, fuentes, tono de comunicación. Se inyecta en todos los prompts de IA	✅ Completado
+═══════════════════════════════════════
+MARTES 10 DE MARZO 2026 — Día 2: Plantillas + Compositor
+═══════════════════════════════════════
+#	Tarea	Estado
+18	Sistema de plantillas HTML — CRUD de plantillas, editor HTML manual, sistema de placeholders (6 marcadores estándar), validación de compatibilidad	✅ Completado
+19	Generación de plantillas con IA — OpenAI genera HTML completo de email marketing con estilos inline, tablas para Outlook, placeholders integrados	✅ Completado
+20	Edición de plantillas con IA — Modificar plantillas existentes con instrucciones en lenguaje natural	✅ Completado
+21	Versionado de plantillas — Hasta 3 versiones AI, comparación lado a lado, confirmación atómica (transacción DB que elimina versiones no seleccionadas)	✅ Completado
+22	Renombrado inline de plantillas — Click en el nombre para editar directamente, con manejo de errores	✅ Completado
+23	Optimización del calendario — Componente CalendarCell memoizado, indicadores de puntos de colores (verde=enviado, azul=programado, gris=borrador, rojo=cancelado), tooltips	✅ Completado
+24	Fix campo country → position — Renombrado en schema y UI, tabla de contactos a 5 columnas	✅ Completado
+25	Fix creación de campañas (nombre largo) — name se trunca a 200 chars del idea, campos de prompt ampliados a 1000 chars	✅ Completado
+26	Compositor Avanzado (Nano Banana) — 5 acciones de edición de imagen: Agregar, Reemplazar, Fusionar, Estilo, Borrar Elemento. Payloads multimodales (imagen base + hasta 3 referencias). Micro-prompts especializados por acción	✅ Completado
+27	Modal del Compositor en frontend — UI completa con pills de acción, zona de referencias (upload + historial), placeholders dinámicos por acción	✅ Completado
+28	Layout full-width — Quitar max-w-6xl, contenido se estira al ancho disponible ajustándose al sidebar	✅ Completado
+29	Prompt de plantillas mejorado — Estructura obligatoria Header→Imagen→Contenido→CTA→Footer, 6 placeholders marcados como obligatorios individualmente	✅ Completado
+30	Fix diálogo de selección — Mostrar campaign.name (título IA) en vez de campaign.idea (prompt largo), truncado sin overflow	✅ Completado
+31	Selector de base de datos en editor — Tarjeta "Base de Datos de Destino" en el editor de campaña, cambiar BD en cualquier momento, opción "Sin base de datos"	✅ Completado
+═══════════════════════════════════════
+MIÉRCOLES 11 DE MARZO 2026 — Día 3: Pendientes
+═══════════════════════════════════════
+#	Tarea	Estado	Prioridad
+32	Endpoint de callback de envío — POST /api/campaigns/:id/delivery-status para que Make.com informe que el correo fue enviado/rebotado. Actualizar estado en DB	🔲 Pendiente	Alta
+33	Payload para Make.com — Endpoint o lógica que construya el JSON payload con: destinatarios (de la BD de contactos asignada), HTML final renderizado (plantilla + contenido), asunto, preheader. Listo para ser consumido por un webhook de Make	🔲 Pendiente	Alta
+34	Programación real de envíos — Cuando el usuario programa un correo para una fecha/hora, que el sistema dispare el payload a Make en el momento correcto (cron job o scheduler)	🔲 Pendiente	Alta
+35	Importación CSV de contactos — Los botones "Agregar CSV" y "Sobreescribir CSV" existen en la UI pero solo muestran toasts. Implementar parsing y carga real	🔲 Pendiente	Media
+36	Página de configuración de usuario — Cambiar contraseña, editar perfil (nombre, empresa), preferencias de cuenta	🔲 Pendiente	Media
+37	Analytics / Métricas de envío — Dashboard con estadísticas: correos enviados, tasa de apertura, clics en CTA, rebotes. Requiere datos de callback de Make/Brevo	🔲 Pendiente	Media
+38	QA general y ajustes de UI — Revisión visual de todas las páginas en full-width, responsividad en mobile, edge cases de formularios, manejo de errores en todas las pantallas	🔲 Pendiente	Media
+39	Historial de correos mejorado (/emails) — La página "Mis Correos" existe pero es básica. Agregar filtros funcionales, búsqueda, paginación, y detalle de cada envío	🔲 Pendiente	Baja
+40	Consolidar CampaignEditor.tsx — Existe una página standalone /campaigns/:id que duplica funcionalidad del editor dentro de CalendarView. Unificar o eliminar la redundancia	🔲 Pendiente	Baja
+41	Dark Mode — La estructura está preparada (Tailwind class-based) pero no implementado. Agregar ThemeProvider y toggle	🔲 Pendiente	Baja
+42	SEO y meta tags — Títulos únicos por página, Open Graph tags para compartir	🔲 Pendiente	Baja
+RESUMEN EJECUTIVO
+Métrica	Valor
+Total de tareas identificadas	42
+Completadas (Días 1-2)	31
+Pendientes (Día 3+)	11
+Prioridad Alta	3 (Make payload, callback de envío, programación)
+Prioridad Media	4 (CSV, settings, analytics, QA)
+Prioridad Baja	4 (historial, consolidación, dark mode, SEO)
+ENDPOINTS EXISTENTES (42 rutas)
+Auth (4): register, login, me, logout
+Campañas (5): list, get, create, update, preview-final
+Versiones IA (7): list versions, generate, regen text, regen image, edit image, edit image advanced, update version
+Contactos (6): list DBs, create DB, delete DB, list contacts, create contact, update contact, delete contact
+Marca (2): get, put
+Plantillas (8): list, create, update, delete, generate AI, edit AI, list versions, confirm
+
+ENDPOINTS QUE FALTAN
+POST /api/campaigns/:id/delivery-status — Callback de Make
+POST /api/campaigns/:id/send-payload — Construir y enviar payload a Make
+Scheduler/Cron para envíos programados
+Ahí lo tenés todo organizado para que lo pases a Notion. Las 31 tareas completadas están numeradas cronológicamente por día, y las 11 pendientes están priorizadas. Las 3 de prioridad alta son las que necesitás para que el flujo de envío funcione de punta a punta con Make y Brevo.
