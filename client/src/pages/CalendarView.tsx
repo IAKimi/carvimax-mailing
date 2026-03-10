@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
-  Type, Eye, Wand2, Send, Loader2
+  Type, Eye, Wand2, Send, Loader2, XCircle, Ban
 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { TipTapEditor } from "@/components/TipTapEditor";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -21,8 +22,8 @@ import type { Campaign, CampaignVersion, Template, ContactDatabase } from "@shar
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-const STATUS_MAP: Record<string, string> = { draft: "borrador", scheduled: "programado", sent: "enviado" };
-const STATUS_REVERSE: Record<string, string> = { borrador: "draft", programado: "scheduled", enviado: "sent" };
+const STATUS_MAP: Record<string, string> = { draft: "borrador", scheduled: "programado", sent: "enviado", cancelled: "cancelado" };
+const STATUS_REVERSE: Record<string, string> = { borrador: "draft", programado: "scheduled", enviado: "sent", cancelado: "cancelled" };
 
 function campaignToDateStr(c: Campaign): string {
   if (!c.scheduledAt) return "";
@@ -245,6 +246,19 @@ export default function CalendarView() {
     );
   }
 
+  function handleCancelCampaign() {
+    if (!editingCampaignId) return;
+    updateCampaignMutation.mutate(
+      { id: editingCampaignId, updates: { status: "cancelled" } },
+      {
+        onSuccess: () => {
+          toast({ title: "Correo cancelado", description: "El correo ha sido marcado como cancelado." });
+          handleBackToCalendar();
+        },
+      }
+    );
+  }
+
   function handleGenerate() {
     if (!form.idea.trim()) return;
     createCampaignMutation.mutate({
@@ -361,7 +375,11 @@ export default function CalendarView() {
         {dayCampaigns.length > 0 && (
           <div className="mt-auto w-full">
             {dayCampaigns.slice(0, 2).map((c) => (
-              <div key={c.id} className="w-full bg-primary/15 text-primary text-[10px] font-medium rounded px-1 py-0.5 truncate mt-0.5">
+              <div key={c.id} className={`w-full text-[10px] font-medium rounded px-1 py-0.5 truncate mt-0.5 ${
+                c.status === "cancelled" ? "bg-red-100 text-red-500 line-through" :
+                c.status === "sent" ? "bg-emerald-100 text-emerald-700" :
+                "bg-primary/15 text-primary"
+              }`}>
                 {c.idea}
               </div>
             ))}
@@ -375,11 +393,27 @@ export default function CalendarView() {
   }
 
   if (editingCampaign) {
-    const statusLabel = STATUS_MAP[editingCampaign.status] || editingCampaign.status;
+    const isCancelled = editingCampaign.status === "cancelled";
+    const isSent = editingCampaign.status === "sent";
+    const isGenerated = versions.length > 0;
+    const isReady = imageApproved && textApproved;
+
+    const statusTags: Array<{ label: string; className: string }> = [];
+    if (isCancelled) {
+      statusTags.push({ label: "Cancelado", className: "bg-red-100 text-red-700" });
+    } else {
+      if (isSent) statusTags.push({ label: "Enviado", className: "bg-emerald-100 text-emerald-700" });
+      if (isReady && !isSent) statusTags.push({ label: "Listo", className: "bg-green-100 text-green-700" });
+      if (isGenerated && !isSent) statusTags.push({ label: "Generado", className: "bg-indigo-100 text-indigo-700" });
+      if (editingCampaign.status === "scheduled") statusTags.push({ label: "Programado", className: "bg-blue-100 text-blue-700" });
+      if (editingCampaign.status === "draft") statusTags.push({ label: "Borrador", className: "bg-gray-100 text-gray-600" });
+    }
+
+    const progressPercent = isCancelled || isSent ? -1 : (imageApproved ? 50 : 0) + (textApproved ? 50 : 0);
 
     return (
       <Layout>
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center gap-4 flex-wrap">
             <Button
               data-testid="button-back-to-calendar"
@@ -391,23 +425,92 @@ export default function CalendarView() {
               Volver al Calendario
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl md:text-3xl font-extrabold truncate">{selectedAsunto || editingCampaign.name}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 data-testid="text-editor-title" className="text-2xl md:text-3xl font-extrabold truncate">{selectedAsunto || editingCampaign.name}</h1>
+                {statusTags.map((tag) => (
+                  <span key={tag.label} data-testid={`tag-status-${tag.label.toLowerCase()}`} className={`text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap ${tag.className}`}>
+                    {tag.label}
+                  </span>
+                ))}
+              </div>
               <p className="text-sm text-muted-foreground">
-                {editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt).toLocaleDateString("es") : "Sin fecha"} · {statusLabel}
+                {editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt).toLocaleDateString("es") : "Sin fecha"}
               </p>
             </div>
-            {textApproved && imageApproved && (
-              <Button
-                data-testid="button-publish-now"
-                onClick={handlePublishNow}
-                className="rounded-xl gap-2 bg-destructive text-destructive-foreground"
-                disabled={updateCampaignMutation.isPending}
-              >
-                <Send className="w-4 h-4" />
-                Publicar Ahora
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {!isCancelled && !isSent && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      data-testid="button-cancel-campaign"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      disabled={updateCampaignMutation.isPending}
+                    >
+                      <Ban className="w-3.5 h-3.5" />
+                      Cancelar Correo
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-2xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Cancelar este correo?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        El correo será marcado como cancelado. No se eliminará, pero no podrá ser editado ni enviado. Solo un administrador podrá eliminarlo definitivamente.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="rounded-xl">No, mantener</AlertDialogCancel>
+                      <AlertDialogAction
+                        data-testid="button-confirm-cancel"
+                        onClick={handleCancelCampaign}
+                        className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        Sí, cancelar correo
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {textApproved && imageApproved && !isCancelled && (
+                <Button
+                  data-testid="button-publish-now"
+                  onClick={handlePublishNow}
+                  className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={updateCampaignMutation.isPending}
+                >
+                  <Send className="w-4 h-4" />
+                  Publicar Ahora
+                </Button>
+              )}
+            </div>
           </div>
+
+          {isCancelled && (
+            <div data-testid="banner-cancelled" className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <p className="text-sm font-medium text-red-700">Este correo ha sido cancelado. No se puede editar ni enviar.</p>
+            </div>
+          )}
+
+          {progressPercent >= 0 && (
+            <div data-testid="progress-bar-container" className="flex items-center gap-3">
+              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  data-testid="progress-bar-fill"
+                  className={`h-full rounded-full transition-all duration-500 ease-out ${
+                    progressPercent === 100 ? "bg-green-500" : progressPercent > 0 ? "bg-amber-400" : ""
+                  }`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <span data-testid="text-progress-label" className={`text-xs font-semibold min-w-[60px] text-right ${
+                progressPercent === 100 ? "text-green-600" : progressPercent > 0 ? "text-amber-600" : "text-gray-400"
+              }`}>
+                Progreso: {progressPercent}%
+              </span>
+            </div>
+          )}
 
           {versionsLoading ? (
             <div className="flex items-center justify-center py-20">
@@ -451,7 +554,7 @@ export default function CalendarView() {
                     size="sm"
                     className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleRegenerateImage}
-                    disabled={versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                    disabled={isCancelled || versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
                   >
                     {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     Regenerar ({Math.max(0, 3 - versions.length)})
@@ -461,6 +564,7 @@ export default function CalendarView() {
                     variant="outline"
                     size="sm"
                     className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
+                    disabled={isCancelled}
                     onClick={() => editorFileInputRef.current?.click()}
                   >
                     <Upload className="w-3.5 h-3.5" />
@@ -487,7 +591,7 @@ export default function CalendarView() {
                     size="sm"
                     className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                     onClick={handleEditWithNanoBanana}
-                    disabled={versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
+                    disabled={isCancelled || versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
                   >
                     {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                     Editar con Nano Banana
@@ -519,8 +623,9 @@ export default function CalendarView() {
                           <button
                             key={v.id}
                             data-testid={`button-select-image-${v.versionNumber}`}
-                            onClick={() => handleSelectVersion(v.id)}
-                            className={`rounded-lg border-2 overflow-hidden transition-all ${v.isSelected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"}`}
+                            onClick={() => !isCancelled && handleSelectVersion(v.id)}
+                            disabled={isCancelled}
+                            className={`rounded-lg border-2 overflow-hidden transition-all ${v.isSelected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
                           >
                             <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
                             <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
@@ -531,7 +636,7 @@ export default function CalendarView() {
                   )}
                 </AnimatePresence>
 
-                {!imageApproved && (
+                {!imageApproved && !isCancelled && (
                   <Button
                     data-testid="button-approve-image"
                     onClick={handleApproveImage}
@@ -597,7 +702,7 @@ export default function CalendarView() {
                     size="sm"
                     className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleRegenerateText}
-                    disabled={versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
+                    disabled={isCancelled || versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                   >
                     {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     Regenerar Texto ({Math.max(0, 3 - versions.length)})
@@ -607,6 +712,7 @@ export default function CalendarView() {
                     variant={textEditMode ? "default" : "outline"}
                     size="sm"
                     className="rounded-xl gap-1 border-slate-300"
+                    disabled={isCancelled}
                     onClick={() => setTextEditMode(!textEditMode)}
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -645,8 +751,9 @@ export default function CalendarView() {
                             <button
                               key={v.id}
                               data-testid={`button-select-text-${v.versionNumber}`}
-                              onClick={() => handleSelectVersion(v.id)}
-                              className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${v.isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                              onClick={() => !isCancelled && handleSelectVersion(v.id)}
+                              disabled={isCancelled}
+                              className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${v.isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
@@ -661,7 +768,7 @@ export default function CalendarView() {
                   )}
                 </AnimatePresence>
 
-                {!textApproved && (
+                {!textApproved && !isCancelled && (
                   <Button
                     data-testid="button-approve-text"
                     onClick={handleApproveText}

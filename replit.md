@@ -16,7 +16,7 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 - **Iconos**: Lucide React + React Icons (SI)
 
 ## Estado Actual
-Todas las features conectadas a PostgreSQL. Autenticación real. Generación de imágenes con Gemini API integrada. Generación de texto con OpenAI Responses API integrada. Regeneración de texto con historial conversacional (correcciones del usuario). Regeneración de imagen con nuevo prompt. Edición de imagen con Nano Banana (image-to-image via Gemini). Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales. Solo light mode.
+Todas las features conectadas a PostgreSQL. Autenticación real. Generación de imágenes con Gemini API integrada. Generación de texto con OpenAI Responses API integrada. Regeneración de texto con historial conversacional (correcciones del usuario). Regeneración de imagen con nuevo prompt. Edición de imagen con Nano Banana (image-to-image via Gemini). Cancelación de campañas (soft delete, status "cancelled"). Tags de estado calculados (Cancelado, Enviado, Listo, Generado, Programado, Borrador). Barra de progreso basada en aprobaciones (0%/50%/100%). Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales. Solo light mode.
 
 ## Estructura del Proyecto
 ```

@@ -178,7 +178,7 @@ export async function registerRoutes(
       const { status, ...rest } = req.body;
       const input = updateCampaignSchema.parse(rest);
       const updates: any = { ...input };
-      if (status && ["draft", "scheduled", "sent"].includes(status)) {
+      if (status && ["draft", "scheduled", "sent", "cancelled"].includes(status)) {
         updates.status = status;
       }
       const campaign = await storage.updateCampaign(id, updates);
@@ -208,6 +208,9 @@ export async function registerRoutes(
     const campaign = await storage.getCampaign(campaignId);
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    if (campaign.status === "cancelled") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -252,12 +255,15 @@ export async function registerRoutes(
           cuerpo_html: emailContent.cuerpo_html,
           cta_text: emailContent.cta_text,
         }
-      : {
-          asunto: campaign.idea || "Sin asunto",
-          preheader: "",
-          cuerpo_html: `<p>Contenido generado para su campaña: "${campaign.idea}". Objetivo: ${campaign.objective}. Puede editar este texto libremente.</p>`,
-          cta_text: "Ver más",
-        };
+      : (() => {
+          console.warn("OpenAI no disponible — usando texto placeholder");
+          return {
+            asunto: "Borrador - Pendiente de generación IA",
+            preheader: "",
+            cuerpo_html: `<p>El contenido de este correo no pudo ser generado automáticamente. Use el botón <strong>Regenerar Texto</strong> para intentar de nuevo, o edite este texto manualmente.</p>`,
+            cta_text: "Ver más",
+          };
+        })();
 
     const newVersion = await storage.createCampaignVersion({
       campaignId,
@@ -275,6 +281,9 @@ export async function registerRoutes(
     const campaign = await storage.getCampaign(campaignId);
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    if (campaign.status === "cancelled") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -341,6 +350,9 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
+    if (campaign.status === "cancelled") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
     if (versionNumber > 3) {
@@ -381,6 +393,9 @@ export async function registerRoutes(
     const campaign = await storage.getCampaign(campaignId);
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    if (campaign.status === "cancelled") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
