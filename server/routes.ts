@@ -84,6 +84,7 @@ const updateBrandIdentitySchema = z.object({
   accentColor: z.string().max(20).nullable().optional(),
   headingFont: z.string().max(100).nullable().optional(),
   bodyFont: z.string().max(100).nullable().optional(),
+  logoUrl: z.string().max(3000000).nullable().optional(),
 });
 
 const updateVersionSchema = z.object({

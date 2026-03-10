@@ -18,7 +18,7 @@ The application is built with a modern web stack.
 - **WYSIWYG Editor**: TipTap for rich text editing.
 - **Visual Theme**: Light mode only, using a specific color palette: Primary #002073, Accent #e3001b. Sidebar uses #002073 with white text. Regeneration buttons are blue (#2563eb), Nano Banana button is amber (#f59e0b), and approval buttons are emerald green.
 - **Layout**: Full-width (`w-full`) — no `max-w` constraint. Content stretches to fill available space, adjusting dynamically when sidebar opens/closes. Padding: `p-4 md:p-8 lg:p-10`.
-- **UI/UX Decisions**: Unified campaign card layout (image left, text right, stacking on mobile). Always-editable text fields. Preview via dialog modal (iframe). Collapsible sidebar for desktop, hamburger menu for mobile. Choice dialog shows `campaign.name` (truncated) instead of `campaign.idea`. Campaign editor includes database selector card.
+- **UI/UX Decisions**: Unified campaign card layout (image left, text right, stacking on mobile). Always-editable text fields. Preview via dialog modal (iframe). Collapsible sidebar for desktop, hamburger menu for mobile. Choice dialog shows `campaign.name` (truncated) instead of `campaign.idea`. Campaign editor includes database selector card. Version switching is instant via `localSelectedVersionId` local state + image preloading.
 
 ### Backend
 - **Framework**: Express.js (Node.js).
@@ -29,7 +29,7 @@ The application is built with a modern web stack.
 
 ### Data Management
 - **Database**: PostgreSQL, managed with Drizzle ORM.
-- **Schema**: Seven core tables: `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity`, `templates`, plus an auto-created `session` table.
+- **Schema**: Seven core tables: `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity` (includes `logoUrl` for base64 logo), `templates`, plus an auto-created `session` table.
 - **Campaign Versioning**: Stores `contentJson` (OpenAI output) and `imageUrl` (Gemini output) for each version. Supports up to 3 versions per campaign.
 - **Template Versioning**: When AI generates/edits templates, creates separate version records (up to 3) linked by `parentTemplateId`. Users compare versions side-by-side and confirm one; others are deleted. Fields: `isConfirmed`, `parentTemplateId`, `versionNumber`.
 - **AI Integration Logic**:

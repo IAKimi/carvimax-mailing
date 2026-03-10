@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   Check,
   ChevronDown,
   Loader2,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,6 +45,7 @@ const BRAND_FIELDS: { key: string; default: string }[] = [
   { key: "accentColor", default: "#F59E0B" },
   { key: "headingFont", default: "Inter" },
   { key: "bodyFont", default: "Inter" },
+  { key: "logoUrl", default: "" },
 ];
 
 const DEFAULT_BRAND = {
@@ -63,6 +65,7 @@ const DEFAULT_BRAND = {
   accentColor: "#F59E0B",
   headingFont: "Inter",
   bodyFont: "Inter",
+  logoUrl: "",
 };
 
 function getProgressColor(pct: number): string {
@@ -112,6 +115,7 @@ export default function BrandIdentity() {
   const [rightOpen, setRightOpen] = useState(false);
   const [brand, setBrand] = useState({ ...DEFAULT_BRAND });
   const [initialized, setInitialized] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: brandData, isLoading } = useQuery<BrandIdentityType | null>({
     queryKey: ["/api/brand-identity"],
@@ -136,6 +140,7 @@ export default function BrandIdentity() {
         accentColor: brandData.accentColor || "#F59E0B",
         headingFont: brandData.headingFont || "Inter",
         bodyFont: brandData.bodyFont || "Inter",
+        logoUrl: brandData.logoUrl || "",
       });
       setInitialized(true);
     } else if (brandData === null && !initialized) {
@@ -449,11 +454,73 @@ export default function BrandIdentity() {
 
                     <div>
                       <Label className="mb-3 block">Logo de la Empresa</Label>
-                      <div className="border-2 border-dashed border-border rounded-2xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer">
-                        <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                        <p className="text-sm text-muted-foreground">Arrastre su logo aquí o haga clic para seleccionar</p>
-                        <p className="text-xs text-muted-foreground mt-1">PNG, JPG o SVG (máx. 2MB)</p>
-                      </div>
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        className="hidden"
+                        data-testid="input-logo-file"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 2 * 1024 * 1024) {
+                            toast({ title: "El archivo excede 2MB", variant: "destructive" });
+                            return;
+                          }
+                          if (!["image/png", "image/jpeg", "image/svg+xml", "image/webp"].includes(file.type)) {
+                            toast({ title: "Formato no soportado. Use PNG, JPG, SVG o WebP", variant: "destructive" });
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setBrand(b => ({ ...b, logoUrl: reader.result as string }));
+                          };
+                          reader.readAsDataURL(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      {brand.logoUrl ? (
+                        <div className="relative border-2 border-border rounded-2xl p-4 text-center">
+                          <img
+                            data-testid="img-brand-logo"
+                            src={brand.logoUrl}
+                            alt="Logo de la empresa"
+                            className="max-h-32 mx-auto object-contain"
+                          />
+                          <div className="flex items-center justify-center gap-2 mt-3">
+                            <Button
+                              data-testid="button-change-logo"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl gap-1.5 text-xs"
+                              onClick={() => logoInputRef.current?.click()}
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              Cambiar
+                            </Button>
+                            <Button
+                              data-testid="button-remove-logo"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl gap-1.5 text-xs border-red-300 text-red-600 hover:bg-red-50"
+                              onClick={() => setBrand(b => ({ ...b, logoUrl: "" }))}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              Eliminar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          data-testid="dropzone-logo"
+                          onClick={() => logoInputRef.current?.click()}
+                          className="border-2 border-dashed border-border rounded-2xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer"
+                        >
+                          <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-sm text-muted-foreground">Arrastre su logo aquí o haga clic para seleccionar</p>
+                          <p className="text-xs text-muted-foreground mt-1">PNG, JPG o SVG (máx. 2MB)</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

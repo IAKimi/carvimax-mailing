@@ -74,6 +74,7 @@ export const brandIdentity = pgTable("brand_identity", {
   accentColor: text("accent_color"),
   headingFont: text("heading_font"),
   bodyFont: text("body_font"),
+  logoUrl: text("logo_url"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

@@ -406,15 +406,34 @@ export default function CalendarView() {
     borrar_elemento: "Ej: Borra a las personas caminando en el parque",
   };
 
+  const [localSelectedVersionId, setLocalSelectedVersionId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setLocalSelectedVersionId(null);
+  }, [editingCampaignId]);
+
+  useEffect(() => {
+    if (localSelectedVersionId && !versions.find(v => v.id === localSelectedVersionId)) {
+      setLocalSelectedVersionId(null);
+    }
+    versions.forEach(v => {
+      if (v.imageUrl) {
+        const img = new Image();
+        img.src = v.imageUrl;
+      }
+    });
+  }, [versions]);
+
   function handleSelectVersion(versionId: number) {
+    setLocalSelectedVersionId(versionId);
+    setTextApproved(false);
+    setImageApproved(false);
     versions.forEach(v => {
       if (v.isSelected && v.id !== versionId) {
         updateVersionMutation.mutate({ id: v.id, updates: { isSelected: false } });
       }
     });
     updateVersionMutation.mutate({ id: versionId, updates: { isSelected: true } });
-    setTextApproved(false);
-    setImageApproved(false);
   }
 
   function handleTextChange(versionId: number, newHtml: string) {
@@ -462,7 +481,7 @@ export default function CalendarView() {
   }
 
   const editingCampaign = campaigns.find(c => c.id === editingCampaignId);
-  const selectedVersion = versions.find(v => v.isSelected) || versions[0];
+  const selectedVersion = (localSelectedVersionId ? versions.find(v => v.id === localSelectedVersionId) : null) || versions.find(v => v.isSelected) || versions[0];
   const contentData = selectedVersion?.contentJson as any;
   const selectedAsunto = contentData?.asunto || contentData?.title || "";
   const selectedPreheader = contentData?.preheader || "";
@@ -905,7 +924,7 @@ export default function CalendarView() {
                               data-testid={`button-select-image-${v.versionNumber}`}
                               onClick={() => !isCancelled && handleSelectVersion(v.id)}
                               disabled={isCancelled}
-                              className={`rounded-lg border-2 overflow-hidden transition-all ${v.isSelected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
+                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
                               <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
@@ -1095,11 +1114,11 @@ export default function CalendarView() {
                                 data-testid={`button-select-text-${v.versionNumber}`}
                                 onClick={() => !isCancelled && handleSelectVersion(v.id)}
                                 disabled={isCancelled}
-                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${v.isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
+                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
-                                  {v.isSelected && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
+                                  {selectedVersion?.id === v.id && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
                                 </div>
                                 <div className="text-xs text-muted-foreground line-clamp-2" dangerouslySetInnerHTML={{ __html: html.replace(/<[^>]*>/g, " ").substring(0, 120) }} />
                               </button>
