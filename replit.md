@@ -1,217 +1,55 @@
 # PostIAlo Mail - SaaS de Email Marketing con IA
 
-## Descripción
-Plataforma SaaS de automatización de correos electrónicos con inteligencia artificial. Inspirada en PostIAlo (plataforma existente para redes sociales), adaptada para email marketing.
+## Overview
+PostIAlo Mail is an AI-powered email marketing automation SaaS platform. It aims to streamline email campaign creation and management by leveraging AI for content and image generation. The project's vision is to provide a comprehensive tool for users to design, generate, and manage their email marketing efforts efficiently.
 
-## Stack Técnico
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS
-- **Backend**: Express.js (Node.js)
-- **Base de Datos**: PostgreSQL (Drizzle ORM) - conectada con DatabaseStorage
-- **Autenticación**: bcryptjs (hash de contraseñas) + express-session (sesiones en PostgreSQL via connect-pg-simple)
-- **IA / Texto**: OpenAI Responses API (modelo gpt-4.1-mini con Structured Outputs)
-- **IA / Imágenes**: Gemini API (modelo gemini-3.1-flash-image-preview / Nano Banana 2 con responseModalities IMAGE)
-- **Editor WYSIWYG**: TipTap
-- **Animaciones**: Framer Motion
-- **Routing**: Wouter
-- **Iconos**: Lucide React + React Icons (SI)
+## User Preferences
+I want to prioritize iterative development, receiving detailed explanations for complex features. I prefer clear, concise language in all communications. For coding, I favor a modular and clean architecture. Before making any significant architectural changes or introducing new dependencies, please ask for my approval. Ensure all user-facing text and documentation are in Spanish.
 
-## Estado Actual
-Todas las features conectadas a PostgreSQL. Autenticación real. Generación de imágenes con Gemini API integrada. Generación de texto con OpenAI Responses API integrada. Regeneración de texto con historial conversacional (correcciones del usuario). Regeneración de imagen con nuevo prompt. Edición de imagen con Nano Banana (image-to-image via Gemini). Cancelación de campañas (soft delete, status "cancelled"). Tags de estado calculados (Cancelado, Enviado, Listo, Generado, Programado, Borrador). Barra de progreso basada en aprobaciones (0%/50%/100%). Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales. Solo light mode.
+## System Architecture
+The application is built with a modern web stack.
 
-### Editor de Campaña (CalendarView.tsx)
-- **Card unificada**: Una sola card con grid de 2 columnas (imagen izquierda, texto derecha). En mobile se apilan.
-- **Columna imagen**: Preview de imagen, botones Regenerar/Cargar/NanoBanana, historial de imágenes, Aprobar Imagen.
-- **Columna texto**: 4 campos editables individuales con labels y contadores de caracteres:
-  - Asunto del correo (Input, maxLength=60, contador X/60)
-  - Vista previa / Preheader (Input, maxLength=100, contador X/100)
-  - Cuerpo del correo (TipTap WYSIWYG, key={versionId} para sync correcto)
-  - Botón de acción CTA (Input, maxLength=25, contador X/25)
-- **Guardar cambios**: Botón aparece al editar campos. Save con onSuccess/onError callbacks.
-- **Aprobar texto**: Si hay cambios sin guardar, guarda primero y aprueba solo al confirmar éxito.
-- **Vista previa**: Dialog modal popup (no scroll-down). iframe con renderizado del correo completo. data-testid="dialog-preview-email".
-- **Sin toggle "Editar Texto / Ver Resultado"**: Los campos siempre son editables.
+### Frontend
+- **Framework**: React with TypeScript, bundled by Vite.
+- **Styling**: Tailwind CSS for utility-first styling.
+- **State Management/Routing**: Wouter for routing.
+- **UI Components**: Shadcn UI for pre-built components, Lucide React and React Icons for iconography.
+- **Animations**: Framer Motion.
+- **WYSIWYG Editor**: TipTap for rich text editing.
+- **Visual Theme**: Light mode only, using a specific color palette: Primary #002073, Accent #e3001b. Sidebar uses #002073 with white text. Regeneration buttons are blue (#2563eb), Nano Banana button is amber (#f59e0b), and approval buttons are emerald green.
+- **UI/UX Decisions**: Unified campaign card layout (image left, text right, stacking on mobile). Always-editable text fields. Preview via dialog modal (iframe). Collapsible sidebar for desktop, hamburger menu for mobile.
 
-## Estructura del Proyecto
-```
-client/src/
-├── pages/
-│   ├── Login.tsx          - Login + Registro (toggle entre ambos)
-│   ├── Home.tsx           - Bienvenida + 2 dropdowns (usa API para nombre de usuario)
-│   ├── BrandIdentity.tsx  - 2 dropdowns (Mi Empresa / Lineamientos) — datos de API
-│   ├── CalendarView.tsx   - Centro de trabajo: calendario + editor + Gemini/OpenAI AI + modales regeneración
-│   ├── Templates.tsx      - Galería de plantillas HTML — datos de API
-│   ├── MyEmails.tsx       - Historial de correos (sent/scheduled) — datos de API
-│   ├── Contacts.tsx       - Bases de contactos con CRUD — datos de API
-│   ├── CampaignEditor.tsx - Editor de campaña individual (ruta /campaigns/:id)
-│   └── not-found.tsx      - 404
-├── components/
-│   ├── Layout.tsx         - Sidebar colapsable (module-level hover state, API para nombre)
-│   ├── AnimatedCard.tsx   - Card con animaciones
-│   ├── TipTapEditor.tsx   - Editor WYSIWYG
-│   └── ui/               - Componentes Shadcn
-├── hooks/
-│   ├── use-campaigns.ts   - Hooks para CampaignEditor
-│   └── use-campaign-versions.ts - Hooks: generate, update, regenerateText, regenerateImage, editImage
-└── lib/                   - Utilidades (queryClient, utils)
+### Backend
+- **Framework**: Express.js (Node.js).
+- **Authentication**: `bcryptjs` for password hashing and `express-session` with `connect-pg-simple` for session management.
+- **API Design**: RESTful API with endpoints for authentication, CRUD operations on campaigns, contacts, brand identity, and templates, and AI-driven generation/regeneration/editing. All endpoints have Zod-based body validation and enforce max lengths.
+- **Security**: Rate limiting on auth and AI routes, HTML sanitization for templates, input validation for all fields, and ownership checks for data modification.
+- **Concurrency**: OpenAI (text) and Gemini (image) generation run in parallel using `Promise.all`.
 
-server/
-├── db.ts       - Conexión PostgreSQL (pg + drizzle-orm)
-├── gemini.ts   - Integración Gemini API (generación + edición de imágenes)
-├── openai.ts   - Integración OpenAI Responses API (generación + regeneración de texto)
-├── routes.ts   - API endpoints (auth + CRUD + generación IA dual + regeneración + edición imagen)
-├── storage.ts  - DatabaseStorage (PostgreSQL real, todas las operaciones)
-└── index.ts    - Server + session middleware
+### Data Management
+- **Database**: PostgreSQL, managed with Drizzle ORM.
+- **Schema**: Seven core tables: `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity`, `templates`, plus an auto-created `session` table.
+- **Campaign Versioning**: Stores `contentJson` (OpenAI output) and `imageUrl` (Gemini output) for each version. Supports up to 3 versions per campaign.
+- **AI Integration Logic**:
+    - **OpenAI (Text Generation)**: Uses `gpt-4.1-mini` with Structured Outputs (JSON schema for `asunto`, `preheader`, `cuerpo_html`, `cta_text`). Utilizes `brand_identity` for context and conversational history for text regeneration. Includes retry logic and refusal handling.
+    - **Gemini (Image Generation/Editing)**: Uses `gemini-3.1-flash-image-preview` (Nano Banana 2). Generates images with `responseModalities: ["IMAGE"]` and `aspectRatio: "16:9"`. Supports image-to-image editing by sending original image as `inline_data` and edit instructions as `text`. Includes safety checks for `finishReason` and `safetyRatings`.
 
-shared/
-├── schema.ts   - Modelos de datos (Drizzle + Zod) — 7 tablas
-└── routes.ts   - Contrato API (incluyendo regenerateText, regenerateImage, editImage)
+### Project Structure
+- `client/`: Frontend React application.
+- `server/`: Backend Express.js application, including database connection, API routes, and AI integrations.
+- `shared/`: Shared data models (Drizzle + Zod schemas) and API contracts.
 
-docs/
-└── gemini-context-prompt.md - Prompt para NotebookLM (configuración Gemini API)
-```
-
-## Variables de Entorno
-- `DATABASE_URL` — conexión PostgreSQL (auto-configurada)
-- `SESSION_SECRET` — secreto para sesiones express
-- `OPENAI_API_KEY` — clave API de OpenAI (requerida para generación de texto)
-- `GEMINI_API_KEY` — clave API de Google Gemini (requerida para generación de imágenes)
-
-## Base de Datos (PostgreSQL)
-### Tablas
-- **users**: id, name, email (unique), password (bcrypt hash), company
-- **campaigns**: id, userId, name, idea, objective, tone, status, layoutPreference, imagePrompt, targetDatabase, scheduledAt, createdAt
-- **campaign_versions**: id, campaignId, versionNumber, contentJson (JSONB), imageUrl (text — puede ser URL o data:base64), isSelected, createdAt
-- **contact_databases**: id, userId, name, createdAt
-- **contacts**: id, userId, databaseId, email, name, country, segment, createdAt
-- **brand_identity**: id, userId (unique), companyName, industry, website, whatsapp, mission, vision, products, history, styleGuide, targetAudience, tone, primaryColor, secondaryColor, accentColor, headingFont, bodyFont, updatedAt
-- **templates**: id, userId, name, html, favorite, createdAt
-- **session** (auto-created by connect-pg-simple)
-
-### API de Autenticación
-- `POST /api/auth/register` — { name, email, password, company? } → crea usuario, inicia sesión
-- `POST /api/auth/login` — { email, password } → valida credenciales, inicia sesión
-- `GET /api/auth/me` — devuelve usuario actual o 401
-- `POST /api/auth/logout` — destruye sesión
-
-### API de Datos
-- `GET/POST /api/campaigns` — listar/crear campañas (auto-status "scheduled" si tiene scheduledAt)
-- `GET/PATCH /api/campaigns/:id` — obtener/actualizar campaña
-- `GET /api/campaigns/:id/versions` — versiones de campaña
-- `POST /api/campaigns/:id/generate` — generar versión con Gemini AI (imagen) + OpenAI (texto) en paralelo
-- `POST /api/campaigns/:id/regenerate-text` — regenerar texto con correcciones del usuario (historial conversacional OpenAI)
-- `POST /api/campaigns/:id/regenerate-image` — regenerar imagen con nuevo prompt (nueva generación Gemini)
-- `POST /api/campaigns/:id/edit-image` — editar imagen existente con Nano Banana (image-to-image Gemini)
-- `PATCH /api/versions/:id` — actualizar versión (con ownership check)
-- `GET/POST /api/contact-databases` — listar/crear bases de contactos
-- `DELETE /api/contact-databases/:id` — eliminar base de contactos
-- `GET /api/contact-databases/:id/contacts` — listar contactos
-- `POST /api/contact-databases/:id/contacts` — crear contacto
-- `PATCH /api/contacts/:id` — actualizar contacto
-- `DELETE /api/contacts/:id` — eliminar contacto
-- `GET /api/brand-identity` — obtener identidad de marca del usuario
-- `PUT /api/brand-identity` — crear/actualizar identidad de marca (upsert)
-- `GET /api/templates` — listar plantillas del usuario
-- `POST /api/templates` — crear plantilla
-- `PATCH /api/templates/:id` — actualizar plantilla
-- `DELETE /api/templates/:id` — eliminar plantilla
-
-## Flujo de Generación de Texto con OpenAI
-1. POST /api/campaigns/:id/generate lee la brand_identity del usuario
-2. Arma el campo `instructions` (developer): prompt de copywriter + identidad de marca completa + reglas estrictas
-3. Arma el campo `input` (user): "Idea: [idea]\nObjetivo: [objetivo]"
-4. Llama `openai.responses.create()` con modelo `gpt-4.1-mini`
-5. Structured Output (`text.format = json_schema`): devuelve `{ asunto, preheader, cuerpo_html, cta_text }`
-6. Se guarda en campaign_versions.contentJson
-7. Si no hay OPENAI_API_KEY → usa texto placeholder
-8. Prompt Caching: la identidad de marca (estática) va primero para aprovechar el cache automático de OpenAI
-
-## Flujo de Regeneración de Texto con OpenAI
-1. POST /api/campaigns/:id/regenerate-text recibe `{ corrections: string }`
-2. Lee la versión seleccionada actual → extrae contentJson como `previousEmailJson`
-3. Llama `regenerateEmailContent()` con historial conversacional:
-   - input[0]: { role: "user", content: "Idea: X\nObjetivo: Y" }
-   - input[1]: { role: "assistant", content: JSON.stringify(previousEmailJson) }
-   - input[2]: { role: "user", content: "Correcciones: [lo que pidió el usuario]" }
-4. Mismo schema de Structured Outputs, mismas instrucciones de marca
-5. Se guarda como nueva versión con la imagen de la versión anterior
-
-## Flujo de Generación de Imágenes con Gemini
-1. Usuario llena "Prompt de Imagen" en el formulario del calendario
-2. POST /api/campaigns/:id/generate → envía imagePrompt a Gemini
-3. Configuración: responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "16:9" }
-4. Gemini devuelve imagen en base64 (inlineData)
-5. Se guarda como data URL en campaign_versions.imageUrl
-
-## Flujo de Regeneración de Imagen con Gemini
-1. POST /api/campaigns/:id/regenerate-image recibe `{ imagePrompt: string }`
-2. Genera imagen completamente nueva con el nuevo prompt (misma llamada que la generación inicial)
-3. Se guarda como nueva versión con el texto de la versión anterior
-
-## Flujo de Edición de Imagen con Nano Banana (Image-to-Image)
-1. POST /api/campaigns/:id/edit-image recibe `{ editPrompt: string }`
-2. Lee la imagen actual de la versión seleccionada (base64 data URL)
-3. Envía a Gemini con inline_data (la imagen original) + text (instrucciones de edición)
-4. Gemini aplica edición semántica manteniendo el contexto visual
-5. Se guarda como nueva versión con el texto de la versión anterior
-
-## Modales de Regeneración en CalendarView
-- **Regenerar Texto**: modal con idea/objetivo original (read-only), último ajuste enviado, textarea de correcciones
-- **Regenerar Imagen**: modal con prompt original (read-only), textarea con nuevo prompt (pre-llenado con el original)
-- **Editar con Nano Banana**: modal con preview de imagen actual, textarea de instrucciones de edición, tip sobre límites de texto
-
-## Sidebar
-- Desktop: colapsable con hover (module-level variable persiste estado entre remounts)
-- Mobile: hamburger menu con overlay
-- Nombre de usuario obtenido de GET /api/auth/me (no localStorage)
-
-## Tema Visual
-- Primary (azul PostIAlo): #002073
-- Accent (rojo PostIAlo): #e3001b
-- Solo light mode
-- Sidebar: fondo azul oscuro #002073 con texto blanco
-- Branding: "Post" + "IA" en rojo + "lo" + " Mail"
-- Botones de regenerar: azul (#2563eb)
-- Botón Nano Banana: amber (#f59e0b)
-- Botones de aprobar: verde esmeralda
-
-## Validaciones y Seguridad
-- **Rate Limiting**: express-rate-limit en login/registro (10/15min) y rutas AI (10/5min). trust proxy = 1
-- **Schemas Zod**: Todos los endpoints con body validation — campañas, contactos, brand identity, versiones, templates
-- **Max Lengths**: idea 1000, objetivo 500, nombre 200, imagePrompt 500, correcciones 1000, editPrompt 1000, brand fields 2000, template HTML 50000
-- **Password**: min 6 chars + 1 mayúscula + 1 número
-- **Status Transitions**: draft→scheduled|cancelled, scheduled→cancelled|sent, sent y cancelled son terminales
-- **scheduledAt**: Validación de fecha futura en POST y PATCH campaigns, validación de fecha válida (no NaN)
-- **Duplicados**: Contactos por email dentro de BD, nombres de BD de contactos por usuario → 409
-- **HTML Sanitización**: Templates sanitizados (strip scripts, event handlers, javascript:) + iframes con sandbox=""
-- **Body Parser**: express.json({ limit: '25mb' }) para soportar imágenes base64
-- **Brand Identity**: URL (http/https), WhatsApp (números, +, espacios, guiones), colores hex
-
-## Notas Técnicas
-- Sesiones: express-session + connect-pg-simple
-- Contraseñas: bcryptjs con salt factor 10
-- ProtectedRoute verifica sesión con GET /api/auth/me
-- localStorage: solo `postIAlo_auth` como fast UI guard (la verificación real es /api/auth/me)
-- TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
-- All UI text in Spanish
-- OpenAI: Responses API con openai.responses.create(), modelo gpt-4.1-mini, Structured Outputs json_schema
-- OpenAI: max_output_tokens=800, temperature=0.7 (gpt-4.1-mini es ejecución directa, no razonamiento)
-- OpenAI: Pivote de gpt-5-mini (razonamiento) a gpt-4.1-mini (ejecución directa) por velocidad y costo
-- OpenAI: retry automático (1 reintento) si response.status === "incomplete"
-- OpenAI: safe JSON parsing con validación de campos requeridos
-- OpenAI: protección contra refusals — si Structured Outputs devuelve campo refusal, muestra error amigable
-- OpenAI regeneración: usa historial conversacional con array de messages [{role, content}] en campo input
-- OpenAI env var: se lee con process.env.OPENAI_API_KEY en runtime (no al cargar módulo)
-- OpenAI contentJson: { asunto, preheader, cuerpo_html, cta_text }
-- Gemini: usa modelo gemini-3.1-flash-image-preview (Nano Banana 2)
-- Gemini generación: responseModalities ["IMAGE"], imageConfig aspectRatio "16:9"
-- Gemini edición: inline_data con imagen en base64 + text con instrucciones, mismo modelo y endpoint
-- Gemini safety: manejo de finishReason (SAFETY, RECITATION, PROHIBITED_CONTENT), promptFeedback.blockReason, safetyRatings.blocked
-- Gemini request body: snake_case; response parsing: camelCase
-- Generación dual: OpenAI (texto) y Gemini (imagen) se ejecutan en paralelo con Promise.all
-- Loading overlay: pantalla de carga "Generando tu correo con IA..." mientras ambos resultados (texto+imagen) están pendientes
-- Límite: máximo 3 versiones por campaña
-
-## Fases Futuras (Pendientes)
-- **Fase 4**: Integración con Make.com (webhooks), Cloudinary (imágenes), Brevo (envío)
-- **Fase 4.5**: Envío automático por webhook al llegar la fecha/hora programada
-- **Fase 5**: Dashboard con métricas reales, WebSockets para feedback en tiempo real
+## External Dependencies
+- **PostgreSQL**: Primary database for all application data.
+- **OpenAI Responses API**: Used for AI text generation, regeneration, and template generation/editing. (Requires `OPENAI_API_KEY`)
+- **Google Gemini API**: Used for AI image generation, regeneration, and image-to-image editing (Nano Banana). (Requires `GEMINI_API_KEY`)
+- **bcryptjs**: For password hashing in authentication.
+- **express-session**: For managing user sessions.
+- **connect-pg-simple**: Stores session data in PostgreSQL.
+- **TipTap**: WYSIWYG editor used in the frontend.
+- **Framer Motion**: For animations in the frontend.
+- **Wouter**: For client-side routing.
+- **Lucide React / React Icons (SI)**: Icon libraries.
+- **express-rate-limit**: For rate limiting API requests.
+- **Drizzle ORM**: Object-Relational Mapper for PostgreSQL.
+- **Zod**: Schema validation library used for API request bodies.

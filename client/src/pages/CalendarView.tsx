@@ -58,6 +58,7 @@ export default function CalendarView() {
   const [localPreheader, setLocalPreheader] = useState("");
   const [localCta, setLocalCta] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -162,8 +163,11 @@ export default function CalendarView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setShowRegenImageModal(false);
       setRegenImagePrompt("");
+      setEditorLocalImageUrl(null);
+      setImageApproved(false);
       toast({ title: "Imagen regenerada", description: "Nueva versión de imagen disponible." });
     },
     onError: (err: Error) => {
@@ -178,8 +182,11 @@ export default function CalendarView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setShowEditImageModal(false);
       setEditImagePrompt("");
+      setEditorLocalImageUrl(null);
+      setImageApproved(false);
       toast({ title: "Imagen editada", description: "Nueva versión con edición disponible." });
     },
     onError: (err: Error) => {
@@ -406,6 +413,8 @@ export default function CalendarView() {
         onSuccess: () => {
           setHasUnsavedChanges(false);
           setTextApproved(false);
+          setJustSaved(true);
+          setTimeout(() => setJustSaved(false), 2000);
           toast({ title: "Cambios guardados" });
         },
         onError: () => {
@@ -439,12 +448,20 @@ export default function CalendarView() {
         {dayCampaigns.length > 0 && (
           <div className="mt-auto w-full">
             {dayCampaigns.slice(0, 2).map((c) => (
-              <div key={c.id} className={`w-full text-[10px] font-medium rounded px-1 py-0.5 truncate mt-0.5 ${
-                c.status === "cancelled" ? "bg-red-100 text-red-500 line-through" :
+              <div key={c.id} data-testid={`calendar-campaign-${c.id}`} className={`w-full text-[10px] font-medium rounded px-1 py-0.5 mt-0.5 flex items-center gap-1 ${
+                c.status === "cancelled" ? "bg-red-100 text-red-500 line-through opacity-60" :
                 c.status === "sent" ? "bg-emerald-100 text-emerald-700" :
                 "bg-primary/15 text-primary"
               }`}>
-                {c.idea}
+                {c.selectedImageUrl && (
+                  <img
+                    src={c.selectedImageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
+                  />
+                )}
+                <span className="truncate">{c.idea}</span>
               </div>
             ))}
             {dayCampaigns.length > 2 && (
@@ -725,7 +742,13 @@ export default function CalendarView() {
                   )}
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-4 relative">
+                  {regenerateTextMutation.isPending && (
+                    <div className="absolute inset-0 bg-card/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-2 rounded-xl">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      <span className="text-sm font-medium text-primary">Regenerando texto con IA...</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold flex items-center gap-2">
                       <Type className="w-4 h-4 text-primary" />
@@ -813,6 +836,17 @@ export default function CalendarView() {
                       {updateVersionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       Guardar Cambios
                     </Button>
+                  )}
+                  {justSaved && !hasUnsavedChanges && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium justify-center"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Cambios guardados
+                    </motion.div>
                   )}
 
                   <div className="flex flex-wrap gap-2">

@@ -21,6 +21,7 @@ export const campaigns = pgTable("campaigns", {
   layoutPreference: text("layout_preference").notNull().default("Hero_Centered"),
   imagePrompt: text("image_prompt"),
   targetDatabase: text("target_database"),
+  selectedImageUrl: text("selected_image_url"),
   scheduledAt: timestamp("scheduled_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -81,6 +82,9 @@ export const templates = pgTable("templates", {
   name: text("name").notNull(),
   html: text("html").notNull(),
   favorite: boolean("favorite").default(false),
+  isAiGenerated: boolean("is_ai_generated").default(false),
+  aiEditCount: integer("ai_edit_count").default(0),
+  originalHtml: text("original_html"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

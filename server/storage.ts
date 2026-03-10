@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
@@ -24,6 +24,7 @@ export interface IStorage {
   getCampaignVersions(campaignId: number): Promise<CampaignVersion[]>;
   createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion>;
   updateCampaignVersion(id: number, updates: Partial<InsertCampaignVersion>): Promise<CampaignVersion | undefined>;
+  deselectAllVersions(campaignId: number): Promise<void>;
 
   getDashboardStats(userId: number): Promise<any>;
 
@@ -93,6 +94,10 @@ export class DatabaseStorage implements IStorage {
   async updateCampaignVersion(id: number, updates: Partial<InsertCampaignVersion>): Promise<CampaignVersion | undefined> {
     const [updated] = await db.update(campaignVersions).set(updates).where(eq(campaignVersions.id, id)).returning();
     return updated;
+  }
+
+  async deselectAllVersions(campaignId: number): Promise<void> {
+    await db.update(campaignVersions).set({ isSelected: false }).where(eq(campaignVersions.campaignId, campaignId));
   }
 
   async getDashboardStats(userId: number): Promise<any> {

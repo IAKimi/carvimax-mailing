@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, editImage, isGeminiConfigured } from "./gemini";
-import { generateEmailContent, regenerateEmailContent, isOpenAIConfigured } from "./openai";
+import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, isOpenAIConfigured } from "./openai";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -371,6 +371,9 @@ export async function registerRoutes(
           };
         })();
 
+    if (versionNumber === 1) {
+      await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    }
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber,
@@ -442,12 +445,13 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error regenerando texto." });
     }
 
+    await storage.deselectAllVersions(campaignId);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber,
       contentJson,
       imageUrl: selectedVersion.imageUrl,
-      isSelected: false,
+      isSelected: true,
     });
     res.status(201).json(newVersion);
   });
@@ -489,13 +493,15 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error regenerando imagen." });
     }
 
+    await storage.deselectAllVersions(campaignId);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber,
       contentJson: selectedVersion?.contentJson || { asunto: "", preheader: "", cuerpo_html: "", cta_text: "Ver más" },
       imageUrl,
-      isSelected: false,
+      isSelected: true,
     });
+    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
     res.status(201).json(newVersion);
   });
 
@@ -548,13 +554,15 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error editando imagen." });
     }
 
+    await storage.deselectAllVersions(campaignId);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber,
       contentJson: selectedVersion.contentJson as Record<string, unknown>,
       imageUrl,
-      isSelected: false,
+      isSelected: true,
     });
+    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
     res.status(201).json(newVersion);
   });
 
@@ -573,6 +581,15 @@ export async function registerRoutes(
     }
     try {
       const input = updateVersionSchema.parse(req.body);
+      if (input.isSelected) {
+        const versionData = existingVersions.find(v => v.id === id);
+        if (versionData) {
+          await storage.deselectAllVersions(versionData.campaignId);
+          if (versionData.imageUrl) {
+            await storage.updateCampaign(versionData.campaignId, { selectedImageUrl: versionData.imageUrl } as any);
+          }
+        }
+      }
       const version = await storage.updateCampaignVersion(id, input);
       if (!version) {
         return res.status(404).json({ message: "Versión no encontrada." });
@@ -755,6 +772,71 @@ export async function registerRoutes(
     if (!tpls.some(t => t.id === id)) return res.status(404).json({ message: "Plantilla no encontrada." });
     await storage.deleteTemplate(id);
     res.json({ message: "Eliminada." });
+  });
+
+  app.post("/api/templates/generate", requireAuth, aiLimiter, async (req, res) => {
+    const { prompt } = req.body || {};
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({ message: "Debe proporcionar un prompt para la plantilla." });
+    }
+    if (prompt.length > 1000) {
+      return res.status(400).json({ message: "El prompt no puede exceder 1000 caracteres." });
+    }
+    try {
+      if (!isOpenAIConfigured()) {
+        return res.status(400).json({ message: "OpenAI no está configurado." });
+      }
+      const brandData = await storage.getBrandIdentity(req.session.userId!);
+      const result = await generateTemplateHtml(prompt, brandData || null);
+      const sanitizedHtml = sanitizeHtml(result.html);
+      const tpl = await storage.createTemplate({
+        userId: req.session.userId!,
+        name: result.name,
+        html: sanitizedHtml,
+        favorite: false,
+        isAiGenerated: true,
+        aiEditCount: 0,
+        originalHtml: sanitizedHtml,
+      });
+      res.status(201).json(tpl);
+    } catch (err: any) {
+      console.error("Error generando plantilla con OpenAI:", err.message);
+      return res.status(500).json({ message: err.message || "Error generando plantilla." });
+    }
+  });
+
+  app.post("/api/templates/:id/edit-ai", requireAuth, aiLimiter, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const tpls = await storage.getTemplates(req.session.userId!);
+    const tpl = tpls.find(t => t.id === id);
+    if (!tpl) return res.status(404).json({ message: "Plantilla no encontrada." });
+    if ((tpl.aiEditCount || 0) >= 3) {
+      return res.status(400).json({ message: "Máximo 3 ediciones con IA alcanzado. Use la edición manual." });
+    }
+    const { instructions } = req.body || {};
+    if (!instructions || typeof instructions !== "string") {
+      return res.status(400).json({ message: "Debe proporcionar instrucciones de edición." });
+    }
+    if (instructions.length > 1000) {
+      return res.status(400).json({ message: "Las instrucciones no pueden exceder 1000 caracteres." });
+    }
+    try {
+      if (!isOpenAIConfigured()) {
+        return res.status(400).json({ message: "OpenAI no está configurado." });
+      }
+      const brandData = await storage.getBrandIdentity(req.session.userId!);
+      const editedHtml = await editTemplateHtml(tpl.html, instructions, brandData || null);
+      const sanitizedHtml = sanitizeHtml(editedHtml);
+      const updated = await storage.updateTemplate(id, {
+        html: sanitizedHtml,
+        aiEditCount: (tpl.aiEditCount || 0) + 1,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error editando plantilla con OpenAI:", err.message);
+      return res.status(500).json({ message: err.message || "Error editando plantilla." });
+    }
   });
 
   return httpServer;

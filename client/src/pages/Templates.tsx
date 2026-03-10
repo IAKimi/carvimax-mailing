@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -16,12 +16,25 @@ import type { Template } from "@shared/schema";
 export default function Templates() {
   const { toast } = useToast();
   const [showDialog, setShowDialog] = useState(false);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [showEditAiDialog, setShowEditAiDialog] = useState(false);
+  const [showManualEditDialog, setShowManualEditDialog] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [newHtml, setNewHtml] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [editAiInstructions, setEditAiInstructions] = useState("");
+  const [manualHtml, setManualHtml] = useState("");
   const [previewId, setPreviewId] = useState<number | null>(null);
 
   const { data: templates = [], isLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
+  });
+
+  const sortedTemplates = [...templates].sort((a, b) => {
+    if (a.favorite && !b.favorite) return -1;
+    if (!a.favorite && b.favorite) return 1;
+    return 0;
   });
 
   const createMutation = useMutation({
@@ -35,6 +48,53 @@ export default function Templates() {
       setNewName("");
       setNewHtml("");
       toast({ title: "Plantilla guardada", description: "Su plantilla ha sido añadida a la galería." });
+    },
+  });
+
+  const generateAiMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      const res = await apiRequest("POST", "/api/templates/generate", { prompt });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      setShowAiDialog(false);
+      setAiPrompt("");
+      toast({ title: "Plantilla generada", description: "Su plantilla ha sido creada con IA." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const editAiMutation = useMutation({
+    mutationFn: async ({ id, instructions }: { id: number; instructions: string }) => {
+      const res = await apiRequest("POST", `/api/templates/${id}/edit-ai`, { instructions });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      setShowEditAiDialog(false);
+      setEditAiInstructions("");
+      setEditingTemplateId(null);
+      toast({ title: "Plantilla editada", description: "Los cambios con IA han sido aplicados." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, html }: { id: number; html: string }) => {
+      const res = await apiRequest("PATCH", `/api/templates/${id}`, { html });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      setShowManualEditDialog(false);
+      setManualHtml("");
+      setEditingTemplateId(null);
+      toast({ title: "Plantilla actualizada" });
     },
   });
 
@@ -75,6 +135,20 @@ export default function Templates() {
     deleteMutation.mutate(id);
   }
 
+  function openEditAi(template: Template) {
+    setEditingTemplateId(template.id);
+    setEditAiInstructions("");
+    setShowEditAiDialog(true);
+  }
+
+  function openManualEdit(template: Template) {
+    setEditingTemplateId(template.id);
+    setManualHtml(template.html);
+    setShowManualEditDialog(true);
+  }
+
+  const editingTemplate = templates.find(t => t.id === editingTemplateId);
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -83,14 +157,25 @@ export default function Templates() {
             <h1 className="text-3xl md:text-4xl font-extrabold">Plantillas</h1>
             <p className="text-muted-foreground mt-1">Administre sus plantillas HTML de correo electrónico.</p>
           </div>
-          <Button
-            data-testid="button-add-template"
-            onClick={() => setShowDialog(true)}
-            className="rounded-xl gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Cargar Plantilla
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              data-testid="button-create-ai-template"
+              onClick={() => setShowAiDialog(true)}
+              className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <Sparkles className="w-4 h-4" />
+              Crear con IA
+            </Button>
+            <Button
+              data-testid="button-add-template"
+              onClick={() => setShowDialog(true)}
+              className="rounded-xl gap-2"
+              variant="outline"
+            >
+              <Plus className="w-4 h-4" />
+              Cargar Plantilla
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -108,11 +193,11 @@ export default function Templates() {
           <div className="text-center py-16 text-muted-foreground" data-testid="text-no-templates">
             <Code className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p className="text-lg font-medium">No tiene plantillas aún</p>
-            <p className="text-sm mt-1">Haga clic en "Cargar Plantilla" para añadir su primera plantilla HTML.</p>
+            <p className="text-sm mt-1">Haga clic en "Crear con IA" para generar su primera plantilla o "Cargar Plantilla" para subir una existente.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {templates.map((template, i) => (
+            {sortedTemplates.map((template, i) => (
               <motion.div
                 key={template.id}
                 initial={{ opacity: 0, y: 16 }}
@@ -138,29 +223,77 @@ export default function Templates() {
                       Vista previa
                     </div>
                   </div>
+                  {template.isAiGenerated && (
+                    <div data-testid={`badge-postialo-${template.id}`} className="absolute bottom-2 left-2 bg-[#002073] rounded-md px-2 py-0.5 flex items-center gap-0.5 shadow-sm">
+                      <span className="text-[10px] font-bold text-white">Post</span>
+                      <span className="text-[10px] font-bold text-[#e3001b]">IA</span>
+                      <span className="text-[10px] font-bold text-white">lo</span>
+                    </div>
+                  )}
                 </div>
-                <div className="p-4">
+                <div className="p-4 space-y-2">
                   <div className="flex items-center justify-between gap-1">
-                    <h3 className="font-bold truncate">{template.name}</h3>
-                    <div className="flex items-center gap-1">
+                    <h3 className="font-bold truncate flex-1">{template.name}</h3>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
                       <Button
                         data-testid={`button-favorite-${template.id}`}
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         onClick={() => toggleFavorite(template.id)}
                       >
                         {template.favorite ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> : <StarOff className="w-4 h-4 text-muted-foreground" />}
                       </Button>
                       <Button
+                        data-testid={`button-preview-template-${template.id}`}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setPreviewId(template.id)}
+                      >
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <Button
                         data-testid={`button-delete-template-${template.id}`}
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         onClick={() => deleteTemplate(template.id)}
                       >
                         <Trash2 className="w-4 h-4 text-muted-foreground" />
                       </Button>
                     </div>
                   </div>
+                  {template.isAiGenerated && (
+                    <div className="flex items-center gap-2">
+                      {(template.aiEditCount || 0) < 3 ? (
+                        <Button
+                          data-testid={`button-edit-ai-template-${template.id}`}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl gap-1 text-xs flex-1"
+                          onClick={() => openEditAi(template)}
+                        >
+                          <Wand2 className="w-3 h-3" />
+                          Editar con IA ({3 - (template.aiEditCount || 0)})
+                        </Button>
+                      ) : (
+                        <Button
+                          data-testid={`button-manual-edit-${template.id}`}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl gap-1 text-xs flex-1"
+                          onClick={() => openManualEdit(template)}
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Editar Manual
+                        </Button>
+                      )}
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {template.aiEditCount || 0}/3 ediciones IA
+                      </span>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -223,12 +356,155 @@ export default function Templates() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+        <DialogContent className="sm:max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-emerald-600" />
+              Crear Plantilla con IA
+            </DialogTitle>
+            <DialogDescription>
+              Describa la plantilla que necesita y la IA la generará automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label>Descripción de la plantilla</Label>
+              <Textarea
+                data-testid="input-ai-template-prompt"
+                placeholder="Ej: Necesito una plantilla corporativa minimalista para el sector tecnológico, con colores azul oscuro y blanco, que tenga espacio para un banner principal, un bloque de texto y un botón de llamada a la acción..."
+                value={aiPrompt}
+                onChange={e => setAiPrompt(e.target.value)}
+                className="rounded-xl min-h-[120px]"
+                maxLength={1000}
+              />
+              <div className="flex justify-end">
+                <span className="text-[10px] text-muted-foreground">{aiPrompt.length}/1000</span>
+              </div>
+            </div>
+            <Button
+              data-testid="button-generate-template"
+              onClick={() => generateAiMutation.mutate(aiPrompt)}
+              className="w-full rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={!aiPrompt.trim() || generateAiMutation.isPending}
+            >
+              {generateAiMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generando plantilla...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Generar Plantilla
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditAiDialog} onOpenChange={(open) => { setShowEditAiDialog(open); if (!open) setEditingTemplateId(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-blue-600" />
+              Editar Plantilla con IA
+            </DialogTitle>
+            <DialogDescription>
+              Describa los cambios que desea aplicar. La IA mantendrá la estructura base y solo modificará lo solicitado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="bg-muted/50 rounded-xl px-3 py-2 text-sm text-muted-foreground">
+              Plantilla: <span className="font-semibold text-foreground">{editingTemplate?.name}</span>
+              <span className="text-xs ml-2">({editingTemplate?.aiEditCount || 0}/3 ediciones usadas)</span>
+            </div>
+            <div className="space-y-2">
+              <Label>Instrucciones de edición</Label>
+              <Textarea
+                data-testid="input-edit-ai-instructions"
+                placeholder="Ej: Cambia los colores principales a tonos verdes, agrega un segundo bloque de contenido, cambia la fuente a Helvetica..."
+                value={editAiInstructions}
+                onChange={e => setEditAiInstructions(e.target.value)}
+                className="rounded-xl min-h-[120px]"
+                maxLength={1000}
+              />
+              <div className="flex justify-end">
+                <span className="text-[10px] text-muted-foreground">{editAiInstructions.length}/1000</span>
+              </div>
+            </div>
+            <Button
+              data-testid="button-confirm-edit-ai"
+              onClick={() => editingTemplateId && editAiMutation.mutate({ id: editingTemplateId, instructions: editAiInstructions })}
+              className="w-full rounded-xl gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={!editAiInstructions.trim() || editAiMutation.isPending}
+            >
+              {editAiMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Aplicando cambios...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4" />
+                  Aplicar Edición con IA
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showManualEditDialog} onOpenChange={(open) => { setShowManualEditDialog(open); if (!open) setEditingTemplateId(null); }}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              Edición Manual — {editingTemplate?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Edite el código HTML directamente. Las ediciones con IA ya fueron agotadas para esta plantilla.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <Textarea
+              data-testid="input-manual-html"
+              value={manualHtml}
+              onChange={e => setManualHtml(e.target.value)}
+              className="rounded-xl min-h-[300px] font-mono text-sm"
+            />
+            {manualHtml && (
+              <div className="border border-border rounded-xl overflow-hidden">
+                <div className="text-xs font-semibold text-muted-foreground px-3 py-1.5 bg-muted">Vista Previa</div>
+                <iframe srcDoc={manualHtml} sandbox="" className="w-full h-48 bg-white" title="manual-preview" />
+              </div>
+            )}
+            <Button
+              data-testid="button-save-manual-edit"
+              onClick={() => editingTemplateId && updateMutation.mutate({ id: editingTemplateId, html: manualHtml })}
+              className="w-full rounded-xl"
+              disabled={!manualHtml.trim() || updateMutation.isPending}
+            >
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Guardando...
+                </>
+              ) : (
+                "Guardar Cambios"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={previewId !== null} onOpenChange={() => setPreviewId(null)}>
-        <DialogContent className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden">
+        <DialogContent data-testid="dialog-preview-template" className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden max-h-[90vh]">
           <DialogHeader className="p-4 border-b border-border">
             <DialogTitle>{templates.find(t => t.id === previewId)?.name}</DialogTitle>
           </DialogHeader>
-          <div className="bg-white">
+          <div className="bg-white overflow-y-auto max-h-[calc(90vh-80px)]">
             <iframe
               srcDoc={templates.find(t => t.id === previewId)?.html || ""}
               sandbox=""

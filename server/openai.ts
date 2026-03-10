@@ -235,6 +235,151 @@ export async function regenerateEmailContent(
   }
 }
 
+export interface TemplateContent {
+  html: string;
+  name: string;
+}
+
+const templateSchema = {
+  type: "json_schema" as const,
+  name: "template_content",
+  schema: {
+    type: "object",
+    properties: {
+      html: {
+        type: "string",
+        description: "HTML completo de la plantilla de email con estilos inline, responsive, máximo 600px de ancho",
+      },
+      name: {
+        type: "string",
+        description: "Nombre corto y descriptivo para la plantilla (máximo 100 caracteres)",
+      },
+    },
+    required: ["html", "name"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+const editTemplateSchema = {
+  type: "json_schema" as const,
+  name: "edited_template",
+  schema: {
+    type: "object",
+    properties: {
+      html: {
+        type: "string",
+        description: "HTML completo editado de la plantilla con los cambios solicitados aplicados",
+      },
+    },
+    required: ["html"],
+    additionalProperties: false,
+  },
+  strict: true,
+};
+
+function buildTemplateInstructions(brand: BrandIdentityData | null): string {
+  const brandContext = brand
+    ? `
+IDENTIDAD DE MARCA:
+- Empresa: ${brand.companyName || "No especificada"}
+- Industria: ${brand.industry || "No especificada"}
+- Color primario: ${brand.primaryColor || "#002073"}
+- Color secundario: ${brand.secondaryColor || "#e3001b"}
+- Color de acento: ${brand.accentColor || "#f59e0b"}
+- Fuente de títulos: ${brand.headingFont || "Arial, sans-serif"}
+- Fuente de cuerpo: ${brand.bodyFont || "Arial, sans-serif"}
+- Tono: ${brand.tone || "Profesional"}
+`
+    : "IDENTIDAD DE MARCA: No configurada. Usa colores corporativos genéricos profesionales.";
+
+  return `Eres un diseñador experto de plantillas HTML de email marketing. Genera plantillas HTML completas, profesionales y responsive.
+
+${brandContext}
+
+REGLAS ESTRICTAS:
+1. El HTML debe ser una plantilla COMPLETA con estructura <html>, <head>, <body>.
+2. Usa SOLO estilos inline (style="...") — los clientes de email no soportan CSS externo ni <style> tags.
+3. La plantilla debe ser responsive usando max-width: 600px y width: 100%.
+4. Incluye placeholders claros marcados con {{doble llave}}: {{ASUNTO}}, {{PREHEADER}}, {{IMAGEN_URL}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}.
+5. Usa tablas HTML para layout (compatibilidad con Outlook).
+6. Incluye un footer con texto de unsubscribe placeholder.
+7. Los colores deben ser coherentes con la marca.
+8. El diseño debe ser limpio, moderno y profesional.
+9. Todo texto de muestra debe estar en español.
+10. El nombre debe ser descriptivo y corto (ej: "Promoción Minimalista", "Newsletter Corporativo").`;
+}
+
+export async function generateTemplateHtml(
+  prompt: string,
+  brandIdentity: BrandIdentityData | null
+): Promise<TemplateContent> {
+  const client = getClient();
+  const instructions = buildTemplateInstructions(brandIdentity);
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      instructions,
+      input: `Genera una plantilla HTML de email marketing basada en esta descripción:\n${prompt}`,
+      text: { format: templateSchema },
+      max_output_tokens: 4000,
+      temperature: 0.7,
+      store: false,
+    });
+
+    const outputText = response.output_text;
+    if (!outputText) throw new Error("OpenAI no devolvió contenido.");
+
+    const parsed = JSON.parse(outputText) as TemplateContent;
+    if (!parsed.html || !parsed.name) {
+      throw new Error("La respuesta de OpenAI no contiene los campos requeridos.");
+    }
+    return parsed;
+  } catch (err: any) {
+    handleOpenAIError(err);
+  }
+}
+
+export async function editTemplateHtml(
+  originalHtml: string,
+  userInstructions: string,
+  brandIdentity: BrandIdentityData | null
+): Promise<string> {
+  const client = getClient();
+  const instructions = buildTemplateInstructions(brandIdentity);
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      instructions: instructions + `\n\nIMPORTANTE: Se te proporcionará un HTML original de plantilla y las instrucciones del usuario para editarlo. Debes mantener la estructura base y solo aplicar los cambios solicitados. Devuelve el HTML completo editado.`,
+      input: [
+        {
+          role: "user" as const,
+          content: `HTML original de la plantilla:\n\`\`\`html\n${originalHtml}\n\`\`\``,
+        },
+        {
+          role: "user" as const,
+          content: `Aplica los siguientes cambios a la plantilla:\n${userInstructions}`,
+        },
+      ],
+      text: { format: editTemplateSchema },
+      max_output_tokens: 4000,
+      temperature: 0.7,
+      store: false,
+    });
+
+    const outputText = response.output_text;
+    if (!outputText) throw new Error("OpenAI no devolvió contenido.");
+
+    const parsed = JSON.parse(outputText) as { html: string };
+    if (!parsed.html) throw new Error("La respuesta no contiene HTML editado.");
+    return parsed.html;
+  } catch (err: any) {
+    handleOpenAIError(err);
+  }
+}
+
 export function isOpenAIConfigured(): boolean {
   return !!process.env.OPENAI_API_KEY;
 }
