@@ -136,6 +136,10 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
 
   function handleAddContact() {
     if (!newContact.email.trim()) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.email.trim())) {
+      toast({ title: "Email inválido", description: "Por favor ingrese un email con formato válido.", variant: "destructive" });
+      return;
+    }
     addContactMutation.mutate(newContact);
   }
 
@@ -228,13 +232,16 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                       <Input
                         data-testid={`input-new-contact-name-${db.id}`}
                         placeholder="Nombre"
+                        maxLength={200}
                         value={newContact.name}
                         onChange={(e) => setNewContact((prev) => ({ ...prev, name: e.target.value }))}
                         className="text-sm"
                       />
                       <Input
                         data-testid={`input-new-contact-email-${db.id}`}
+                        type="email"
                         placeholder="correo@ejemplo.com"
+                        maxLength={255}
                         value={newContact.email}
                         onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
                         className="text-sm"
@@ -245,6 +252,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                     <Input
                       data-testid={`input-new-contact-country-${db.id}`}
                       placeholder="Pa\u00eds"
+                      maxLength={100}
                       value={newContact.country}
                       onChange={(e) => setNewContact((prev) => ({ ...prev, country: e.target.value }))}
                       className="text-sm"
@@ -254,6 +262,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                     <Input
                       data-testid={`input-new-contact-segment-${db.id}`}
                       placeholder="Segmento"
+                      maxLength={100}
                       value={newContact.segment}
                       onChange={(e) => setNewContact((prev) => ({ ...prev, segment: e.target.value }))}
                       className="text-sm"
@@ -314,12 +323,15 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                           <div className="space-y-1">
                             <Input
                               data-testid={`input-edit-name-${contact.id}`}
+                              maxLength={200}
                               value={editData.name}
                               onChange={(e) => updateEditingField(contact.id, "name", e.target.value)}
                               className="text-sm"
                             />
                             <Input
                               data-testid={`input-edit-email-${contact.id}`}
+                              type="email"
+                              maxLength={255}
                               value={editData.email}
                               onChange={(e) => updateEditingField(contact.id, "email", e.target.value)}
                               className="text-sm"
@@ -329,6 +341,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                         <td className="px-4 py-2">
                           <Input
                             data-testid={`input-edit-country-${contact.id}`}
+                            maxLength={100}
                             value={editData.country}
                             onChange={(e) => updateEditingField(contact.id, "country", e.target.value)}
                             className="text-sm"
@@ -337,6 +350,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                         <td className="px-4 py-2">
                           <Input
                             data-testid={`input-edit-segment-${contact.id}`}
+                            maxLength={100}
                             value={editData.segment}
                             onChange={(e) => updateEditingField(contact.id, "segment", e.target.value)}
                             className="text-sm"
@@ -500,6 +514,7 @@ export default function Contacts() {
                     id="db-name"
                     data-testid="input-new-db-name"
                     placeholder="Ej: Clientes VIP, Leads Q1..."
+                    maxLength={100}
                     value={newDbName}
                     onChange={(e) => setNewDbName(e.target.value)}
                     onKeyDown={(e) => {

@@ -1,16 +1,35 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { type Server } from "http";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, editImage, isGeminiConfigured } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, isOpenAIConfigured } from "./openai";
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: "Demasiados intentos. Intente de nuevo en 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  message: { message: "Demasiadas solicitudes de generación. Intente de nuevo en 5 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const registerSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
-  email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  company: z.string().optional(),
+  name: z.string().min(1, "El nombre es requerido").max(200, "El nombre no puede exceder 200 caracteres"),
+  email: z.string().email("Correo electrónico inválido").max(255, "El correo no puede exceder 255 caracteres"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").max(128, "La contraseña no puede exceder 128 caracteres")
+    .regex(/[A-Z]/, "La contraseña debe contener al menos una letra mayúscula")
+    .regex(/[0-9]/, "La contraseña debe contener al menos un número"),
+  company: z.string().max(200, "La empresa no puede exceder 200 caracteres").optional(),
 });
 
 const loginSchema = z.object({
@@ -19,26 +38,80 @@ const loginSchema = z.object({
 });
 
 const createCampaignSchema = z.object({
-  name: z.string().min(1),
-  idea: z.string().min(1),
-  objective: z.string().min(1),
-  tone: z.string().min(1),
-  layoutPreference: z.string().optional(),
-  imagePrompt: z.string().nullable().optional(),
-  targetDatabase: z.string().nullable().optional(),
+  name: z.string().min(1).max(200, "El nombre no puede exceder 200 caracteres"),
+  idea: z.string().min(1).max(1000, "La idea no puede exceder 1000 caracteres"),
+  objective: z.string().min(1).max(500, "El objetivo no puede exceder 500 caracteres"),
+  tone: z.string().min(1).max(100, "El tono no puede exceder 100 caracteres"),
+  layoutPreference: z.string().max(100).optional(),
+  imagePrompt: z.string().max(500, "El prompt de imagen no puede exceder 500 caracteres").nullable().optional(),
+  targetDatabase: z.string().max(200).nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
 });
 
 const updateCampaignSchema = createCampaignSchema.partial();
 
 const createContactSchema = z.object({
-  email: z.string().email(),
-  name: z.string().optional(),
-  country: z.string().optional(),
-  segment: z.string().optional(),
+  email: z.string().email("Correo electrónico inválido").max(255, "El correo no puede exceder 255 caracteres"),
+  name: z.string().max(200, "El nombre no puede exceder 200 caracteres").optional(),
+  country: z.string().max(100, "El país no puede exceder 100 caracteres").optional(),
+  segment: z.string().max(100, "El segmento no puede exceder 100 caracteres").optional(),
 });
 
 const updateContactSchema = createContactSchema.partial();
+
+const updateBrandIdentitySchema = z.object({
+  companyName: z.string().max(200).nullable().optional(),
+  industry: z.string().max(200).nullable().optional(),
+  website: z.string().max(500).refine(
+    (val) => !val || val.startsWith("http://") || val.startsWith("https://"),
+    "El sitio web debe comenzar con http:// o https://"
+  ).nullable().optional(),
+  whatsapp: z.string().max(30).refine(
+    (val) => !val || /^[+\d\s()-]+$/.test(val),
+    "El WhatsApp solo puede contener números, +, espacios, guiones y paréntesis"
+  ).nullable().optional(),
+  mission: z.string().max(2000).nullable().optional(),
+  vision: z.string().max(2000).nullable().optional(),
+  products: z.string().max(2000).nullable().optional(),
+  history: z.string().max(2000).nullable().optional(),
+  styleGuide: z.string().max(2000).nullable().optional(),
+  targetAudience: z.string().max(2000).nullable().optional(),
+  tone: z.string().max(200).nullable().optional(),
+  primaryColor: z.string().max(20).nullable().optional(),
+  secondaryColor: z.string().max(20).nullable().optional(),
+  accentColor: z.string().max(20).nullable().optional(),
+  headingFont: z.string().max(100).nullable().optional(),
+  bodyFont: z.string().max(100).nullable().optional(),
+});
+
+const updateVersionSchema = z.object({
+  contentJson: z.record(z.unknown()).optional(),
+  isSelected: z.boolean().optional(),
+  imageUrl: z.string().optional(),
+  textApproved: z.boolean().optional(),
+  imageApproved: z.boolean().optional(),
+});
+
+const updateTemplateSchema = z.object({
+  name: z.string().min(1).max(200, "El nombre no puede exceder 200 caracteres").optional(),
+  html: z.string().min(1).max(50000, "El HTML no puede exceder 50000 caracteres").optional(),
+  favorite: z.boolean().optional(),
+});
+
+const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  draft: ["scheduled", "cancelled"],
+  scheduled: ["cancelled", "sent"],
+  sent: [],
+  cancelled: [],
+};
+
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, "")
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+    .replace(/javascript\s*:/gi, "");
+}
 
 function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null }) {
   const { password, ...safe } = user;
@@ -62,7 +135,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
       const input = registerSchema.parse(req.body);
       const existing = await storage.getUserByEmail(input.email);
@@ -86,7 +159,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
       const input = loginSchema.parse(req.body);
       const user = await storage.getUserByEmail(input.email);
@@ -152,6 +225,12 @@ export async function registerRoutes(
     try {
       const input = createCampaignSchema.parse(req.body);
       const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
+      if (scheduledAt && isNaN(scheduledAt.getTime())) {
+        return res.status(400).json({ message: "La fecha programada no es válida." });
+      }
+      if (scheduledAt && scheduledAt.getTime() < Date.now()) {
+        return res.status(400).json({ message: "La fecha programada debe ser en el futuro." });
+      }
       const campaign = await storage.createCampaign({
         ...input,
         userId: req.session.userId!,
@@ -178,7 +257,24 @@ export async function registerRoutes(
       const { status, ...rest } = req.body;
       const input = updateCampaignSchema.parse(rest);
       const updates: any = { ...input };
-      if (status && ["draft", "scheduled", "sent", "cancelled"].includes(status)) {
+      if (input.scheduledAt) {
+        const newDate = new Date(input.scheduledAt);
+        if (isNaN(newDate.getTime())) {
+          return res.status(400).json({ message: "La fecha programada no es válida." });
+        }
+        if (newDate.getTime() < Date.now()) {
+          return res.status(400).json({ message: "La fecha programada debe ser en el futuro." });
+        }
+        updates.scheduledAt = newDate;
+      }
+      if (status) {
+        if (!["draft", "scheduled", "sent", "cancelled"].includes(status)) {
+          return res.status(400).json({ message: "Estado inválido." });
+        }
+        const allowed = VALID_STATUS_TRANSITIONS[existing.status] || [];
+        if (!allowed.includes(status)) {
+          return res.status(400).json({ message: `No se puede cambiar el estado de "${existing.status}" a "${status}".` });
+        }
         updates.status = status;
       }
       const campaign = await storage.updateCampaign(id, updates);
@@ -202,7 +298,7 @@ export async function registerRoutes(
     res.json(versions);
   });
 
-  app.post("/api/campaigns/:id/generate", requireAuth, async (req, res) => {
+  app.post("/api/campaigns/:id/generate", requireAuth, aiLimiter, async (req, res) => {
     const campaignId = parseId(req.params.id);
     if (!campaignId) return res.status(400).json({ message: "ID inválido." });
     const campaign = await storage.getCampaign(campaignId);
@@ -285,7 +381,7 @@ export async function registerRoutes(
     res.status(201).json(newVersion);
   });
 
-  app.post("/api/campaigns/:id/regenerate-text", requireAuth, async (req, res) => {
+  app.post("/api/campaigns/:id/regenerate-text", requireAuth, aiLimiter, async (req, res) => {
     const campaignId = parseId(req.params.id);
     if (!campaignId) return res.status(400).json({ message: "ID inválido." });
     const campaign = await storage.getCampaign(campaignId);
@@ -304,6 +400,9 @@ export async function registerRoutes(
     const { corrections } = req.body || {};
     if (!corrections || typeof corrections !== "string") {
       return res.status(400).json({ message: "Debe proporcionar correcciones de texto." });
+    }
+    if (corrections.length > 1000) {
+      return res.status(400).json({ message: "Las correcciones no pueden exceder 1000 caracteres." });
     }
 
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
@@ -353,7 +452,7 @@ export async function registerRoutes(
     res.status(201).json(newVersion);
   });
 
-  app.post("/api/campaigns/:id/regenerate-image", requireAuth, async (req, res) => {
+  app.post("/api/campaigns/:id/regenerate-image", requireAuth, aiLimiter, async (req, res) => {
     const campaignId = parseId(req.params.id);
     if (!campaignId) return res.status(400).json({ message: "ID inválido." });
     const campaign = await storage.getCampaign(campaignId);
@@ -372,6 +471,9 @@ export async function registerRoutes(
     const { imagePrompt } = req.body || {};
     if (!imagePrompt || typeof imagePrompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar un prompt de imagen." });
+    }
+    if (imagePrompt.length > 500) {
+      return res.status(400).json({ message: "El prompt de imagen no puede exceder 500 caracteres." });
     }
 
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
@@ -397,7 +499,7 @@ export async function registerRoutes(
     res.status(201).json(newVersion);
   });
 
-  app.post("/api/campaigns/:id/edit-image", requireAuth, async (req, res) => {
+  app.post("/api/campaigns/:id/edit-image", requireAuth, aiLimiter, async (req, res) => {
     const campaignId = parseId(req.params.id);
     if (!campaignId) return res.status(400).json({ message: "ID inválido." });
     const campaign = await storage.getCampaign(campaignId);
@@ -416,6 +518,9 @@ export async function registerRoutes(
     const { editPrompt } = req.body || {};
     if (!editPrompt || typeof editPrompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar instrucciones de edición." });
+    }
+    if (editPrompt.length > 1000) {
+      return res.status(400).json({ message: "Las instrucciones de edición no pueden exceder 1000 caracteres." });
     }
 
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
@@ -466,11 +571,19 @@ export async function registerRoutes(
     if (!existingVersions.some(v => v.id === id)) {
       return res.status(404).json({ message: "Versión no encontrada." });
     }
-    const version = await storage.updateCampaignVersion(id, req.body);
-    if (!version) {
-      return res.status(404).json({ message: "Versión no encontrada." });
+    try {
+      const input = updateVersionSchema.parse(req.body);
+      const version = await storage.updateCampaignVersion(id, input);
+      if (!version) {
+        return res.status(404).json({ message: "Versión no encontrada." });
+      }
+      res.json(version);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
     }
-    res.json(version);
   });
 
   app.get("/api/contact-databases", requireAuth, async (req, res) => {
@@ -482,6 +595,13 @@ export async function registerRoutes(
     const name = req.body.name;
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ message: "Nombre es requerido." });
+    }
+    if (name.trim().length > 100) {
+      return res.status(400).json({ message: "El nombre no puede exceder 100 caracteres." });
+    }
+    const existingDbs = await storage.getContactDatabases(req.session.userId!);
+    if (existingDbs.some(d => d.name.toLowerCase() === name.trim().toLowerCase())) {
+      return res.status(409).json({ message: "Ya existe una base de datos con ese nombre." });
     }
     const db = await storage.createContactDatabase({ userId: req.session.userId!, name: name.trim() });
     res.status(201).json(db);
@@ -518,6 +638,10 @@ export async function registerRoutes(
     }
     try {
       const input = createContactSchema.parse(req.body);
+      const existingContacts = await storage.getContacts(dbId);
+      if (existingContacts.some(c => c.email.toLowerCase() === input.email.toLowerCase())) {
+        return res.status(409).json({ message: "Ya existe un contacto con ese correo en esta base de datos." });
+      }
       const contact = await storage.createContact({
         ...input,
         userId: req.session.userId!,
@@ -569,8 +693,16 @@ export async function registerRoutes(
   });
 
   app.put("/api/brand-identity", requireAuth, async (req, res) => {
-    const brand = await storage.upsertBrandIdentity(req.session.userId!, req.body);
-    res.json(brand);
+    try {
+      const input = updateBrandIdentitySchema.parse(req.body);
+      const brand = await storage.upsertBrandIdentity(req.session.userId!, input);
+      res.json(brand);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
   });
 
   app.get("/api/templates", requireAuth, async (req, res) => {
@@ -579,10 +711,21 @@ export async function registerRoutes(
   });
 
   app.post("/api/templates", requireAuth, async (req, res) => {
-    const { name, html } = req.body;
-    if (!name || !html) return res.status(400).json({ message: "Nombre y HTML son requeridos." });
-    const tpl = await storage.createTemplate({ userId: req.session.userId!, name, html, favorite: false });
-    res.status(201).json(tpl);
+    try {
+      const createTemplateSchema = z.object({
+        name: z.string().min(1, "El nombre es requerido").max(200, "El nombre no puede exceder 200 caracteres"),
+        html: z.string().min(1, "El HTML es requerido").max(50000, "El HTML no puede exceder 50000 caracteres"),
+      });
+      const input = createTemplateSchema.parse(req.body);
+      const sanitizedHtml = sanitizeHtml(input.html);
+      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false });
+      res.status(201).json(tpl);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
   });
 
   app.patch("/api/templates/:id", requireAuth, async (req, res) => {
@@ -590,8 +733,19 @@ export async function registerRoutes(
     if (!id) return res.status(400).json({ message: "ID inválido." });
     const tpls = await storage.getTemplates(req.session.userId!);
     if (!tpls.some(t => t.id === id)) return res.status(404).json({ message: "Plantilla no encontrada." });
-    const tpl = await storage.updateTemplate(id, req.body);
-    res.json(tpl);
+    try {
+      const input = updateTemplateSchema.parse(req.body);
+      if (input.html) {
+        input.html = sanitizeHtml(input.html);
+      }
+      const tpl = await storage.updateTemplate(id, input);
+      res.json(tpl);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
   });
 
   app.delete("/api/templates/:id", requireAuth, async (req, res) => {

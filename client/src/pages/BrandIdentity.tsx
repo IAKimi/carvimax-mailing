@@ -279,19 +279,19 @@ export default function BrandIdentity() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Nombre de la Empresa</Label>
-                      <Input data-testid="input-company-name" placeholder="Ej: Mi Empresa S.A." value={brand.companyName} onChange={e => updateField("companyName", e.target.value)} className="rounded-xl" />
+                      <Input data-testid="input-company-name" placeholder="Ej: Mi Empresa S.A." value={brand.companyName} onChange={e => updateField("companyName", e.target.value)} maxLength={200} className="rounded-xl" />
                     </div>
                     <div className="space-y-2">
                       <Label>Industria / Rubro</Label>
-                      <Input data-testid="input-industry" placeholder="Ej: Tecnología, Salud, Retail" value={brand.industry} onChange={e => updateField("industry", e.target.value)} className="rounded-xl" />
+                      <Input data-testid="input-industry" placeholder="Ej: Tecnología, Salud, Retail" value={brand.industry} onChange={e => updateField("industry", e.target.value)} maxLength={200} className="rounded-xl" />
                     </div>
                     <div className="space-y-2">
                       <Label>Sitio Web</Label>
-                      <Input data-testid="input-website" placeholder="https://www.miempresa.com" value={brand.website} onChange={e => updateField("website", e.target.value)} className="rounded-xl" />
+                      <Input data-testid="input-website" placeholder="https://www.ejemplo.com" value={brand.website} onChange={e => updateField("website", e.target.value)} maxLength={500} className="rounded-xl" />
                     </div>
                     <div className="space-y-2">
                       <Label>WhatsApp</Label>
-                      <Input data-testid="input-whatsapp" placeholder="+506 8888-8888" value={brand.whatsapp} onChange={e => updateField("whatsapp", e.target.value)} className="rounded-xl" />
+                      <Input data-testid="input-whatsapp" placeholder="+52 55 1234 5678" value={brand.whatsapp} onChange={e => updateField("whatsapp", e.target.value)} maxLength={30} className="rounded-xl" />
                     </div>
                   </div>
 
@@ -299,24 +299,24 @@ export default function BrandIdentity() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Misión</Label>
-                      <Textarea data-testid="input-mission" placeholder="¿Cuál es la misión de su empresa?" value={brand.mission} onChange={e => updateField("mission", e.target.value)} className="rounded-xl min-h-[100px]" />
+                      <Textarea data-testid="input-mission" placeholder="¿Cuál es la misión de su empresa?" value={brand.mission} onChange={e => updateField("mission", e.target.value)} maxLength={2000} className="rounded-xl min-h-[100px]" />
                     </div>
                     <div className="space-y-2">
                       <Label>Visión</Label>
-                      <Textarea data-testid="input-vision" placeholder="¿Cuál es la visión de su empresa?" value={brand.vision} onChange={e => updateField("vision", e.target.value)} className="rounded-xl min-h-[100px]" />
+                      <Textarea data-testid="input-vision" placeholder="¿Cuál es la visión de su empresa?" value={brand.vision} onChange={e => updateField("vision", e.target.value)} maxLength={2000} className="rounded-xl min-h-[100px]" />
                     </div>
                   </div>
 
                   <SectionDivider label="Productos y Servicios" />
                   <div className="space-y-2">
                     <Label>Describa sus productos y servicios principales</Label>
-                    <Textarea data-testid="input-products" placeholder="Liste y describa los productos o servicios que ofrece..." value={brand.products} onChange={e => updateField("products", e.target.value)} className="rounded-xl min-h-[120px]" />
+                    <Textarea data-testid="input-products" placeholder="Liste y describa los productos o servicios que ofrece..." value={brand.products} onChange={e => updateField("products", e.target.value)} maxLength={2000} className="rounded-xl min-h-[120px]" />
                   </div>
 
                   <SectionDivider label="Historia de la Compañía" />
                   <div className="space-y-2">
                     <Label>Cuéntenos sobre la historia y trayectoria</Label>
-                    <Textarea data-testid="input-history" placeholder="¿Cómo surgió la empresa? ¿Cuáles son sus logros más importantes?" value={brand.history} onChange={e => updateField("history", e.target.value)} className="rounded-xl min-h-[120px]" />
+                    <Textarea data-testid="input-history" placeholder="¿Cómo surgió la empresa? ¿Cuáles son sus logros más importantes?" value={brand.history} onChange={e => updateField("history", e.target.value)} maxLength={2000} className="rounded-xl min-h-[120px]" />
                   </div>
                 </div>
               </CollapsibleContent>
@@ -340,11 +340,11 @@ export default function BrandIdentity() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Guías y Estilos de Contenido</Label>
-                      <Textarea data-testid="input-style-guide" placeholder="¿Qué tipo de lenguaje prefiere? ¿Formal o informal? ¿Frases cortas o largas?" value={brand.styleGuide} onChange={e => updateField("styleGuide", e.target.value)} className="rounded-xl min-h-[100px]" />
+                      <Textarea data-testid="input-style-guide" placeholder="¿Qué tipo de lenguaje prefiere? ¿Formal o informal? ¿Frases cortas o largas?" value={brand.styleGuide} onChange={e => updateField("styleGuide", e.target.value)} maxLength={2000} className="rounded-xl min-h-[100px]" />
                     </div>
                     <div className="space-y-2">
                       <Label>Público Objetivo</Label>
-                      <Textarea data-testid="input-target-audience" placeholder="Describa a su público: rango de edad, intereses, necesidades..." value={brand.targetAudience} onChange={e => updateField("targetAudience", e.target.value)} className="rounded-xl min-h-[80px]" />
+                      <Textarea data-testid="input-target-audience" placeholder="Describa a su público: rango de edad, intereses, necesidades..." value={brand.targetAudience} onChange={e => updateField("targetAudience", e.target.value)} maxLength={2000} className="rounded-xl min-h-[80px]" />
                     </div>
                     <div className="space-y-2">
                       <Label>Tono de Comunicación</Label>

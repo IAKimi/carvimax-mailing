@@ -161,6 +161,18 @@ docs/
 - Botón Nano Banana: amber (#f59e0b)
 - Botones de aprobar: verde esmeralda
 
+## Validaciones y Seguridad
+- **Rate Limiting**: express-rate-limit en login/registro (10/15min) y rutas AI (10/5min). trust proxy = 1
+- **Schemas Zod**: Todos los endpoints con body validation — campañas, contactos, brand identity, versiones, templates
+- **Max Lengths**: idea 1000, objetivo 500, nombre 200, imagePrompt 500, correcciones 1000, editPrompt 1000, brand fields 2000, template HTML 50000
+- **Password**: min 6 chars + 1 mayúscula + 1 número
+- **Status Transitions**: draft→scheduled|cancelled, scheduled→cancelled|sent, sent y cancelled son terminales
+- **scheduledAt**: Validación de fecha futura en POST y PATCH campaigns, validación de fecha válida (no NaN)
+- **Duplicados**: Contactos por email dentro de BD, nombres de BD de contactos por usuario → 409
+- **HTML Sanitización**: Templates sanitizados (strip scripts, event handlers, javascript:) + iframes con sandbox=""
+- **Body Parser**: express.json({ limit: '25mb' }) para soportar imágenes base64
+- **Brand Identity**: URL (http/https), WhatsApp (números, +, espacios, guiones), colores hex
+
 ## Notas Técnicas
 - Sesiones: express-session + connect-pg-simple
 - Contraseñas: bcryptjs con salt factor 10

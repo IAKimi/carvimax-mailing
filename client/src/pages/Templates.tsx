@@ -71,6 +71,7 @@ export default function Templates() {
   }
 
   function deleteTemplate(id: number) {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta plantilla?")) return;
     deleteMutation.mutate(id);
   }
 
@@ -126,6 +127,7 @@ export default function Templates() {
                 >
                   <iframe
                     srcDoc={template.html}
+                    sandbox=""
                     className="w-full h-full pointer-events-none"
                     style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
                     title={template.name}
@@ -180,6 +182,7 @@ export default function Templates() {
               <Input
                 data-testid="input-template-name"
                 placeholder="Ej: Mi plantilla promocional"
+                maxLength={200}
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 className="rounded-xl"
@@ -198,7 +201,7 @@ export default function Templates() {
             {newHtml && (
               <div className="border border-border rounded-xl overflow-hidden">
                 <div className="text-xs font-semibold text-muted-foreground px-3 py-1.5 bg-muted">Vista Previa</div>
-                <iframe srcDoc={newHtml} className="w-full h-48 bg-white" title="preview" />
+                <iframe srcDoc={newHtml} sandbox="" className="w-full h-48 bg-white" title="preview" />
               </div>
             )}
             <Button
@@ -228,6 +231,7 @@ export default function Templates() {
           <div className="bg-white">
             <iframe
               srcDoc={templates.find(t => t.id === previewId)?.html || ""}
+              sandbox=""
               className="w-full h-[500px]"
               title="preview-full"
             />

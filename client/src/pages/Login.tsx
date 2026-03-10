@@ -187,6 +187,7 @@ export default function Login() {
                     minLength={6}
                   />
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">Mínimo 6 caracteres, una mayúscula y un número</p>
               </div>
 
               <div className="space-y-2">

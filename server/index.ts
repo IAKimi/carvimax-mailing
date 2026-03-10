@@ -7,6 +7,7 @@ import { createServer } from "http";
 import { pool } from "./db";
 
 const app = express();
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
 declare module "http" {
@@ -25,6 +26,7 @@ const PgStore = connectPgSimple(session);
 
 app.use(
   express.json({
+    limit: "25mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },

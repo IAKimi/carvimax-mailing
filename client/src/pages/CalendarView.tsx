@@ -883,6 +883,7 @@ export default function CalendarView() {
                   value={regenTextCorrections}
                   onChange={e => setRegenTextCorrections(e.target.value)}
                   className="rounded-xl min-h-[100px]"
+                  maxLength={1000}
                 />
               </div>
               <Button
@@ -924,6 +925,7 @@ export default function CalendarView() {
                   value={regenImagePrompt}
                   onChange={e => setRegenImagePrompt(e.target.value)}
                   className="rounded-xl min-h-[100px]"
+                  maxLength={500}
                 />
               </div>
               <Button
@@ -967,6 +969,7 @@ export default function CalendarView() {
                   value={editImagePrompt}
                   onChange={e => setEditImagePrompt(e.target.value)}
                   className="rounded-xl min-h-[100px]"
+                  maxLength={1000}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Tip: Sea específico con lo que desea cambiar e indique que el resto se mantenga igual. Para texto en imagen, limite a 25 caracteres o menos.
@@ -1088,6 +1091,7 @@ export default function CalendarView() {
                 value={form.idea}
                 onChange={e => setForm(f => ({ ...f, idea: e.target.value }))}
                 className="rounded-xl min-h-[80px]"
+                maxLength={1000}
               />
             </div>
             <div className="space-y-2">
@@ -1098,6 +1102,7 @@ export default function CalendarView() {
                 value={form.objective}
                 onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
                 className="rounded-xl min-h-[70px]"
+                maxLength={500}
               />
             </div>
             <div className="space-y-2">
@@ -1164,6 +1169,7 @@ export default function CalendarView() {
                       value={form.imagePrompt}
                       onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
                       className="rounded-xl min-h-[70px] mt-2"
+                      maxLength={500}
                     />
                   </motion.div>
                 )}
@@ -1222,6 +1228,7 @@ export default function CalendarView() {
                 value={form.scheduledDate}
                 onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
                 className="rounded-xl"
+                min={new Date().toISOString().slice(0, 16)}
               />
             </div>
             <Button
