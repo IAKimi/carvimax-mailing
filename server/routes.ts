@@ -121,14 +121,22 @@ function sanitizeHtml(html: string): string {
     .replace(/javascript\s*:/gi, "");
 }
 
-function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null; role: string; createdAt: Date | null }) {
+function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null; role: string; isActive: boolean; createdAt: Date | null }) {
   const { password, ...safe } = user;
   return safe;
 }
 
-function requireAuth(req: Request, res: Response, next: NextFunction) {
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ message: "No autenticado." });
+  }
+  const user = await storage.getUserById(req.session.userId);
+  if (!user) {
+    return res.status(401).json({ message: "Usuario no encontrado." });
+  }
+  if (!user.isActive) {
+    req.session.destroy(() => {});
+    return res.status(403).json({ message: "Cuenta desactivada. Contacte al administrador." });
   }
   next();
 }
@@ -177,6 +185,9 @@ export async function registerRoutes(
       const valid = await bcrypt.compare(input.password, user.password);
       if (!valid) {
         return res.status(401).json({ message: "Correo o contraseña incorrectos." });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({ message: "Cuenta desactivada. Contacte al administrador." });
       }
       req.session.userId = user.id;
       res.json(sanitizeUser(user));
@@ -1268,6 +1279,84 @@ export async function registerRoutes(
     req.session.impersonatingUserName = targetUser.name;
     req.session.userId = id;
     res.json({ message: `Ahora estás viendo como ${targetUser.name}.` });
+  });
+
+  const adminCreateUserSchema = z.object({
+    name: z.string().min(1, "El nombre es requerido").max(200),
+    email: z.string().email("Correo electrónico inválido").max(255),
+    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").max(128),
+    company: z.string().max(200).optional(),
+    role: z.enum(["user", "admin"]).default("user"),
+  });
+
+  app.post("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const input = adminCreateUserSchema.parse(req.body);
+      const existing = await storage.getUserByEmail(input.email.trim().toLowerCase());
+      if (existing) {
+        return res.status(409).json({ message: "Ya existe un usuario con ese correo electrónico." });
+      }
+      const hashedPassword = await bcrypt.hash(input.password, 10);
+      const user = await storage.createUser({
+        name: input.name.trim(),
+        email: input.email.trim().toLowerCase(),
+        password: hashedPassword,
+        company: input.company?.trim() || null,
+      });
+      if (input.role === "admin") {
+        await storage.updateUser(user.id, { role: "admin" });
+      }
+      const created = await storage.getUserById(user.id);
+      if (!created) return res.status(500).json({ message: "Error creando usuario." });
+      const { password, ...safe } = created;
+      res.status(201).json(safe);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.post("/api/admin/users/:id/toggle-active", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    if (id === req.session.userId) {
+      return res.status(400).json({ message: "No puede desactivarse a sí mismo." });
+    }
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    const updated = await storage.updateUser(id, { isActive: !user.isActive } as any);
+    if (!updated) return res.status(500).json({ message: "Error actualizando usuario." });
+    const { password, ...safe } = updated;
+    res.json(safe);
+  });
+
+  const adminChangeRoleSchema = z.object({
+    role: z.enum(["user", "admin"]),
+  });
+
+  app.patch("/api/admin/users/:id/role", requireAdmin, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    if (id === req.session.userId) {
+      return res.status(400).json({ message: "No puede cambiar su propio rol." });
+    }
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    try {
+      const input = adminChangeRoleSchema.parse(req.body);
+      const updated = await storage.updateUser(id, { role: input.role });
+      if (!updated) return res.status(500).json({ message: "Error actualizando rol." });
+      const { password, ...safe } = updated;
+      res.json(safe);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.get("/api/admin/activity", requireAdmin, async (_req, res) => {
+    const activity = await storage.getRecentActivity();
+    res.json(activity);
   });
 
   app.post("/api/admin/stop-impersonate", requireAuth, async (req, res) => {

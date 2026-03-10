@@ -58,11 +58,12 @@ export interface IStorage {
   confirmTemplate(id: number, parentId: number): Promise<Template>;
 
   getAllUsers(): Promise<User[]>;
-  updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string }>): Promise<User | undefined>;
+  updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string; isActive: boolean }>): Promise<User | undefined>;
   updateUserPassword(id: number, hashedPassword: string): Promise<void>;
   deleteUser(id: number): Promise<void>;
   getAdminStats(): Promise<{ totalUsers: number; totalCampaigns: number; totalCampaignsByStatus: Record<string, number>; totalTemplates: number; totalContacts: number; totalDatabases: number }>;
   getUserStats(userId: number): Promise<{ campaigns: number; templates: number; contacts: number; databases: number }>;
+  getRecentActivity(): Promise<Array<{ campaignId: number; campaignName: string; status: string; createdAt: Date | null; userId: number; userName: string; userEmail: string }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -309,7 +310,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(users);
   }
 
-  async updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string }>): Promise<User | undefined> {
+  async updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string; isActive: boolean }>): Promise<User | undefined> {
     const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
     return updated;
   }
@@ -363,6 +364,24 @@ export class DatabaseStorage implements IStorage {
       contacts: contactCount.c,
       databases: dbCount.c,
     };
+  }
+
+  async getRecentActivity(): Promise<Array<{ campaignId: number; campaignName: string; status: string; createdAt: Date | null; userId: number; userName: string; userEmail: string }>> {
+    const rows = await db
+      .select({
+        campaignId: campaigns.id,
+        campaignName: campaigns.name,
+        status: campaigns.status,
+        createdAt: campaigns.createdAt,
+        userId: campaigns.userId,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(campaigns)
+      .innerJoin(users, eq(campaigns.userId, users.id))
+      .orderBy(sql`${campaigns.createdAt} DESC NULLS LAST`)
+      .limit(20);
+    return rows;
   }
 }
 

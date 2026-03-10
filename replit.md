@@ -101,10 +101,16 @@ Key files:
 - **Access Control**: Users have a `role` field ("user" or "admin"). Admin-only routes are protected by `requireAdmin` middleware on backend and role-based gating on frontend.
 - **Admin Page**: `/admin/users` — accessible only to admin users. Shows global platform stats (users, campaigns, templates, contacts, databases) and a searchable users table.
 - **User Management**: Admin can edit user credentials (name, email, company), reset passwords, and delete users (with all their data).
+- **Create Users**: Admin can create new users directly from the panel with name, email, password, company, and role.
+- **Activate/Deactivate**: Toggle `isActive` on users. Deactivated users cannot log in and active sessions are terminated on next request.
+- **Change Roles**: Promote users to admin or demote to regular user. Cannot change own role.
+- **Export CSV**: Client-side CSV export of all users with stats (formula injection protection via cell sanitization).
+- **Activity Log**: Shows last 20 campaigns across all users with name, status, user, and date.
 - **Impersonation**: Admin can "view as" any non-admin user. Sets `originalAdminId` in session, swaps `userId` to target user. An amber banner shows across all pages during impersonation with a "Volver al Panel" button.
-- **Safety Rules**: Admin cannot delete themselves, impersonate another admin, or delete an admin user.
+- **Safety Rules**: Admin cannot delete themselves, impersonate another admin, delete an admin user, change own role, or deactivate themselves.
+- **Session Security**: `requireAuth` middleware checks `isActive` on every request and destroys session if account was deactivated.
 - **Sidebar**: Admin users see "Usuarios" nav item (Shield icon) in the sidebar. Not shown during impersonation.
-- **API Routes**: `GET /api/admin/stats`, `GET /api/admin/users`, `GET /api/admin/users/:id`, `PATCH /api/admin/users/:id`, `POST /api/admin/users/:id/reset-password`, `DELETE /api/admin/users/:id`, `POST /api/admin/impersonate/:id`, `POST /api/admin/stop-impersonate`
+- **API Routes**: `GET /api/admin/stats`, `GET /api/admin/users`, `GET /api/admin/users/:id`, `PATCH /api/admin/users/:id`, `POST /api/admin/users`, `POST /api/admin/users/:id/reset-password`, `POST /api/admin/users/:id/toggle-active`, `PATCH /api/admin/users/:id/role`, `GET /api/admin/activity`, `DELETE /api/admin/users/:id`, `POST /api/admin/impersonate/:id`, `POST /api/admin/stop-impersonate`
 
 ### Project Structure
 - `client/`: Frontend React application.
