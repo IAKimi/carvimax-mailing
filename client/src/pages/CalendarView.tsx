@@ -1567,7 +1567,7 @@ export default function CalendarView() {
       </div>
 
       <Dialog open={showChoiceDialog} onOpenChange={setShowChoiceDialog}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
+        <DialogContent className="sm:max-w-md rounded-2xl overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-xl">
               {selectedDay} de {MONTHS[month]} {year}
@@ -1576,7 +1576,7 @@ export default function CalendarView() {
               Elija qué desea hacer con esta fecha.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 mt-2">
+          <div className="space-y-3 mt-2 overflow-hidden min-w-0">
             <Button
               data-testid="button-choice-new"
               variant="outline"
@@ -1591,19 +1591,22 @@ export default function CalendarView() {
             </Button>
 
             {selectedDay && getCampaignsForDay(selectedDay).map(campaign => (
-              <Button
+              <div
                 key={campaign.id}
                 data-testid={`button-choice-edit-${campaign.id}`}
-                variant="outline"
+                role="button"
+                tabIndex={0}
                 onClick={() => handleEditCampaign(campaign.id)}
-                className="w-full rounded-xl gap-2 justify-start h-auto py-3"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleEditCampaign(campaign.id); }}
+                className="w-full rounded-xl border shadow-xs flex items-center gap-2 text-left py-3 px-4 hover:bg-accent/5 transition-colors cursor-pointer"
+                style={{ overflow: 'hidden' }}
               >
-                <Pencil className="w-5 h-5 text-accent" />
-                <div className="text-left min-w-0 flex-1">
-                  <div className="font-semibold truncate">{campaign.name || campaign.idea}</div>
+                <Pencil className="w-5 h-5 text-accent flex-shrink-0" />
+                <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                  <div className="font-semibold text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name || campaign.idea}</div>
                   <div className="text-xs text-muted-foreground capitalize">{STATUS_MAP[campaign.status] || campaign.status}</div>
                 </div>
-              </Button>
+              </div>
             ))}
           </div>
         </DialogContent>
