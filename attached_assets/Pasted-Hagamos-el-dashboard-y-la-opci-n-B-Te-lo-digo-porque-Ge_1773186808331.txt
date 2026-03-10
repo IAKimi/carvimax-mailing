@@ -1,0 +1,15 @@
+Hagamos el dashboard y la opción B. Te lo digo porque Gerencia General definitivamente pediría que haya un proceso guiado en toda la plataforma, independientemente de las personas que lo vayan a usar o no.
+
+E igualmente, osea, ese bombillo: si yo le doy click, me muestra el tutorial o el proceso guiado y me va dando tips de qué poner ahí o me dice qué significa cada sección y la información que nosotros creamos.
+
+Realmente yo siento que esto lo que debería de tener es que, por ejemplo, si estoy en Identidad de Marca y yo tengo que ir llenando punto por punto, me aparezca un tip como recomendación. Por ejemplo si estoy en Misión, me circule el recuadro de Misión en amarillo, como que esa es la parte que tenemos que llenar en ese momento.
+
+Y aparezca una text box en algún lado que diga: "La misión de la compañía define bla bla bla, etc." Ya cuando yo la llene, pasemos a la visión y diga: "La visión de una compañía representa tal cosa" y así sucesivamente para cada sección en todas las secciones de la página que necesiten el bombillo o que requieran el bombillo.
+
+Lo que sí veo importante y que veo un poco como challenging de todo este proceso es cómo vamos a saber cuándo un usuario terminó de escribir para poder sombrear la otra sección que está incompleta en amarillo y mostrarle el tip. No debe de ser algo como que yo, por ejemplo, pongo una equis y automáticamente me deja demostrar el tip y me aparece en el siguiente campo que tengo que llenar.
+
+Si lo que se tiene que haber es una lógica en donde se identifique que el usuario ya terminó de escribir ahí para poder mostrarle el otro parámetro. De repente a mí lo que se me ocurre es que, cuando sí tú tenés el bombillo activado y yo estoy en Misión, por ejemplo, y yo estoy escribiendo sobre Misión, el bombillo está activado y me está mostrando la información que yo debo de saber de Misión.
+
+Si yo le doy clic afuera de la caja de texto donde puedo, donde tengo que escribir la info, entonces, en ese momento, como me salía en la caja de texto, ya me muestra el siguiente parámetro que está vacío porque yo me salí de la caja de texto y porque ya existen datos. Si yo me salgo en la caja de texto y no hay nada, me sigue mostrando el de Misión, por ejemplo.
+
+Yo creo que así debería ser y creo que tenemos que hacer el punto A y que sería el del dashboard y el manual o el bombillo del modo tutorial interactivo. Ese sí, definitivamente, lo quiero implementar. ¿Tú me decís qué incurriría en todo eso? 
