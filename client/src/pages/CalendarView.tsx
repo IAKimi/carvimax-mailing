@@ -12,7 +12,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
   Type, Eye, Wand2, Send, Loader2, XCircle, Ban,
-  FileText, CheckCircle2, AlertTriangle, Link2,
+  FileText, CheckCircle2, AlertTriangle, Link2, Database,
   Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -734,6 +734,50 @@ export default function CalendarView() {
               </div>
             </div>
           )}
+
+          <div data-testid="section-database-selector" className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
+                <Database className="w-4 h-4 text-primary flex-shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold">Base de Datos de Destino</span>
+                  {editingCampaign?.targetDatabase ? (
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {userDatabases.find(db => String(db.id) === editingCampaign.targetDatabase)?.name || editingCampaign.targetDatabase}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Sin base de datos asignada.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={editingCampaign?.targetDatabase || "__none__"}
+                  onValueChange={(v) => {
+                    updateCampaignMutation.mutate(
+                      { id: editingCampaignId!, updates: { targetDatabase: v === "__none__" ? null : v } },
+                      {
+                        onSuccess: () => {
+                          toast({ title: "Base de datos actualizada" });
+                        },
+                      }
+                    );
+                  }}
+                  disabled={isCancelled || isSent}
+                >
+                  <SelectTrigger data-testid="select-editor-database" className="w-48 text-xs rounded-xl">
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin base de datos</SelectItem>
+                    {userDatabases.map(db => (
+                      <SelectItem key={db.id} value={String(db.id)}>{db.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
 
           {(generateVersionMutation.isPending || createCampaignMutation.isPending) ? (
             <div data-testid="overlay-generating" className="flex flex-col items-center justify-center py-24 gap-4">
@@ -1556,7 +1600,7 @@ export default function CalendarView() {
               >
                 <Pencil className="w-5 h-5 text-accent" />
                 <div className="text-left min-w-0 flex-1">
-                  <div className="font-semibold truncate">{campaign.idea}</div>
+                  <div className="font-semibold truncate">{campaign.name || campaign.idea}</div>
                   <div className="text-xs text-muted-foreground capitalize">{STATUS_MAP[campaign.status] || campaign.status}</div>
                 </div>
               </Button>

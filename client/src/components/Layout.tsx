@@ -208,7 +208,7 @@ export function Layout({ children }: { children: ReactNode }) {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="p-4 md:p-8 lg:p-10 max-w-6xl mx-auto"
+            className="p-4 md:p-8 lg:p-10 w-full"
           >
             {children}
           </motion.div>

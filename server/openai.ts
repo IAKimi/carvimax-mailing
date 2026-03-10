@@ -309,18 +309,28 @@ IDENTIDAD DE MARCA Y VISUAL:
 
 ${brandContext}
 
-SISTEMA DE PLACEHOLDERS OBLIGATORIOS:
-Tu plantilla DEBE incluir exactamente estos 6 placeholders. Son marcadores dinámicos que serán reemplazados programáticamente por el sistema. NUNCA uses texto real en su lugar — deben aparecer literalmente como se muestran aquí:
+SISTEMA DE PLACEHOLDERS OBLIGATORIOS (6 de 6 — TODOS son requeridos):
+Tu plantilla DEBE incluir EXACTAMENTE estos 6 placeholders. Si falta CUALQUIERA de ellos, la plantilla será rechazada por el sistema. Son marcadores dinámicos que serán reemplazados programáticamente. NUNCA uses texto real en su lugar — deben aparecer literalmente como se muestran aquí:
 
-1. {{ASUNTO}} — Ubicación: dentro del tag <title> en el <head>. Es el asunto del correo.
-2. {{PREHEADER}} — Ubicación: como primer elemento dentro del <body>, dentro de un <span> oculto:
+1. {{ASUNTO}} — OBLIGATORIO. Ubicación: dentro del tag <title> en el <head>. Es el asunto del correo.
+2. {{PREHEADER}} — OBLIGATORIO. Ubicación: como primer elemento dentro del <body>, dentro de un <span> oculto:
    <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
-   Esta es la técnica estándar para controlar el texto de vista previa en la bandeja de entrada.
-3. {{IMAGEN_URL}} — Ubicación: como valor del atributo src="" de la imagen hero/banner principal del correo. Ejemplo:
+3. {{IMAGEN_URL}} — OBLIGATORIO. Ubicación: como valor del atributo src="" de la imagen hero/banner principal del correo. Ejemplo:
    <img src="{{IMAGEN_URL}}" alt="Imagen del correo" width="600" style="display:block;border:0;width:100%;max-width:600px;" />
-4. {{CONTENIDO}} — Ubicación: como el bloque principal de texto dentro de un <td> de la tabla central. Este contenido ya viene en formato HTML (párrafos, negritas, etc.), así que NO lo envuelvas en tags <p> adicionales.
-5. {{CTA_TEXTO}} — Ubicación: como texto visible dentro del botón principal de acción (<a> con estilo de botón).
-6. {{CTA_URL}} — Ubicación: como valor del atributo href="" del mismo botón de acción.
+4. {{CONTENIDO}} — OBLIGATORIO. Ubicación: como el bloque principal de texto dentro de un <td> de la tabla central. Este contenido ya viene en formato HTML (párrafos, negritas, etc.), así que NO lo envuelvas en tags <p> adicionales.
+5. {{CTA_TEXTO}} — OBLIGATORIO. Ubicación: como texto visible dentro del botón principal de acción (<a> con estilo de botón).
+6. {{CTA_URL}} — OBLIGATORIO. Ubicación: como valor del atributo href="" del mismo botón de acción.
+
+ESTRUCTURA VISUAL OBLIGATORIA (de arriba a abajo, en este orden EXACTO):
+1. <head> con <title>{{ASUNTO}}</title>
+2. <body> → preheader oculto con {{PREHEADER}}
+3. Header/Logo de la empresa (tabla superior)
+4. IMAGEN HERO/BANNER con {{IMAGEN_URL}} — SIEMPRE debe ir ANTES del contenido de texto
+5. CONTENIDO principal con {{CONTENIDO}} — SIEMPRE DESPUÉS de la imagen
+6. BOTÓN CTA con {{CTA_TEXTO}} y {{CTA_URL}} — DESPUÉS del contenido
+7. Footer con enlace de cancelación de suscripción
+
+⚠️ REGLA CRÍTICA: La imagen ({{IMAGEN_URL}}) NUNCA debe aparecer después del contenido ({{CONTENIDO}}) ni después del CTA. La imagen SIEMPRE va ARRIBA, como banner/hero, ANTES de cualquier texto del cuerpo del correo.
 
 REGLAS TÉCNICAS DE HTML PARA EMAIL:
 1. Estructura COMPLETA: <!DOCTYPE html>, <html lang="es">, <head> con meta charset y viewport, <body>.
