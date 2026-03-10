@@ -1,4 +1,4 @@
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, gte, lt, isNull, or, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
@@ -11,15 +11,19 @@ import {
   type Template, type InsertTemplate
 } from "@shared/schema";
 
+type CampaignListItem = Omit<Campaign, "selectedImageUrl">;
+
 export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: number): Promise<User | undefined>;
 
+  getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]>;
   getCampaigns(userId: number): Promise<Campaign[]>;
   getCampaign(id: number): Promise<Campaign | undefined>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined>;
+  deleteAllCampaigns(userId: number): Promise<void>;
 
   getCampaignVersions(campaignId: number): Promise<CampaignVersion[]>;
   createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion>;
@@ -35,8 +39,10 @@ export interface IStorage {
   getContacts(databaseId: number): Promise<Contact[]>;
   getContact(id: number): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
+  createContacts(contactsList: InsertContact[]): Promise<Contact[]>;
   updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined>;
   deleteContact(id: number): Promise<void>;
+  deleteAllContacts(databaseId: number): Promise<void>;
 
   getBrandIdentity(userId: number): Promise<BrandIdentity | undefined>;
   upsertBrandIdentity(userId: number, data: Partial<InsertBrandIdentity>): Promise<BrandIdentity>;
@@ -67,6 +73,40 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]> {
+    const cols = {
+      id: campaigns.id,
+      userId: campaigns.userId,
+      name: campaigns.name,
+      idea: campaigns.idea,
+      objective: campaigns.objective,
+      tone: campaigns.tone,
+      status: campaigns.status,
+      layoutPreference: campaigns.layoutPreference,
+      imagePrompt: campaigns.imagePrompt,
+      targetDatabase: campaigns.targetDatabase,
+      templateId: campaigns.templateId,
+      scheduledAt: campaigns.scheduledAt,
+      createdAt: campaigns.createdAt,
+    };
+
+    if (year !== undefined && month !== undefined) {
+      const startDate = new Date(year, month, 1);
+      const endDate = new Date(year, month + 1, 1);
+      return db.select(cols).from(campaigns).where(
+        and(
+          eq(campaigns.userId, userId),
+          or(
+            and(gte(campaigns.scheduledAt, startDate), lt(campaigns.scheduledAt, endDate)),
+            isNull(campaigns.scheduledAt)
+          )
+        )
+      );
+    }
+
+    return db.select(cols).from(campaigns).where(eq(campaigns.userId, userId));
+  }
+
   async getCampaigns(userId: number): Promise<Campaign[]> {
     return db.select().from(campaigns).where(eq(campaigns.userId, userId));
   }
@@ -84,6 +124,17 @@ export class DatabaseStorage implements IStorage {
   async updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined> {
     const [updated] = await db.update(campaigns).set(updates).where(eq(campaigns.id, id)).returning();
     return updated;
+  }
+
+  async deleteAllCampaigns(userId: number): Promise<void> {
+    const userCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.userId, userId));
+    const campaignIds = userCampaigns.map(c => c.id);
+    if (campaignIds.length > 0) {
+      for (const cId of campaignIds) {
+        await db.delete(campaignVersions).where(eq(campaignVersions.campaignId, cId));
+      }
+      await db.delete(campaigns).where(eq(campaigns.userId, userId));
+    }
   }
 
   async getCampaignVersions(campaignId: number): Promise<CampaignVersion[]> {
@@ -144,6 +195,12 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async createContacts(contactsList: InsertContact[]): Promise<Contact[]> {
+    if (contactsList.length === 0) return [];
+    const created = await db.insert(contacts).values(contactsList).returning();
+    return created;
+  }
+
   async updateContact(id: number, updates: Partial<InsertContact>): Promise<Contact | undefined> {
     const [updated] = await db.update(contacts).set(updates).where(eq(contacts.id, id)).returning();
     return updated;
@@ -151,6 +208,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContact(id: number): Promise<void> {
     await db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  async deleteAllContacts(databaseId: number): Promise<void> {
+    await db.delete(contacts).where(eq(contacts.databaseId, databaseId));
   }
 
   async getBrandIdentity(userId: number): Promise<BrandIdentity | undefined> {

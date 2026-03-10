@@ -61,7 +61,26 @@ Key files:
 - Calendar cells use memoized `CalendarCell` component (`client/src/components/CalendarCell.tsx`)
 - Campaign indicators are colored dots (not thumbnails): green=sent, blue=scheduled, gray=draft, red=cancelled
 - Tooltip on hover shows campaign name and status
-- `campaignsByDay` is memoized to avoid recalculation on re-renders
+- `campaignsByDay` is computed via single-pass O(campaigns) bucketing
+- `GET /api/campaigns` excludes `selectedImageUrl` (base64 images) for lightweight list responses via `getCampaignsLight()`
+- Month-based filtering: campaigns query passes `?year=X&month=Y` to only fetch current month's campaigns + drafts without dates
+- Template selector uses `useMemo` for sorting, static icons instead of iframe previews, and disables/greys out incomplete templates
+- "Vaciar Historial" button with confirmation dialog to delete all campaigns
+- Live preview button ("Vista Previa del Correo") is hidden when both text AND image are approved
+
+### CSV Import
+- `POST /api/contact-databases/:id/import` with `mode=append|overwrite`
+- Frontend parses CSV with automatic delimiter detection (comma or semicolon)
+- Supports column headers in English and Spanish (email/correo, name/nombre, position/cargo, segment/segmento)
+
+### Template Analysis
+- `POST /api/templates/:id/analyze` endpoint sends template HTML to OpenAI to auto-insert the 6 required placeholders
+- Uses low temperature (0.3) to preserve original HTML structure
+- "Analizar con IA" button appears on non-AI-generated incomplete templates
+
+### Image Validation
+- Placeholder images (`placehold.co` URLs) show a warning banner in the editor
+- Users cannot approve a placeholder image — must upload or regenerate a real image first
 
 ### Project Structure
 - `client/`: Frontend React application.

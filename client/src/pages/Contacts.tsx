@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { Plus, Search, ChevronDown, ChevronUp, Database, Trash2, Pencil, FileUp, FileWarning, Check, X, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,22 @@ interface NewContactForm {
 
 const EMPTY_NEW_CONTACT: NewContactForm = { name: "", email: "", position: "", segment: "" };
 
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headerLine = lines[0];
+  const sep = headerLine.includes(";") ? ";" : ",";
+  const headers = headerLine.split(sep).map(h => h.trim().replace(/^["']|["']$/g, ""));
+  const rows: Record<string, string>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(sep).map(v => v.trim().replace(/^["']|["']$/g, ""));
+    const row: Record<string, string> = {};
+    headers.forEach((h, idx) => { row[h] = vals[idx] || ""; });
+    if (Object.values(row).some(v => v)) rows.push(row);
+  }
+  return rows;
+}
+
 function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: {
   db: ContactDatabaseType;
   isEditMode: boolean;
@@ -58,6 +74,8 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
   const [editingRows, setEditingRows] = useState<Record<number, EditingContact>>({});
   const [addingContact, setAddingContact] = useState(false);
   const [newContact, setNewContact] = useState<NewContactForm>(EMPTY_NEW_CONTACT);
+  const csvAppendRef = useRef<HTMLInputElement>(null);
+  const csvOverwriteRef = useRef<HTMLInputElement>(null);
 
   const { data: contacts = [], isLoading: contactsLoading } = useQuery<Contact[]>({
     queryKey: ["/api/contact-databases", db.id, "contacts"],
@@ -91,6 +109,37 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
       toast({ title: "Error", description: "No se pudo agregar el contacto.", variant: "destructive" });
     },
   });
+
+  const csvImportMutation = useMutation({
+    mutationFn: async ({ contacts: rows, mode }: { contacts: Record<string, string>[]; mode: string }) => {
+      const res = await apiRequest("POST", `/api/contact-databases/${db.id}/import`, { contacts: rows, mode });
+      return res.json();
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contact-databases", db.id, "contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
+      const msg = `${result.imported} contacto(s) importado(s).`;
+      const errMsg = result.errors?.length ? ` ${result.errors.length} fila(s) con errores.` : "";
+      toast({ title: "Importación completada", description: msg + errMsg });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error de importación", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function handleCSVFile(file: File, mode: string) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        toast({ title: "CSV vacío", description: "El archivo no contiene filas válidas.", variant: "destructive" });
+        return;
+      }
+      csvImportMutation.mutate({ contacts: rows, mode });
+    };
+    reader.readAsText(file, "UTF-8");
+  }
 
   const filtered = searchTerm
     ? contacts.filter(
@@ -137,7 +186,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
   function handleAddContact() {
     if (!newContact.email.trim()) return;
     if (!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(newContact.email.trim())) {
-      toast({ title: "Email inv\u00e1lido", description: "Por favor ingrese un email con formato v\u00e1lido.", variant: "destructive" });
+      toast({ title: "Email inválido", description: "Por favor ingrese un email con formato válido.", variant: "destructive" });
       return;
     }
     addContactMutation.mutate(newContact);
@@ -164,7 +213,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           onClick={() => toggleEditMode(db.id)}
         >
           <Pencil className="w-4 h-4" />
-          {isEditMode ? "Salir de Edici\u00f3n" : "Editar"}
+          {isEditMode ? "Salir de Edición" : "Editar"}
         </Button>
         {isEditMode && (
           <Button
@@ -183,32 +232,49 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           variant="outline"
           size="sm"
           className="gap-2"
-          onClick={() =>
-            toast({
-              title: "A\u00f1adir contactos",
-              description: "Seleccione un archivo CSV para a\u00f1adir contactos a esta base de datos.",
-            })
-          }
+          onClick={() => csvAppendRef.current?.click()}
+          disabled={csvImportMutation.isPending}
         >
-          <FileUp className="w-4 h-4" />
-          A\u00f1adir a Base de Datos
+          {csvImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+          Añadir a Base de Datos
         </Button>
+        <input
+          ref={csvAppendRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleCSVFile(file, "append");
+            e.target.value = "";
+          }}
+        />
         <Button
           data-testid={`button-overwrite-csv-${db.id}`}
           variant="outline"
           size="sm"
           className="gap-2"
-          onClick={() =>
-            toast({
-              title: "Sobreescribir base de datos",
-              description: "Advertencia: Esta acci\u00f3n reemplazar\u00e1 todos los contactos existentes con los del archivo CSV seleccionado.",
-              variant: "destructive",
-            })
-          }
+          onClick={() => {
+            if (window.confirm("¿Está seguro? Esta acción reemplazará todos los contactos existentes con los del archivo CSV.")) {
+              csvOverwriteRef.current?.click();
+            }
+          }}
+          disabled={csvImportMutation.isPending}
         >
-          <FileWarning className="w-4 h-4" />
+          {csvImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileWarning className="w-4 h-4" />}
           Sobreescribir Base de Datos
         </Button>
+        <input
+          ref={csvOverwriteRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleCSVFile(file, "overwrite");
+            e.target.value = "";
+          }}
+        />
       </div>
       <div className="rounded-md border border-border overflow-hidden">
         <div className="overflow-x-auto">

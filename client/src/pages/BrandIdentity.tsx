@@ -180,20 +180,20 @@ export default function BrandIdentity() {
   }
 
   const completionPct = useMemo(() => {
-    const fieldsToCheck = BRAND_FIELDS.filter(f => f.key !== "tone" && f.key !== "headingFont" && f.key !== "bodyFont");
-    const defaults = Object.fromEntries(BRAND_FIELDS.map(f => [f.key, f.default]));
+    const colorKeys = new Set(["primaryColor", "secondaryColor", "accentColor"]);
+    const alwaysFilledKeys = new Set(["tone", "headingFont", "bodyFont"]);
+    const fieldsToCheck = BRAND_FIELDS.filter(f => !alwaysFilledKeys.has(f.key));
     let filled = 0;
     for (const f of fieldsToCheck) {
       const val = (brand as any)[f.key] || "";
-      if (val.trim() !== "" && val !== defaults[f.key]) {
-        filled++;
+      if (colorKeys.has(f.key)) {
+        if (val.trim() !== "") filled++;
+      } else {
+        if (val.trim() !== "") filled++;
       }
     }
-    const toneChanged = brand.tone !== "profesional" ? 1 : 0;
-    const headingChanged = brand.headingFont !== "Inter" ? 1 : 0;
-    const bodyChanged = brand.bodyFont !== "Inter" ? 1 : 0;
     const total = fieldsToCheck.length + 3;
-    const totalFilled = filled + toneChanged + headingChanged + bodyChanged;
+    const totalFilled = filled + 3;
     return Math.round((totalFilled / total) * 100);
   }, [brand]);
 

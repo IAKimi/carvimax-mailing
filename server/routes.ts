@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "./gemini";
-import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, isOpenAIConfigured } from "./openai";
+import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, renderTemplateWithContent } from "./templates";
 
 const authLimiter = rateLimit({
@@ -65,11 +65,11 @@ const updateBrandIdentitySchema = z.object({
   companyName: z.string().max(200).nullable().optional(),
   industry: z.string().max(200).nullable().optional(),
   website: z.string().max(500).refine(
-    (val) => !val || val.startsWith("http://") || val.startsWith("https://"),
+    (val) => !val || val.length === 0 || val.startsWith("http://") || val.startsWith("https://"),
     "El sitio web debe comenzar con http:// o https://"
   ).nullable().optional(),
   whatsapp: z.string().max(30).refine(
-    (val) => !val || /^[+\d\s()-]+$/.test(val),
+    (val) => !val || val.length === 0 || /^[+\d\s()-]+$/.test(val),
     "El WhatsApp solo puede contener números, +, espacios, guiones y paréntesis"
   ).nullable().optional(),
   mission: z.string().max(2000).nullable().optional(),
@@ -210,7 +210,9 @@ export async function registerRoutes(
   });
 
   app.get("/api/campaigns", requireAuth, async (req, res) => {
-    const campaigns = await storage.getCampaigns(req.session.userId!);
+    const yearParam = req.query.year ? Number(req.query.year) : undefined;
+    const monthParam = req.query.month ? Number(req.query.month) : undefined;
+    const campaigns = await storage.getCampaignsLight(req.session.userId!, yearParam, monthParam);
     res.json(campaigns);
   });
 
@@ -643,6 +645,11 @@ export async function registerRoutes(
     res.status(201).json(newVersion);
   });
 
+  app.delete("/api/campaigns", requireAuth, async (req, res) => {
+    await storage.deleteAllCampaigns(req.session.userId!);
+    res.json({ message: "Historial eliminado." });
+  });
+
   app.patch("/api/versions/:id", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
@@ -779,6 +786,54 @@ export async function registerRoutes(
     }
     await storage.deleteContact(id);
     res.json({ message: "Eliminado." });
+  });
+
+  app.post("/api/contact-databases/:id/import", requireAuth, async (req, res) => {
+    const dbId = parseId(req.params.id);
+    if (!dbId) return res.status(400).json({ message: "ID inválido." });
+    const dbs = await storage.getContactDatabases(req.session.userId!);
+    if (!dbs.some(d => d.id === dbId)) {
+      return res.status(404).json({ message: "Base de datos no encontrada." });
+    }
+    const { contacts: contactRows, mode } = req.body || {};
+    if (!Array.isArray(contactRows) || contactRows.length === 0) {
+      return res.status(400).json({ message: "Debe proporcionar al menos un contacto." });
+    }
+    if (contactRows.length > 5000) {
+      return res.status(400).json({ message: "No se pueden importar más de 5000 contactos a la vez." });
+    }
+    const validContacts: Array<{ email: string; name?: string; position?: string; segment?: string }> = [];
+    const errors: string[] = [];
+    for (let i = 0; i < contactRows.length; i++) {
+      const row = contactRows[i];
+      const email = (row.email || row.Email || row.correo || row.Correo || "").toString().trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push(`Fila ${i + 1}: email inválido "${email}"`);
+        continue;
+      }
+      validContacts.push({
+        email,
+        name: (row.name || row.Name || row.nombre || row.Nombre || "").toString().trim() || undefined,
+        position: (row.position || row.Position || row.cargo || row.Cargo || "").toString().trim() || undefined,
+        segment: (row.segment || row.Segment || row.segmento || row.Segmento || "").toString().trim() || undefined,
+      });
+    }
+    if (validContacts.length === 0) {
+      return res.status(400).json({ message: "No se encontraron contactos válidos.", errors });
+    }
+    if (mode === "overwrite") {
+      await storage.deleteAllContacts(dbId);
+    }
+    const insertData = validContacts.map(c => ({
+      userId: req.session.userId!,
+      databaseId: dbId,
+      email: c.email,
+      name: c.name || null,
+      position: c.position || null,
+      segment: c.segment || null,
+    }));
+    const created = await storage.createContacts(insertData);
+    res.status(201).json({ imported: created.length, errors });
   });
 
   app.get("/api/brand-identity", requireAuth, async (req, res) => {
@@ -939,6 +994,32 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error editando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error editando plantilla." });
+    }
+  });
+
+  app.post("/api/templates/:id/analyze", requireAuth, aiLimiter, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const tpls = await storage.getTemplates(req.session.userId!);
+    const tpl = tpls.find(t => t.id === id);
+    if (!tpl) return res.status(404).json({ message: "Plantilla no encontrada." });
+    if (tpl.hasAllPlaceholders) return res.status(400).json({ message: "Esta plantilla ya tiene todos los placeholders." });
+    try {
+      if (!isOpenAIConfigured()) {
+        return res.status(400).json({ message: "OpenAI no está configurado." });
+      }
+      const brandData = await storage.getBrandIdentity(req.session.userId!);
+      const analyzedHtml = await analyzeTemplatePlaceholders(tpl.html, brandData || null);
+      const sanitizedHtml = sanitizeHtml(analyzedHtml);
+      const validation = validateTemplatePlaceholders(sanitizedHtml);
+      const updated = await storage.updateTemplate(id, {
+        html: sanitizedHtml,
+        hasAllPlaceholders: validation.valid,
+      } as any);
+      res.json({ ...updated, missingPlaceholders: validation.missing });
+    } catch (err: any) {
+      console.error("Error analizando plantilla:", err.message);
+      return res.status(500).json({ message: err.message || "Error analizando plantilla." });
     }
   });
 

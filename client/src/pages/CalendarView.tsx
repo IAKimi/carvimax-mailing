@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
-  Type, Eye, Wand2, Send, Loader2, XCircle, Ban,
+  Type, Eye, Wand2, Send, Loader2, XCircle, Ban, Trash2,
   FileText, CheckCircle2, AlertTriangle, Link2, Database,
   Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide
 } from "lucide-react";
@@ -82,7 +82,12 @@ export default function CalendarView() {
   const totalDays = lastDay.getDate();
 
   const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<Campaign[]>({
-    queryKey: ["/api/campaigns"],
+    queryKey: ["/api/campaigns", { year, month }],
+    queryFn: async () => {
+      const res = await fetch(`/api/campaigns?year=${year}&month=${month}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Error cargando campañas");
+      return res.json();
+    },
   });
 
   const { data: userTemplates = [] } = useQuery<Template[]>({
@@ -148,6 +153,21 @@ export default function CalendarView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+    },
+  });
+
+  const deleteAllCampaignsMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/campaigns");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      setEditingCampaignId(null);
+      setSelectedDay(null);
+      toast({ title: "Historial vaciado", description: "Todos los correos han sido eliminados." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo vaciar el historial.", variant: "destructive" });
     },
   });
 
@@ -476,11 +496,26 @@ export default function CalendarView() {
   }
 
   function handleApproveImage() {
+    if (selectedImageUrl.includes("placehold.co")) {
+      toast({ title: "Imagen no válida", description: "Debe cargar o generar una imagen real antes de aprobar.", variant: "destructive" });
+      return;
+    }
     setImageApproved(true);
     toast({ title: "Imagen aprobada" });
   }
 
   const editingCampaign = campaigns.find(c => c.id === editingCampaignId);
+
+  const sortedTemplatesForSelector = useMemo(() => {
+    return [...userTemplates].sort((a, b) => {
+      if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
+      if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return 0;
+    });
+  }, [userTemplates]);
+
   const selectedVersion = (localSelectedVersionId ? versions.find(v => v.id === localSelectedVersionId) : null) || versions.find(v => v.isSelected) || versions[0];
   const contentData = selectedVersion?.contentJson as any;
   const selectedAsunto = contentData?.asunto || contentData?.title || "";
@@ -543,12 +578,17 @@ export default function CalendarView() {
 
   const campaignsByDay = useMemo(() => {
     const map: Record<number, Campaign[]> = {};
-    for (let day = 1; day <= totalDays; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      map[day] = campaigns.filter(c => campaignToDateStr(c) === dateStr);
+    for (const c of campaigns) {
+      if (!c.scheduledAt) continue;
+      const d = new Date(c.scheduledAt);
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        const day = d.getDate();
+        if (!map[day]) map[day] = [];
+        map[day].push(c);
+      }
     }
     return map;
-  }, [campaigns, year, month, totalDays]);
+  }, [campaigns, year, month]);
 
   const handleDayClick = useCallback((day: number) => {
     openDay(day);
@@ -845,6 +885,15 @@ export default function CalendarView() {
                       </div>
                     )}
                   </div>
+                  {selectedImageUrl.includes("placehold.co") && (
+                    <div data-testid="warning-placeholder-image" className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Imagen de prueba</p>
+                        <p className="text-[11px] text-amber-600 mt-0.5">La imagen actual es un placeholder. Regenere con IA o cargue su propia imagen antes de aprobar.</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -1143,15 +1192,17 @@ export default function CalendarView() {
               </div>
             </div>
 
-            <Button
-              data-testid="button-toggle-preview"
-              variant="outline"
-              onClick={() => setShowPreview(true)}
-              className="w-full rounded-xl gap-2"
-            >
-              <Eye className="w-4 h-4" />
-              Vista Previa del Correo
-            </Button>
+            {!(textApproved && imageApproved) && (
+              <Button
+                data-testid="button-toggle-preview"
+                variant="outline"
+                onClick={() => setShowPreview(true)}
+                className="w-full rounded-xl gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                Vista Previa del Correo
+              </Button>
+            )}
             </>
           )}
 
@@ -1238,27 +1289,16 @@ export default function CalendarView() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 mt-3">
-                {[...userTemplates].sort((a, b) => {
-                  if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
-                  if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
-                  if (a.favorite && !b.favorite) return -1;
-                  if (!a.favorite && b.favorite) return 1;
-                  return 0;
-                }).map(t => (
+                {sortedTemplatesForSelector.map(t => (
                   <button
                     key={t.id}
                     data-testid={`button-assign-template-${t.id}`}
-                    onClick={() => handleAssignTemplate(String(t.id))}
-                    className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left hover:border-primary/40 ${editingCampaign?.templateId === t.id ? "border-primary bg-primary/5" : "border-border"}`}
+                    onClick={() => t.hasAllPlaceholders && handleAssignTemplate(String(t.id))}
+                    disabled={!t.hasAllPlaceholders}
+                    className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${!t.hasAllPlaceholders ? "opacity-50 cursor-not-allowed" : "hover:border-primary/40 cursor-pointer"} ${editingCampaign?.templateId === t.id ? "border-primary bg-primary/5" : "border-border"}`}
                   >
-                    <div className="w-24 h-16 rounded-lg overflow-hidden bg-white border border-border flex-shrink-0">
-                      <iframe
-                        srcDoc={t.html}
-                        sandbox=""
-                        className="w-full h-full pointer-events-none"
-                        style={{ transform: "scale(0.25)", transformOrigin: "top left", width: "400%", height: "400%" }}
-                        title={t.name}
-                      />
+                    <div className="w-24 h-16 rounded-lg overflow-hidden bg-muted border border-border flex-shrink-0 flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -1551,9 +1591,43 @@ export default function CalendarView() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-extrabold">Calendario</h1>
-          <p className="text-muted-foreground mt-1">Haga clic en un día para programar un nuevo correo o editar uno existente.</p>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-extrabold">Calendario</h1>
+            <p className="text-muted-foreground mt-1">Haga clic en un día para programar un nuevo correo o editar uno existente.</p>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                data-testid="button-clear-history"
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                disabled={deleteAllCampaignsMutation.isPending}
+              >
+                {deleteAllCampaignsMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Vaciar Historial
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="rounded-2xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Vaciar todo el historial?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción eliminará TODOS los correos y sus versiones generadas de todos los meses. Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  data-testid="button-confirm-clear-history"
+                  onClick={() => deleteAllCampaignsMutation.mutate()}
+                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Sí, vaciar todo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {campaignsLoading ? (

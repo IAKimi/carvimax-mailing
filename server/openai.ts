@@ -420,6 +420,68 @@ export async function editTemplateHtml(
   }
 }
 
+export async function analyzeTemplatePlaceholders(
+  originalHtml: string,
+  brandIdentity: BrandIdentityData | null
+): Promise<string> {
+  const client = getClient();
+
+  const analyzeSchema = {
+    type: "json_schema" as const,
+    name: "analyzed_template",
+    schema: {
+      type: "object",
+      properties: {
+        html: {
+          type: "string",
+          description: "HTML completo de la plantilla con los 6 placeholders insertados en las ubicaciones correctas",
+        },
+      },
+      required: ["html"],
+      additionalProperties: false,
+    },
+    strict: true,
+  };
+
+  try {
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      instructions: `Eres un experto en plantillas HTML de email marketing. Tu ÚNICA tarea es analizar una plantilla HTML existente e insertar los 6 placeholders obligatorios en las ubicaciones correctas SIN cambiar la estructura, diseño, estilos ni contenido visual de la plantilla.
+
+LOS 6 PLACEHOLDERS OBLIGATORIOS:
+1. {{ASUNTO}} — Debe ir dentro del tag <title> en el <head>. Si no hay <title>, agrégalo.
+2. {{PREHEADER}} — Debe ir como primer elemento dentro del <body>, en un <span> oculto:
+   <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
+3. {{IMAGEN_URL}} — Debe reemplazar el src="" de la imagen principal/hero/banner del correo. Si no hay imagen hero, agrega una antes del contenido principal.
+4. {{CONTENIDO}} — Debe reemplazar el bloque principal de texto/contenido del correo. Identifica el área de contenido principal y reemplázala.
+5. {{CTA_TEXTO}} — Debe reemplazar el texto del botón principal de acción (CTA). Si no hay botón, agrega uno después del contenido.
+6. {{CTA_URL}} — Debe reemplazar el href="" del botón CTA.
+
+REGLAS ESTRICTAS:
+- NO cambies la estructura HTML, layout, tablas ni estilos CSS/inline.
+- NO cambies colores, fuentes, márgenes ni ningún aspecto visual.
+- SOLO inserta/reemplaza los placeholders en las ubicaciones correctas.
+- Si la plantilla ya tiene algún placeholder, déjalo como está.
+- Si falta algún elemento estructural (como <title>, imagen hero, o botón CTA), agrégalo de forma mínima y coherente con el diseño existente.
+- Mantén todo el HTML original intacto excepto donde se insertan los placeholders.`,
+      input: `Analiza esta plantilla HTML e inserta los 6 placeholders obligatorios en las ubicaciones correctas:\n\n\`\`\`html\n${originalHtml}\n\`\`\``,
+      text: { format: analyzeSchema },
+      max_output_tokens: 4000,
+      temperature: 0.3,
+      store: false,
+    });
+
+    const outputText = response.output_text;
+    if (!outputText) throw new Error("OpenAI no devolvió contenido.");
+
+    const parsed = JSON.parse(outputText) as { html: string };
+    if (!parsed.html) throw new Error("La respuesta no contiene HTML analizado.");
+    return parsed.html;
+  } catch (err: any) {
+    handleOpenAIError(err);
+  }
+}
+
 export function isOpenAIConfigured(): boolean {
   return !!process.env.OPENAI_API_KEY;
 }

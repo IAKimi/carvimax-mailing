@@ -203,6 +203,24 @@ export default function Templates() {
     },
   });
 
+  const analyzeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/templates/${id}/analyze`);
+      return res.json();
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      if (result.missingPlaceholders && result.missingPlaceholders.length > 0) {
+        toast({ title: "Análisis parcial", description: `Aún faltan ${result.missingPlaceholders.length} placeholder(s).` });
+      } else {
+        toast({ title: "Plantilla analizada", description: "Todos los placeholders han sido insertados correctamente." });
+      }
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const { data: versionsList = [] } = useQuery<Template[]>({
     queryKey: ["/api/templates", versionsParentId, "versions"],
     enabled: !!versionsParentId,
@@ -490,7 +508,7 @@ export default function Templates() {
                           onClick={() => openEditAi(template)}
                         >
                           <Wand2 className="w-3 h-3" />
-                          {(template as any).isConfirmed ? "Editar con IA" : "Nueva versi\u00f3n IA"}
+                          {(template as any).isConfirmed ? "Editar con IA" : "Nueva versión IA"}
                         </Button>
                       ) : (
                         <Button
@@ -507,6 +525,45 @@ export default function Templates() {
                       <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                         {getVersionCount(template)}/3 versiones
                       </span>
+                    </div>
+                  )}
+                  {!template.isAiGenerated && !template.hasAllPlaceholders && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        data-testid={`button-analyze-template-${template.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1 text-xs flex-1 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                        onClick={() => analyzeMutation.mutate(template.id)}
+                        disabled={analyzeMutation.isPending}
+                      >
+                        {analyzeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        Analizar con IA
+                      </Button>
+                      <Button
+                        data-testid={`button-manual-edit-uploaded-${template.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1 text-xs"
+                        onClick={() => openManualEdit(template)}
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Editar
+                      </Button>
+                    </div>
+                  )}
+                  {!template.isAiGenerated && template.hasAllPlaceholders && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        data-testid={`button-manual-edit-uploaded-${template.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1 text-xs flex-1"
+                        onClick={() => openManualEdit(template)}
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Editar HTML
+                      </Button>
                     </div>
                   )}
                 </div>
