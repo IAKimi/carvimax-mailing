@@ -31,7 +31,7 @@ The application is built with a modern web stack.
 - **Database**: PostgreSQL, managed with Drizzle ORM.
 - **Schema**: Seven core tables: `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity` (includes `logoUrl` for base64 logo), `templates`, plus an auto-created `session` table.
 - **Campaign Versioning**: Stores `contentJson` (OpenAI output) and `imageUrl` (Gemini output) for each version. Supports up to 3 versions per campaign.
-- **Template Versioning**: When AI generates/edits templates, creates separate version records (up to 3) linked by `parentTemplateId`. Users compare versions side-by-side and confirm one; others are deleted. Fields: `isConfirmed`, `parentTemplateId`, `versionNumber`.
+- **Template Versioning**: When AI generates/edits templates, creates separate version records (up to 3) linked by `parentTemplateId`. Users compare versions side-by-side and confirm one; others are deleted. Fields: `isConfirmed`, `parentTemplateId`, `versionNumber`. Display logic: confirmed parents are hidden from the template list when they have unconfirmed children (only the latest unconfirmed version shows).
 - **AI Integration Logic**:
     - **OpenAI (Text Generation)**: Uses `gpt-4.1-mini` with Structured Outputs (JSON schema for `asunto`, `preheader`, `cuerpo_html`, `cta_text`). Utilizes `brand_identity` for context and conversational history for text regeneration. Includes retry logic and refusal handling. Template generation prompt enforces strict structure: Header → Image Hero → Content → CTA → Footer (image always before content).
     - **Gemini (Image Generation/Editing)**: Uses `gemini-3.1-flash-image-preview` (Nano Banana 2). Generates images with `responseModalities: ["IMAGE"]` and `aspectRatio: "16:9"`. Supports basic `editImage()` and advanced `editImageAdvanced()` for multimodal editing.
@@ -67,14 +67,17 @@ Key files:
 - Month-based filtering: campaigns query passes `?year=X&month=Y` to only fetch current month's campaigns + drafts without dates
 - Template selector uses `useMemo` for sorting, static icons instead of iframe previews, and disables/greys out incomplete templates
 - "Vaciar Historial" button always visible with confirmation dialog to delete all campaigns
-- Live preview button ("Vista Previa del Correo") is hidden when both text AND image are approved
+- Live preview button ("Vista Previa del Correo") is positioned below image editor section with PostIAlo blue (#002073) styling; hidden when both text AND image are approved
+- "Vista Previa Final" button requires templateId AND textApproved AND imageApproved to be visible
 
-### CSV Import
+### CSV/XLSX Import
 - `POST /api/contact-databases/:id/import` with `mode=append|overwrite`
-- Frontend parses CSV with automatic delimiter detection (comma or semicolon)
+- Frontend parses CSV (automatic delimiter detection: comma/semicolon) and XLSX/XLS files (via `xlsx` package)
 - Supports column headers in English and Spanish (email/correo, name/nombre, position/cargo, segment/segmento)
-- Deduplicates emails within CSV and against existing database (in append mode)
+- Missing optional fields display as "No encontrado" (muted italic text) in the contacts table
+- Deduplicates emails within file and against existing database (in append mode)
 - Contact update (`PATCH /api/contacts/:id`) checks for duplicate emails in same database
+- Error handling: try/catch around parsing + reader.onerror for corrupt/invalid files
 
 ### Template Analysis
 - `POST /api/templates/:id/analyze` endpoint sends template HTML to OpenAI to auto-insert the 6 required placeholders

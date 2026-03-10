@@ -59,6 +59,7 @@ export default function Templates() {
         parentGroups.get(parentId)!.push(t);
       }
     }
+    const parentsWithUnconfirmedChildren = new Set(parentGroups.keys());
     const shown = new Set<number>();
     const result: Template[] = [];
     for (const t of templates) {
@@ -69,6 +70,8 @@ export default function Templates() {
           const group = parentGroups.get(parentId)!;
           result.push(group.sort((a, b) => ((b as any).versionNumber || 1) - ((a as any).versionNumber || 1))[0]);
         }
+      } else if (parentsWithUnconfirmedChildren.has(t.id)) {
+        continue;
       } else {
         result.push(t);
       }

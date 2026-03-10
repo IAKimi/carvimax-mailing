@@ -128,8 +128,8 @@ export default function CalendarView() {
       toast({ title: "Correo creado", description: "Generando contenido..." });
       generateVersionMutation.mutate(campaign.id);
     },
-    onError: () => {
-      toast({ title: "Error", description: "No se pudo crear el correo.", variant: "destructive" });
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message || "No se pudo crear el correo.", variant: "destructive" });
     },
   });
 
@@ -138,12 +138,13 @@ export default function CalendarView() {
       const res = await apiRequest("POST", `/api/campaigns/${campaignId}/generate`);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+    onSuccess: (_data, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns", campaignId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       toast({ title: "Versión generada", description: "Nueva versión disponible." });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Error generando contenido", description: err.message || "Error de generación. Intente de nuevo.", variant: "destructive" });
     },
   });
 
@@ -806,7 +807,7 @@ export default function CalendarView() {
                     <FileText className="w-3.5 h-3.5" />
                     {editingCampaign?.templateId ? "Cambiar" : "Seleccionar"}
                   </Button>
-                  {editingCampaign?.templateId && (
+                  {editingCampaign?.templateId && textApproved && imageApproved && (
                     <Button
                       data-testid="button-final-preview"
                       size="sm"
@@ -1023,6 +1024,18 @@ export default function CalendarView() {
                       Aprobar Imagen
                     </Button>
                   )}
+
+                  {!(textApproved && imageApproved) && (
+                    <Button
+                      data-testid="button-toggle-preview"
+                      onClick={() => setShowPreview(true)}
+                      className="w-full rounded-xl gap-2 text-white"
+                      style={{ backgroundColor: "#002073" }}
+                    >
+                      <Eye className="w-4 h-4" />
+                      Vista Previa del Correo
+                    </Button>
+                  )}
                 </div>
 
                 <div className="space-y-4 relative">
@@ -1221,17 +1234,6 @@ export default function CalendarView() {
               </div>
             </div>
 
-            {!(textApproved && imageApproved) && (
-              <Button
-                data-testid="button-toggle-preview"
-                variant="outline"
-                onClick={() => setShowPreview(true)}
-                className="w-full rounded-xl gap-2"
-              >
-                <Eye className="w-4 h-4" />
-                Vista Previa del Correo
-              </Button>
-            )}
             </>
           )}
 

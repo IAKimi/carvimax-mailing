@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
-import { Plus, Search, ChevronDown, ChevronUp, Database, Trash2, Pencil, FileUp, FileWarning, Check, X, Loader2, UserPlus } from "lucide-react";
+import { Plus, Search, ChevronDown, ChevronUp, Database, Trash2, Pencil, FileUp, FileWarning, Check, X, Loader2, UserPlus, AlertCircle } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -61,6 +62,21 @@ function parseCSV(text: string): Record<string, string>[] {
     if (Object.values(row).some(v => v)) rows.push(row);
   }
   return rows;
+}
+
+function parseXLSX(data: ArrayBuffer): Record<string, string>[] {
+  const workbook = XLSX.read(data, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = workbook.Sheets[sheetName];
+  const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
+  return jsonData.map(row => {
+    const mapped: Record<string, string> = {};
+    for (const key of Object.keys(row)) {
+      mapped[key] = String(row[key] ?? "").trim();
+    }
+    return mapped;
+  }).filter(row => Object.values(row).some(v => v));
 }
 
 function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: {
@@ -127,18 +143,34 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
     },
   });
 
-  function handleCSVFile(file: File, mode: string) {
+  function handleImportFile(file: File, mode: string) {
+    const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls");
     const reader = new FileReader();
     reader.onload = () => {
-      const text = reader.result as string;
-      const rows = parseCSV(text);
-      if (rows.length === 0) {
-        toast({ title: "CSV vacío", description: "El archivo no contiene filas válidas.", variant: "destructive" });
-        return;
+      try {
+        let rows: Record<string, string>[];
+        if (isXlsx) {
+          rows = parseXLSX(reader.result as ArrayBuffer);
+        } else {
+          rows = parseCSV(reader.result as string);
+        }
+        if (rows.length === 0) {
+          toast({ title: "Archivo vacío", description: "El archivo no contiene filas válidas.", variant: "destructive" });
+          return;
+        }
+        csvImportMutation.mutate({ contacts: rows, mode });
+      } catch (err: any) {
+        toast({ title: "Archivo inválido", description: "No se pudo leer el archivo. Verifique que sea un CSV o Excel válido.", variant: "destructive" });
       }
-      csvImportMutation.mutate({ contacts: rows, mode });
     };
-    reader.readAsText(file, "UTF-8");
+    reader.onerror = () => {
+      toast({ title: "Error de lectura", description: "No se pudo leer el archivo.", variant: "destructive" });
+    };
+    if (isXlsx) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file, "UTF-8");
+    }
   }
 
   const filtered = searchTerm
@@ -241,11 +273,11 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
         <input
           ref={csvAppendRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) handleCSVFile(file, "append");
+            if (file) handleImportFile(file, "append");
             e.target.value = "";
           }}
         />
@@ -255,7 +287,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           size="sm"
           className="gap-2"
           onClick={() => {
-            if (window.confirm("¿Está seguro? Esta acción reemplazará todos los contactos existentes con los del archivo CSV.")) {
+            if (window.confirm("¿Está seguro? Esta acción reemplazará todos los contactos existentes con los del archivo.")) {
               csvOverwriteRef.current?.click();
             }
           }}
@@ -267,11 +299,11 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
         <input
           ref={csvOverwriteRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) handleCSVFile(file, "overwrite");
+            if (file) handleImportFile(file, "overwrite");
             e.target.value = "";
           }}
         />
@@ -456,14 +488,16 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                       onClick={isEditMode ? () => startEditRow(contact) : undefined}
                     >
                       <td className="px-4 py-3">
-                        <div className="font-semibold">{contact.name || "-"}</div>
+                        <div className="font-semibold">{contact.name || <span className="text-muted-foreground/60 italic text-xs">No encontrado</span>}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{contact.email}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{(contact as any).position || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{(contact as any).position || <span className="text-muted-foreground/60 italic text-xs">No encontrado</span>}</td>
                       <td className="px-4 py-3">
-                        <Badge variant="secondary" className="text-xs">
-                          {contact.segment || "General"}
-                        </Badge>
+                        {contact.segment ? (
+                          <Badge variant="secondary" className="text-xs">{contact.segment}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground/60 italic text-xs">No encontrado</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-muted-foreground">
                         {isEditMode ? (
