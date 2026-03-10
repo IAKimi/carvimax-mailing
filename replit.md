@@ -8,7 +8,7 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 - **Backend**: Express.js (Node.js)
 - **Base de Datos**: PostgreSQL (Drizzle ORM) - conectada con DatabaseStorage
 - **Autenticación**: bcryptjs (hash de contraseñas) + express-session (sesiones en PostgreSQL via connect-pg-simple)
-- **IA / Texto**: OpenAI Responses API (modelo gpt-5-mini con Structured Outputs)
+- **IA / Texto**: OpenAI Responses API (modelo gpt-4.1-mini con Structured Outputs)
 - **IA / Imágenes**: Gemini API (modelo gemini-3.1-flash-image-preview / Nano Banana 2 con responseModalities IMAGE)
 - **Editor WYSIWYG**: TipTap
 - **Animaciones**: Framer Motion
@@ -106,7 +106,7 @@ docs/
 1. POST /api/campaigns/:id/generate lee la brand_identity del usuario
 2. Arma el campo `instructions` (developer): prompt de copywriter + identidad de marca completa + reglas estrictas
 3. Arma el campo `input` (user): "Idea: [idea]\nObjetivo: [objetivo]"
-4. Llama `openai.responses.create()` con modelo `gpt-5-mini`
+4. Llama `openai.responses.create()` con modelo `gpt-4.1-mini`
 5. Structured Output (`text.format = json_schema`): devuelve `{ asunto, preheader, cuerpo_html, cta_text }`
 6. Se guarda en campaign_versions.contentJson
 7. Si no hay OPENAI_API_KEY → usa texto placeholder
@@ -168,11 +168,12 @@ docs/
 - localStorage: solo `postIAlo_auth` como fast UI guard (la verificación real es /api/auth/me)
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
-- OpenAI: Responses API con openai.responses.create(), modelo gpt-5-mini, Structured Outputs json_schema
-- OpenAI: max_output_tokens=4096 (modelo de razonamiento necesita tokens adicionales para reasoning antes del output)
-- OpenAI: NO soporta parámetro `temperature` con gpt-5-mini
+- OpenAI: Responses API con openai.responses.create(), modelo gpt-4.1-mini, Structured Outputs json_schema
+- OpenAI: max_output_tokens=800, temperature=0.7 (gpt-4.1-mini es ejecución directa, no razonamiento)
+- OpenAI: Pivote de gpt-5-mini (razonamiento) a gpt-4.1-mini (ejecución directa) por velocidad y costo
 - OpenAI: retry automático (1 reintento) si response.status === "incomplete"
 - OpenAI: safe JSON parsing con validación de campos requeridos
+- OpenAI: protección contra refusals — si Structured Outputs devuelve campo refusal, muestra error amigable
 - OpenAI regeneración: usa historial conversacional con array de messages [{role, content}] en campo input
 - OpenAI env var: se lee con process.env.OPENAI_API_KEY en runtime (no al cargar módulo)
 - OpenAI contentJson: { asunto, preheader, cuerpo_html, cta_text }

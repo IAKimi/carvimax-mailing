@@ -138,7 +138,7 @@ function parseEmailResponse(outputText: string | undefined | null): EmailContent
     throw new Error("La respuesta de OpenAI no es JSON válido.");
   }
 
-  if (!parsed.asunto || !parsed.cuerpo_html || !parsed.cta_text) {
+  if (!parsed.asunto || !parsed.preheader || !parsed.cuerpo_html || !parsed.cta_text) {
     throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos.");
   }
 
@@ -148,6 +148,15 @@ function parseEmailResponse(outputText: string | undefined | null): EmailContent
 async function callOpenAI(client: OpenAI, params: any, maxRetries = 1): Promise<EmailContent> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const response = await client.responses.create(params);
+
+    const refusalItem = response.output?.find(
+      (item: any) => item.type === "message" && item.content?.some((c: any) => c.type === "refusal")
+    );
+    if (refusalItem) {
+      const refusalText = (refusalItem as any).content?.find((c: any) => c.type === "refusal")?.refusal || "";
+      console.warn("[OpenAI] Refusal detectado:", refusalText);
+      throw new Error("La idea fue rechazada por las políticas de contenido de OpenAI. Intente con una idea diferente.");
+    }
 
     if (response.status === "incomplete" && attempt < maxRetries) {
       console.warn(`[OpenAI] Respuesta incompleta (intento ${attempt + 1}), reintentando...`);
@@ -175,11 +184,12 @@ export async function generateEmailContent(
 
   try {
     return await callOpenAI(client, {
-      model: "gpt-5-mini",
+      model: "gpt-4.1-mini",
       instructions,
       input: userInput,
       text: { format: emailSchema },
-      max_output_tokens: 4096,
+      max_output_tokens: 800,
+      temperature: 0.7,
       store: false,
     });
   } catch (err: any) {
@@ -199,7 +209,7 @@ export async function regenerateEmailContent(
 
   try {
     return await callOpenAI(client, {
-      model: "gpt-5-mini",
+      model: "gpt-4.1-mini",
       instructions,
       input: [
         {
@@ -216,7 +226,8 @@ export async function regenerateEmailContent(
         },
       ],
       text: { format: emailSchema },
-      max_output_tokens: 4096,
+      max_output_tokens: 800,
+      temperature: 0.7,
       store: false,
     });
   } catch (err: any) {
