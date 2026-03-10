@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { motion } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +14,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 };
 
 export default function MyEmails() {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
@@ -50,9 +53,14 @@ export default function MyEmails() {
             {history.map((campaign, i) => {
               const config = statusConfig[campaign.status] || statusConfig.draft;
               const StatusIcon = config.icon;
+              const isExpanded = expandedId === campaign.id;
               const displayDate = campaign.scheduledAt
                 ? new Date(campaign.scheduledAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })
                 : "Sin fecha";
+              const title = campaign.status === "sent"
+                ? `Correo enviado el ${displayDate}`
+                : `Correo programado para el ${displayDate}`;
+
               return (
                 <motion.div
                   key={campaign.id}
@@ -60,25 +68,57 @@ export default function MyEmails() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.3 }}
                   data-testid={`email-history-item-${campaign.id}`}
-                  className="bg-card rounded-2xl border border-border p-5 flex items-center gap-4 shadow-sm"
+                  className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    {campaign.status === "sent" ? (
-                      <Send className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Clock className="w-5 h-5 text-primary" />
+                  <button
+                    data-testid={`button-expand-${campaign.id}`}
+                    onClick={() => setExpandedId(isExpanded ? null : campaign.id)}
+                    className="w-full p-5 flex items-center gap-4 text-left hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      {campaign.status === "sent" ? (
+                        <Send className="w-5 h-5 text-primary" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold truncate">{title}</h3>
+                      <p className="text-sm text-muted-foreground truncate">{campaign.name}</p>
+                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 flex-shrink-0 ${config.color}`}>
+                      <StatusIcon className="w-3 h-3" />
+                      {config.label}
+                    </span>
+                    <ChevronDown className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-5 pb-5 pt-0 border-t border-border">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                            <DetailField icon={Lightbulb} label="Idea" value={campaign.idea} />
+                            <DetailField icon={Target} label="Objetivo" value={campaign.objective} />
+                            <DetailField icon={MessageSquare} label="Tono" value={campaign.tone} />
+                            <DetailField icon={LayoutTemplate} label="Layout" value={campaign.layoutPreference || "Sin especificar"} />
+                            {campaign.imagePrompt && (
+                              <DetailField icon={Image} label="Prompt de imagen" value={campaign.imagePrompt} />
+                            )}
+                            {campaign.targetDatabase && (
+                              <DetailField icon={Database} label="Base de datos destino" value={campaign.targetDatabase} />
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold truncate">{campaign.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {campaign.status === "sent" ? "Enviado" : "Programado para"} el {displayDate}
-                    </p>
-                  </div>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 flex-shrink-0 ${config.color}`}>
-                    <StatusIcon className="w-3 h-3" />
-                    {config.label}
-                  </span>
+                  </AnimatePresence>
                 </motion.div>
               );
             })}
@@ -99,5 +139,17 @@ export default function MyEmails() {
         )}
       </div>
     </Layout>
+  );
+}
+
+function DetailField({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <Icon className="w-3.5 h-3.5" />
+        {label}
+      </div>
+      <p className="text-sm leading-relaxed">{value}</p>
+    </div>
   );
 }
