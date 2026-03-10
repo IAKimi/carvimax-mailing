@@ -210,14 +210,13 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           Sobreescribir Base de Datos
         </Button>
       </div>
-
       <div className="rounded-md border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Contacto</th>
-                <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Correo Electr\u00f3nico</th>
+                <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Correo Electrónico</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Cargo</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Segmento</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-right">
