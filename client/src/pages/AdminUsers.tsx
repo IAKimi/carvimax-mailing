@@ -394,8 +394,8 @@ export default function AdminUsers() {
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="rounded-xl border border-border overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
                     <th className="text-left px-4 py-3 font-semibold">Usuario</th>

@@ -131,8 +131,8 @@ export default function Home() {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
   const userName = user?.name || "Usuario";
-  const [productOpen, setProductOpen] = useState(false);
-  const [howOpen, setHowOpen] = useState(false);
+  const [productOpen, setProductOpen] = useState(true);
+  const [howOpen, setHowOpen] = useState(true);
 
   return (
     <Layout>

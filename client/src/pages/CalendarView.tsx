@@ -46,7 +46,8 @@ export default function CalendarView() {
   const [showPreview, setShowPreview] = useState(false);
   const [textApproved, setTextApproved] = useState(false);
   const [imageApproved, setImageApproved] = useState(false);
-  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "" });
+  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "" });
+  const [showTargetAudience, setShowTargetAudience] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [editorLocalImageUrl, setEditorLocalImageUrl] = useState<string | null>(null);
@@ -256,7 +257,8 @@ export default function CalendarView() {
     setSelectedDay(day);
     const dayCampaigns = getCampaignsForDay(day);
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T09:00`, imagePrompt: "" });
+    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T09:00`, imagePrompt: "", targetAudience: "" });
+    setShowTargetAudience(false);
     setImageSourceMode(null);
     setUploadedImageFile(null);
 
@@ -369,6 +371,7 @@ export default function CalendarView() {
       tone: "profesional",
       imagePrompt: form.imagePrompt || null,
       targetDatabase: form.targetDatabase || null,
+      targetAudience: showTargetAudience && form.targetAudience.trim() ? form.targetAudience.trim() : null,
       templateId: form.templateId ? parseInt(form.templateId) : null,
       scheduledAt: form.scheduledDate || null,
     });
@@ -1625,7 +1628,7 @@ export default function CalendarView() {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold">Calendario</h1>
-            <p className="text-muted-foreground mt-1">Haga clic en un día para programar un nuevo correo o editar uno existente.</p>
+            <p className="text-muted-foreground mt-1">Organiza tu estrategia mensual. Haz clic en cualquier día para crear una nueva campaña con IA o gestionar tus envíos programados.</p>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -1769,6 +1772,41 @@ export default function CalendarView() {
                 className="rounded-xl min-h-[70px]"
                 maxLength={1000}
               />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  data-testid="checkbox-target-audience"
+                  type="checkbox"
+                  id="targetAudienceToggle"
+                  checked={showTargetAudience}
+                  onChange={e => {
+                    setShowTargetAudience(e.target.checked);
+                    if (!e.target.checked) setForm(f => ({ ...f, targetAudience: "" }));
+                  }}
+                  className="rounded border-border"
+                />
+                <Label htmlFor="targetAudienceToggle" className="cursor-pointer text-sm">Definir público objetivo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              </div>
+              <AnimatePresence>
+                {showTargetAudience && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <Textarea
+                      data-testid="input-calendar-target-audience"
+                      placeholder="Ej: Gerentes de logística en Centroamérica, directores de marketing de empresas medianas"
+                      value={form.targetAudience}
+                      onChange={e => setForm(f => ({ ...f, targetAudience: e.target.value }))}
+                      className="rounded-xl min-h-[60px] mt-1"
+                      maxLength={1000}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="space-y-2">
               <Label>Imagen del Correo</Label>

@@ -25,6 +25,7 @@ export const campaigns = pgTable("campaigns", {
   imagePrompt: text("image_prompt"),
   targetDatabase: text("target_database"),
   selectedImageUrl: text("selected_image_url"),
+  targetAudience: text("target_audience"),
   templateId: integer("template_id"),
   scheduledAt: timestamp("scheduled_at"),
   createdAt: timestamp("created_at").defaultNow(),

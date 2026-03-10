@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image } from "lucide-react";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign } from "@shared/schema";
@@ -15,13 +17,26 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 
 export default function MyEmails() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
 
+  const hasActiveFilter = dateFrom || dateTo;
+
   const history = campaigns
     .filter(c => c.status === "sent" || c.status === "scheduled")
+    .filter(c => {
+      if (!hasActiveFilter) return true;
+      if (!c.scheduledAt) return false;
+      const d = new Date(c.scheduledAt).getTime();
+      if (dateFrom && d < new Date(dateFrom).getTime()) return false;
+      if (dateTo && d > new Date(dateTo + "T23:59:59").getTime()) return false;
+      return true;
+    })
     .sort((a, b) => {
       const dateA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
       const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
@@ -36,13 +51,74 @@ export default function MyEmails() {
             <h1 className="text-3xl md:text-4xl font-extrabold">Historial de Correos</h1>
             <p className="text-muted-foreground mt-1">Registro de correos enviados y programados.</p>
           </div>
-          <Link href="/calendar">
-            <Button data-testid="button-go-calendar" className="rounded-xl gap-2">
-              <CalendarDays className="w-4 h-4" />
-              Ir al Calendario
+          <div className="flex items-center gap-2">
+            <Button
+              data-testid="button-toggle-filters"
+              variant={showFilters ? "default" : "outline"}
+              size="sm"
+              className="rounded-xl gap-1.5"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              Filtrar
+              {hasActiveFilter && <span className="w-2 h-2 rounded-full bg-white" />}
             </Button>
-          </Link>
+            <Link href="/calendar">
+              <Button data-testid="button-go-calendar" className="rounded-xl gap-2">
+                <CalendarDays className="w-4 h-4" />
+                Ir al Calendario
+              </Button>
+            </Link>
+          </div>
         </div>
+
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="space-y-1 flex-1 w-full">
+                    <Label className="text-xs text-muted-foreground">Desde</Label>
+                    <Input
+                      data-testid="input-filter-date-from"
+                      type="date"
+                      value={dateFrom}
+                      onChange={e => setDateFrom(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1 flex-1 w-full">
+                    <Label className="text-xs text-muted-foreground">Hasta</Label>
+                    <Input
+                      data-testid="input-filter-date-to"
+                      type="date"
+                      value={dateTo}
+                      onChange={e => setDateTo(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  {hasActiveFilter && (
+                    <Button
+                      data-testid="button-clear-filters"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-xl gap-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => { setDateFrom(""); setDateTo(""); }}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Limpiar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
@@ -107,6 +183,9 @@ export default function MyEmails() {
                             <DetailField icon={Target} label="Objetivo" value={campaign.objective} />
                             <DetailField icon={MessageSquare} label="Tono" value={campaign.tone} />
                             <DetailField icon={LayoutTemplate} label="Layout" value={campaign.layoutPreference || "Sin especificar"} />
+                            {campaign.targetAudience && (
+                              <DetailField icon={Users} label="Público objetivo" value={campaign.targetAudience} />
+                            )}
                             {campaign.imagePrompt && (
                               <DetailField icon={Image} label="Prompt de imagen" value={campaign.imagePrompt} />
                             )}
@@ -125,15 +204,31 @@ export default function MyEmails() {
         ) : (
           <div className="text-center py-20">
             <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-2">No hay correos en el historial</h3>
-            <p className="text-muted-foreground mb-4">Los correos que envíe o programe aparecerán aquí.</p>
-            <Link href="/calendar">
-              <Button className="rounded-xl gap-2">
-                <CalendarDays className="w-4 h-4" />
-                Ir al Calendario
-                <ArrowRight className="w-4 h-4" />
+            <h3 className="text-lg font-bold mb-2">
+              {hasActiveFilter ? "No hay correos en este rango de fechas" : "No hay correos en el historial"}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {hasActiveFilter ? "Prueba ajustando el filtro de fechas." : "Los correos que envíe o programe aparecerán aquí."}
+            </p>
+            {hasActiveFilter ? (
+              <Button
+                data-testid="button-clear-filter-empty"
+                variant="outline"
+                className="rounded-xl gap-2"
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+              >
+                <X className="w-4 h-4" />
+                Limpiar filtro
               </Button>
-            </Link>
+            ) : (
+              <Link href="/calendar">
+                <Button className="rounded-xl gap-2">
+                  <CalendarDays className="w-4 h-4" />
+                  Ir al Calendario
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -112,6 +112,20 @@ Key files:
 - **Sidebar**: Admin users see "Usuarios" nav item (Shield icon) in the sidebar. Not shown during impersonation.
 - **API Routes**: `GET /api/admin/stats`, `GET /api/admin/users`, `GET /api/admin/users/:id`, `PATCH /api/admin/users/:id`, `POST /api/admin/users`, `POST /api/admin/users/:id/reset-password`, `POST /api/admin/users/:id/toggle-active`, `PATCH /api/admin/users/:id/role`, `GET /api/admin/activity`, `DELETE /api/admin/users/:id`, `POST /api/admin/impersonate/:id`, `POST /api/admin/stop-impersonate`
 
+### Target Audience (Público Objetivo)
+- **Campaign field**: `targetAudience` (nullable text) on campaigns table — optional audience targeting per campaign
+- **UI**: Checkbox toggle in the new campaign dialog to enable/disable. When enabled, shows a textarea for describing the target audience
+- **AI Integration**: When provided, `targetAudience` is appended to the OpenAI user prompt for both `generateEmailContent` and `regenerateEmailContent`, instructing the model to adapt tone and vocabulary for that audience
+- **History**: Shown in the Historial dropdown details when present
+
+### Historial de Correos
+- **Collapsible cards**: Each campaign shows only a title like "Correo programado para el 11 de marzo de 2026". Clicking expands to show full details (idea, objetivo, tono, layout, público objetivo, prompt de imagen, base de datos)
+- **Date filter**: Client-side date range filter (from/to) with toggle button. Filters history items by `scheduledAt` date
+
+### Section Introductions
+- Each major section (Calendario, Base de Datos, Plantillas) has a brief explanatory subtitle for new users
+- Home page "Mi Producto" and "¿Cómo funciona?" sections are expanded by default
+
 ### Project Structure
 - `client/`: Frontend React application.
 - `server/`: Backend Express.js application, including database connection, API routes, and AI integrations.
@@ -133,3 +147,12 @@ Key files:
 - **express-rate-limit**: For rate limiting API requests.
 - **Drizzle ORM**: Object-Relational Mapper for PostgreSQL.
 - **Zod**: Schema validation library used for API request bodies.
+
+## Future Backlog (from Demo Meeting - March 10, 2026)
+Items deferred for future implementation, documented for reference:
+- **Dashboard de métricas de campañas** (Bryan Santos) — Open rates, click rates, campaign effectiveness. Requires Brevo/Make integration to retrieve campaign metrics data.
+- **Videos en correos** (Mauricio Chávez) — Embed videos in email templates. Limited by email client support; would need fallback image linking approach.
+- **Editor visual de plantillas drag & drop** (Mauricio Chávez / Ángel Machuca) — Visual WYSIWYG template builder beyond the current text editor. Significant development effort.
+- **Segmentación avanzada de envío por segmento** (Bryan Santos) — Filter contacts by segment/cargo fields when sending campaigns. The `targetAudience` field addresses the AI content adaptation aspect; actual send-time filtering remains pending.
+- **Integración con plataforma propia del grupo** (Ing. Jiménez) — Alternative to Brevo for email distribution using an internal group company platform. Strategic decision pending.
+- **Verificación real de existencia de emails** (Javier Romero) — MX record lookup or SMTP verification to check if email addresses actually exist, beyond format validation. Complex implementation with rate limiting concerns.

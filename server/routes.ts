@@ -46,6 +46,7 @@ const createCampaignSchema = z.object({
   layoutPreference: z.string().max(100).optional(),
   imagePrompt: z.string().max(1000, "El prompt de imagen no puede exceder 1000 caracteres").nullable().optional(),
   targetDatabase: z.string().max(200).nullable().optional(),
+  targetAudience: z.string().max(1000, "El público objetivo no puede exceder 1000 caracteres").nullable().optional(),
   templateId: z.number().int().positive().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
 });
@@ -285,7 +286,7 @@ export async function registerRoutes(
       const input = updateCampaignSchema.parse(rest);
       const updates: any = {};
       if (existing.status === "sent") {
-        const contentKeys = ["name", "idea", "objective", "tone", "imagePrompt", "layoutPreference"];
+        const contentKeys = ["name", "idea", "objective", "tone", "imagePrompt", "layoutPreference", "targetAudience"];
         const hasContentChanges = contentKeys.some(k => (input as any)[k] !== undefined);
         if (hasContentChanges) {
           return res.status(400).json({ message: "No se puede editar el contenido de un correo ya enviado." });
@@ -394,7 +395,7 @@ export async function registerRoutes(
       if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
         try {
           const brandData = await storage.getBrandIdentity(req.session.userId!);
-          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null);
+          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience);
           console.log("[OpenAI] Texto generado exitosamente:", JSON.stringify({ asunto: result.asunto, cta: result.cta_text }));
           return result;
         } catch (err: any) {
@@ -493,7 +494,8 @@ export async function registerRoutes(
         campaign.objective,
         previousEmail,
         corrections,
-        brandData || null
+        brandData || null,
+        campaign.targetAudience
       );
       contentJson = {
         asunto: emailContent.asunto,
@@ -875,7 +877,7 @@ export async function registerRoutes(
     for (let i = 0; i < contactRows.length; i++) {
       const row = contactRows[i];
       const email = (row.email || row.Email || row.correo || row.Correo || "").toString().trim().toLowerCase();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!email || !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(email)) {
         errors.push(`Fila ${i + 1}: email inválido "${email}"`);
         continue;
       }

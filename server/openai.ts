@@ -185,11 +185,15 @@ async function callOpenAI(client: OpenAI, params: any, maxRetries = 1): Promise<
 export async function generateEmailContent(
   idea: string,
   objective: string,
-  brandIdentity: BrandIdentityData | null
+  brandIdentity: BrandIdentityData | null,
+  targetAudience?: string | null
 ): Promise<EmailContent> {
   const client = getClient();
   const instructions = buildInstructions(brandIdentity);
-  const userInput = `Idea: ${idea}\nObjetivo: ${objective}`;
+  let userInput = `Idea: ${idea}\nObjetivo: ${objective}`;
+  if (targetAudience) {
+    userInput += `\nPúblico objetivo de esta campaña: ${targetAudience}. Adapta el tono, vocabulario y enfoque del contenido para resonar con este público específico.`;
+  }
 
   try {
     return await callOpenAI(client, {
@@ -211,10 +215,15 @@ export async function regenerateEmailContent(
   originalObjective: string,
   previousEmailJson: EmailContent,
   userCorrections: string,
-  brandIdentity: BrandIdentityData | null
+  brandIdentity: BrandIdentityData | null,
+  targetAudience?: string | null
 ): Promise<EmailContent> {
   const client = getClient();
   const instructions = buildInstructions(brandIdentity);
+  let originalContext = `Idea: ${originalIdea}\nObjetivo: ${originalObjective}`;
+  if (targetAudience) {
+    originalContext += `\nPúblico objetivo de esta campaña: ${targetAudience}. Adapta el tono, vocabulario y enfoque del contenido para resonar con este público específico.`;
+  }
 
   try {
     return await callOpenAI(client, {
@@ -223,7 +232,7 @@ export async function regenerateEmailContent(
       input: [
         {
           role: "user" as const,
-          content: `Idea: ${originalIdea}\nObjetivo: ${originalObjective}`,
+          content: originalContext,
         },
         {
           role: "assistant" as const,

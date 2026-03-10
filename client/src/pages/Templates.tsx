@@ -298,7 +298,7 @@ export default function Templates() {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold">Plantillas</h1>
-            <p className="text-muted-foreground mt-1">Administre sus plantillas HTML de correo electrónico.</p>
+            <p className="text-muted-foreground mt-1">Administre sus plantillas HTML de correo electrónico. Genere plantillas con IA o suba las suyas para usarlas en sus campañas.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button

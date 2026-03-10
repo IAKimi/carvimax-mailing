@@ -94,6 +94,7 @@ export class DatabaseStorage implements IStorage {
       layoutPreference: campaigns.layoutPreference,
       imagePrompt: campaigns.imagePrompt,
       targetDatabase: campaigns.targetDatabase,
+      targetAudience: campaigns.targetAudience,
       templateId: campaigns.templateId,
       scheduledAt: campaigns.scheduledAt,
       createdAt: campaigns.createdAt,

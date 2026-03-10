@@ -134,9 +134,10 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases", db.id, "contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
-      const msg = `${result.imported} contacto(s) importado(s).`;
-      const errMsg = result.errors?.length ? ` ${result.errors.length} fila(s) con errores.` : "";
-      toast({ title: "Importación completada", description: msg + errMsg });
+      const parts = [`${result.imported} contacto(s) importado(s).`];
+      if (result.duplicates > 0) parts.push(`${result.duplicates} duplicado(s) omitido(s).`);
+      if (result.errors?.length > 0) parts.push(`${result.errors.length} correo(s) con formato inválido omitido(s).`);
+      toast({ title: "Importación completada", description: parts.join(" ") });
     },
     onError: (err: Error) => {
       toast({ title: "Error de importación", description: err.message, variant: "destructive" });
@@ -594,7 +595,7 @@ export default function Contacts() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold" data-testid="text-page-title">Base de Datos</h1>
-            <p className="text-muted-foreground mt-1">Gestione sus bases de datos y contactos.</p>
+            <p className="text-muted-foreground mt-1">Carga y organiza tus listas de contactos. Importa archivos CSV o Excel para segmentar y enviar correos personalizados.</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
