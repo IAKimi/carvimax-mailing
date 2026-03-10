@@ -84,7 +84,6 @@ export default function MyEmails() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold truncate">{title}</h3>
-                      <p className="text-sm text-muted-foreground truncate">{campaign.name}</p>
                     </div>
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 flex-shrink-0 ${config.color}`}>
                       <StatusIcon className="w-3 h-3" />
