@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { generateImage, editImage, isGeminiConfigured } from "./gemini";
+import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, renderTemplateWithContent } from "./templates";
 
@@ -41,10 +41,10 @@ const loginSchema = z.object({
 const createCampaignSchema = z.object({
   name: z.string().min(1).max(200, "El nombre no puede exceder 200 caracteres"),
   idea: z.string().min(1).max(1000, "La idea no puede exceder 1000 caracteres"),
-  objective: z.string().min(1).max(500, "El objetivo no puede exceder 500 caracteres"),
+  objective: z.string().min(1).max(1000, "El objetivo no puede exceder 1000 caracteres"),
   tone: z.string().min(1).max(100, "El tono no puede exceder 100 caracteres"),
   layoutPreference: z.string().max(100).optional(),
-  imagePrompt: z.string().max(500, "El prompt de imagen no puede exceder 500 caracteres").nullable().optional(),
+  imagePrompt: z.string().max(1000, "El prompt de imagen no puede exceder 1000 caracteres").nullable().optional(),
   targetDatabase: z.string().max(200).nullable().optional(),
   templateId: z.number().int().positive().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
@@ -554,6 +554,80 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error editando imagen con Gemini:", err.message);
       return res.status(500).json({ message: err.message || "Error editando imagen." });
+    }
+
+    await storage.deselectAllVersions(campaignId);
+    const newVersion = await storage.createCampaignVersion({
+      campaignId,
+      versionNumber,
+      contentJson: selectedVersion.contentJson as Record<string, unknown>,
+      imageUrl,
+      isSelected: true,
+    });
+    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    res.status(201).json(newVersion);
+  });
+
+  const VALID_ADVANCED_ACTIONS: AdvancedAction[] = ["agregar", "reemplazar", "fusionar", "estilo", "borrar_elemento"];
+
+  app.post("/api/campaigns/:id/edit-image-advanced", requireAuth, aiLimiter, async (req, res) => {
+    const campaignId = parseId(req.params.id);
+    if (!campaignId) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(campaignId);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    if (campaign.status === "cancelled") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    }
+    const versions = await storage.getCampaignVersions(campaignId);
+    const versionNumber = versions.length + 1;
+    if (versionNumber > 3) {
+      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    }
+
+    const { editPrompt, selectedAction, referenceImages } = req.body || {};
+
+    if (!editPrompt || typeof editPrompt !== "string") {
+      return res.status(400).json({ message: "Debe proporcionar instrucciones de edición." });
+    }
+    if (editPrompt.length > 1000) {
+      return res.status(400).json({ message: "Las instrucciones no pueden exceder 1000 caracteres." });
+    }
+    if (!selectedAction || !VALID_ADVANCED_ACTIONS.includes(selectedAction)) {
+      return res.status(400).json({ message: "Acción no válida. Opciones: agregar, reemplazar, fusionar, estilo, borrar_elemento." });
+    }
+
+    const refs: string[] = Array.isArray(referenceImages) ? referenceImages : [];
+    if (refs.length > 3) {
+      return res.status(400).json({ message: "Máximo 3 imágenes de referencia permitidas." });
+    }
+    for (const ref of refs) {
+      if (typeof ref !== "string" || !ref.startsWith("data:image/")) {
+        return res.status(400).json({ message: "Cada imagen de referencia debe ser un data URL válido (data:image/...)." });
+      }
+    }
+    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
+    if (!selectedVersion?.imageUrl) {
+      return res.status(400).json({ message: "No hay imagen previa para editar." });
+    }
+
+    let imageUrl: string;
+    try {
+      if (!isGeminiConfigured()) {
+        return res.status(400).json({ message: "Gemini no está configurado." });
+      }
+      imageUrl = await editImageAdvanced({
+        currentImageBase64: selectedVersion.imageUrl,
+        referenceImagesBase64: refs,
+        userText: editPrompt,
+        selectedAction: selectedAction as AdvancedAction,
+      });
+    } catch (err: any) {
+      console.error("Error en edición avanzada con Gemini:", err.message);
+      const msg = err.message || "Error editando imagen.";
+      const isInputError = msg.includes("no soportado") || msg.includes("excede el límite") || msg.includes("no válida") || msg.includes("bloqueado") || msg.includes("prohibido");
+      return res.status(isInputError ? 400 : 500).json({ message: msg });
     }
 
     await storage.deselectAllVersions(campaignId);

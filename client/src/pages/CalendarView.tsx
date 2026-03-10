@@ -12,7 +12,8 @@ import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
   Type, Eye, Wand2, Send, Loader2, XCircle, Ban,
-  FileText, CheckCircle2, AlertTriangle, Link2
+  FileText, CheckCircle2, AlertTriangle, Link2,
+  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -60,7 +61,10 @@ export default function CalendarView() {
   const [regenTextCorrections, setRegenTextCorrections] = useState("");
   const [regenImagePrompt, setRegenImagePrompt] = useState("");
   const [editImagePrompt, setEditImagePrompt] = useState("");
+  const [advancedAction, setAdvancedAction] = useState<string>("agregar");
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [lastTextCorrections, setLastTextCorrections] = useState("");
+  const refFileInputRef = useRef<HTMLInputElement>(null);
   const [localAsunto, setLocalAsunto] = useState("");
   const [localPreheader, setLocalPreheader] = useState("");
   const [localCta, setLocalCta] = useState("");
@@ -184,8 +188,12 @@ export default function CalendarView() {
   });
 
   const editImageMutation = useMutation({
-    mutationFn: async ({ campaignId, editPrompt }: { campaignId: number; editPrompt: string }) => {
-      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/edit-image`, { editPrompt });
+    mutationFn: async ({ campaignId, editPrompt, selectedAction, refImages }: { campaignId: number; editPrompt: string; selectedAction: string; refImages: string[] }) => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/edit-image-advanced`, {
+        editPrompt,
+        selectedAction,
+        referenceImages: refImages,
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -193,6 +201,8 @@ export default function CalendarView() {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setShowEditImageModal(false);
       setEditImagePrompt("");
+      setAdvancedAction("agregar");
+      setReferenceImages([]);
       setEditorLocalImageUrl(null);
       setImageApproved(false);
       toast({ title: "Imagen editada", description: "Nueva versión con edición disponible." });
@@ -313,7 +323,7 @@ export default function CalendarView() {
   function handleGenerate() {
     if (!form.idea.trim()) return;
     createCampaignMutation.mutate({
-      name: form.idea,
+      name: form.idea.substring(0, 200),
       idea: form.idea,
       objective: form.objective || "General",
       tone: "profesional",
@@ -351,8 +361,50 @@ export default function CalendarView() {
       return;
     }
     setEditImagePrompt("");
+    setAdvancedAction("agregar");
+    setReferenceImages([]);
     setShowEditImageModal(true);
   }
+
+  function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    const remaining = 3 - referenceImages.length;
+    const toProcess = Array.from(files).slice(0, remaining);
+    toProcess.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        setReferenceImages(prev => {
+          if (prev.length >= 3) return prev;
+          return [...prev, result];
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+    if (e.target) e.target.value = "";
+  }
+
+  function handleSelectHistoryImage(imageUrl: string) {
+    if (referenceImages.length >= 3) {
+      toast({ title: "Límite", description: "Máximo 3 imágenes de referencia.", variant: "destructive" });
+      return;
+    }
+    if (referenceImages.includes(imageUrl)) return;
+    setReferenceImages(prev => [...prev, imageUrl]);
+  }
+
+  function removeReferenceImage(index: number) {
+    setReferenceImages(prev => prev.filter((_, i) => i !== index));
+  }
+
+  const ACTION_PLACEHOLDERS: Record<string, string> = {
+    agregar: "Ej: Coloca el logo en la esquina superior derecha",
+    reemplazar: "Ej: Reemplaza el fondo por un atardecer en la playa",
+    fusionar: "Ej: Combina ambas imágenes en una escena natural",
+    estilo: "Ej: Aplica un estilo de acuarela a toda la imagen",
+    borrar_elemento: "Ej: Borra a las personas caminando en el parque",
+  };
 
   function handleSelectVersion(versionId: number) {
     versions.forEach(v => {
@@ -1282,14 +1334,14 @@ export default function CalendarView() {
         </Dialog>
 
         <Dialog open={showEditImageModal} onOpenChange={setShowEditImageModal}>
-          <DialogContent className="sm:max-w-lg rounded-2xl">
+          <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-amber-500" />
-                Editar con Nano Banana
+                Compositor Avanzado — Nano Banana
               </DialogTitle>
               <DialogDescription>
-                Describa los cambios que desea aplicar sobre la imagen actual. La imagen original se mantendrá como base.
+                Seleccione una acción, agregue imágenes de referencia si lo necesita, y describa lo que desea hacer.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-2">
@@ -1297,27 +1349,129 @@ export default function CalendarView() {
                 <img
                   data-testid="img-edit-preview"
                   src={selectedImageUrl}
-                  alt="Imagen actual"
+                  alt="Imagen base"
                   className="w-full h-40 object-cover"
                 />
+                <p className="text-[10px] text-muted-foreground text-center py-1 bg-muted/30">Imagen base (se editará esta imagen)</p>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide">Instrucciones de edición</Label>
-                <Textarea
-                  data-testid="input-edit-image-prompt"
-                  placeholder="Ej: Cambia solo el color del fondo a azul oscuro y mantén el resto de la imagen igual..."
-                  value={editImagePrompt}
-                  onChange={e => setEditImagePrompt(e.target.value)}
-                  className="rounded-xl min-h-[100px]"
-                  maxLength={1000}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Tip: Sea específico con lo que desea cambiar e indique que el resto se mantenga igual. Para texto en imagen, limite a 25 caracteres o menos.
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Acción</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { key: "agregar", label: "Agregar", icon: PlusCircle, desc: "Logos, productos" },
+                    { key: "reemplazar", label: "Reemplazar", icon: RefreshCw, desc: "Enmascaramiento" },
+                    { key: "fusionar", label: "Fusionar", icon: Layers, desc: "Composición" },
+                    { key: "estilo", label: "Estilo", icon: Palette, desc: "Transferencia" },
+                    { key: "borrar_elemento", label: "Borrar Elemento", icon: Eraser, desc: "Inpainting" },
+                  ].map(action => (
+                    <button
+                      key={action.key}
+                      data-testid={`action-${action.key}`}
+                      onClick={() => {
+                        setAdvancedAction(action.key);
+                        if (action.key === "borrar_elemento") setReferenceImages([]);
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium border transition-all ${
+                        advancedAction === action.key
+                          ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                          : "bg-card border-border text-muted-foreground hover:border-amber-300"
+                      }`}
+                    >
+                      <action.icon className="w-3.5 h-3.5" />
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {advancedAction === "agregar" && "Integra un elemento de referencia preservando su fidelidad visual."}
+                  {advancedAction === "reemplazar" && "Reemplaza un elemento específico usando la referencia como guía."}
+                  {advancedAction === "fusionar" && "Combina la imagen base con las referencias en una composición natural."}
+                  {advancedAction === "estilo" && "Aplica el estilo artístico de la referencia a la imagen base."}
+                  {advancedAction === "borrar_elemento" && "Elimina un elemento y rellena el espacio de forma natural (inpainting)."}
                 </p>
               </div>
+
+              {advancedAction !== "borrar_elemento" && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide">Imágenes de Referencia (máx. 3)</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {referenceImages.map((img, i) => (
+                      <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border group">
+                        <img src={img} alt={`Ref ${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          data-testid={`remove-ref-${i}`}
+                          onClick={() => removeReferenceImage(i)}
+                          className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                    {referenceImages.length < 3 && (
+                      <button
+                        data-testid="button-add-ref-upload"
+                        onClick={() => refFileInputRef.current?.click()}
+                        className="w-20 h-20 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-amber-400 hover:text-amber-500 transition-colors"
+                      >
+                        <Upload className="w-4 h-4" />
+                        <span className="text-[9px]">Subir</span>
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={refFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={handleRefImageUpload}
+                  />
+
+                  {versions.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground font-medium">O seleccione del historial:</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {versions
+                          .filter(v => v.imageUrl && !referenceImages.includes(v.imageUrl))
+                          .map(v => (
+                            <button
+                              key={v.id}
+                              data-testid={`ref-history-${v.id}`}
+                              onClick={() => v.imageUrl && handleSelectHistoryImage(v.imageUrl)}
+                              disabled={referenceImages.length >= 3}
+                              className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-border hover:border-amber-400 transition-colors disabled:opacity-40"
+                            >
+                              <img src={v.imageUrl} alt={`V${v.versionNumber}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Instrucciones</Label>
+                <Textarea
+                  data-testid="input-edit-image-prompt"
+                  placeholder={ACTION_PLACEHOLDERS[advancedAction] || "Describa lo que desea hacer..."}
+                  value={editImagePrompt}
+                  onChange={e => setEditImagePrompt(e.target.value)}
+                  className="rounded-xl min-h-[80px]"
+                  maxLength={1000}
+                />
+              </div>
+
               <Button
                 data-testid="button-confirm-edit-image"
-                onClick={() => editingCampaignId && editImageMutation.mutate({ campaignId: editingCampaignId, editPrompt: editImagePrompt })}
+                onClick={() => editingCampaignId && editImageMutation.mutate({
+                  campaignId: editingCampaignId,
+                  editPrompt: editImagePrompt,
+                  selectedAction: advancedAction,
+                  refImages: referenceImages,
+                })}
                 disabled={!editImagePrompt.trim() || editImageMutation.isPending}
                 className="w-full rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 text-white"
               >
@@ -1442,7 +1596,7 @@ export default function CalendarView() {
                 value={form.objective}
                 onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
                 className="rounded-xl min-h-[70px]"
-                maxLength={500}
+                maxLength={1000}
               />
             </div>
             <div className="space-y-2">
@@ -1509,7 +1663,7 @@ export default function CalendarView() {
                       value={form.imagePrompt}
                       onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
                       className="rounded-xl min-h-[70px] mt-2"
-                      maxLength={500}
+                      maxLength={1000}
                     />
                   </motion.div>
                 )}

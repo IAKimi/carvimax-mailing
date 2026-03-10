@@ -33,7 +33,8 @@ The application is built with a modern web stack.
 - **Template Versioning**: When AI generates/edits templates, creates separate version records (up to 3) linked by `parentTemplateId`. Users compare versions side-by-side and confirm one; others are deleted. Fields: `isConfirmed`, `parentTemplateId`, `versionNumber`.
 - **AI Integration Logic**:
     - **OpenAI (Text Generation)**: Uses `gpt-4.1-mini` with Structured Outputs (JSON schema for `asunto`, `preheader`, `cuerpo_html`, `cta_text`). Utilizes `brand_identity` for context and conversational history for text regeneration. Includes retry logic and refusal handling.
-    - **Gemini (Image Generation/Editing)**: Uses `gemini-3.1-flash-image-preview` (Nano Banana 2). Generates images with `responseModalities: ["IMAGE"]` and `aspectRatio: "16:9"`. Supports image-to-image editing by sending original image as `inline_data` and edit instructions as `text`. Includes safety checks for `finishReason` and `safetyRatings`.
+    - **Gemini (Image Generation/Editing)**: Uses `gemini-3.1-flash-image-preview` (Nano Banana 2). Generates images with `responseModalities: ["IMAGE"]` and `aspectRatio: "16:9"`. Supports basic `editImage()` and advanced `editImageAdvanced()` for multimodal editing.
+    - **Compositor Avanzado (Nano Banana)**: Advanced image editing with 5 action types: Agregar, Reemplazar, Fusionar, Estilo, Borrar Elemento. Each action injects a micro-prompt optimized for Gemini. Supports multimodal payloads (text + base image + up to 3 reference images). Reference images can be uploaded or selected from version history. Endpoint: `POST /api/campaigns/:id/edit-image-advanced`. Total image size validated ≤ 20 MB.
 
 ### Placeholder System
 The platform uses a standardized placeholder system for email templates. All templates (AI-generated or manually uploaded) can contain these 6 placeholders that map to campaign editor fields:

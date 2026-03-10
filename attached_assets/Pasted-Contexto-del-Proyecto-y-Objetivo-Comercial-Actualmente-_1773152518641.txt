@@ -1,0 +1,30 @@
+Contexto del Proyecto y Objetivo Comercial: Actualmente, en nuestra plataforma, el flujo para generar o editar imágenes solo envía un prompt de texto a la API de Gemini (gemini-3.1-flash-image-preview).
+Queremos transformar esta funcionalidad en un "Compositor Avanzado con IA". El objetivo es pasar de enviar solo texto, a enviar un payload multimodal (Texto + Imagen Base + Imágenes de Referencia). Además, vamos a automatizar el Prompt Engineering para el usuario mediante Botones de Acción predefinidos en el frontend.
+Implementa esta nueva arquitectura siguiendo estas 3 fases estrictas:
+Fase 1: Cambios en el Frontend (UX/UI) Modifica el modal/interfaz actual para incluir lo siguiente:
+Imagen Base (Referencia Visual): El sistema debe capturar y tener lista la imagen actual del correo que el usuario quiere editar (en formato Base64).
+Zona de carga de Imágenes de Referencia: Permite al usuario subir hasta un máximo estricto de 3 imágenes extra (ej. logos, productos). Conviértelas a Base64.
+Botones de Acción (Píldoras/Chips): Muestra 5 opciones exclusivas (el usuario solo puede seleccionar una):
+Agregar (Ideal para logos/productos)
+Reemplazar (Enmascaramiento)
+Fusionar (Composición)
+Estilo (Transferencia de arte)
+Eliminar (Oculta la zona de carga de referencias si se elige esta, ya que no se necesitan para borrar).
+Caja de texto: Donde el usuario pondrá su instrucción simple (Ej: "Pon el logo en la esquina").
+Fase 2: Lógica del Backend (server/gemini.ts) Modifica el endpoint para recibir: currentImageBase64 (la imagen base), referenceImagesBase64 (array de max 3), userText, y selectedAction.
+Implementa un bloque switch/case que asigne un Micro-Prompt robusto según el selectedAction y lo concatene con el userText. Usa exactamente estos textos para la variable finalPrompt:
+"Agregar": finalPrompt = "Actúa como un diseñador experto. Usa la imagen de referencia adjunta exactamente como es, preservando su diseño, texto, proporciones y detalles de alta fidelidad al 100%. Intégrala de forma natural en la imagen principal manteniendo la iluminación y perspectiva original, siguiendo esta instrucción: " + userText;
+"Reemplazar": finalPrompt = "Realiza un enmascaramiento semántico en la imagen principal. Identifica el elemento mencionado y reemplázalo usando la imagen de referencia como guía visual. Es crucial que cambies SOLO ese elemento y mantengas el resto de la imagen original intacto. Instrucción exacta: " + userText;
+"Fusionar": finalPrompt = "Realiza una composición fotográfica avanzada. Toma la imagen principal como base y la imagen de referencia como contexto. Crea una escena compuesta que combine ambas de forma natural, respetando las escalas y la siguiente directriz: " + userText;
+"Estilo": finalPrompt = "Transforma la imagen principal. Aplica el estilo artístico, la paleta de colores y la estética visual general de la imagen de referencia adjunta a la imagen principal. Recrea el contenido original fielmente pero bajo este nuevo estilo. Instrucción adicional: " + userText;
+"Eliminar": finalPrompt = "Edita la imagen principal para eliminar el elemento especificado. Rellena el espacio vacío de forma fluida y natural (inpainting) para que coincida a la perfección con el fondo existente. Deja el resto de la composición exactamente igual. Elemento a eliminar: " + userText;
+Fase 3: Refactorización del Request a la API de Gemini Como ahora enviaremos imágenes, el array parts del JSON debe cambiar. Arma el payload para la API REST (v1beta) siguiendo estrictamente este orden dentro de parts:
+{ "text": finalPrompt } (El texto estructurado que armamos en la Fase 2).
+{ "inline_data": { "mime_type": "...", "data": currentImageBase64Limpiado } } (La imagen base).
+Un bucle que inyecte cada inline_data de las referenceImagesBase64 (si el usuario subió alguna).
+Reglas Críticas de Validación (Backend):
+Limpia el prefijo data:image/...;base64, de TODAS las imágenes (base y referencias) antes de enviarlas al campo data.
+Extrae dinámicamente el mime_type de cada imagen (soportados: image/jpeg, image/png, image/webp).
+Valida que la suma del peso en MB de todas las imágenes juntas (base + referencias) no supere los 20 MB. Si se pasa, devuelve un error 400.
+Mantén response_modalities: ["IMAGE"] y image_config: { aspect_ratio: "16:9" }.
+Por favor, confirma que entiendes que estamos pasando de un envío de "solo texto" a un "payload multimodal complejo" y muéstrame cómo estructurarás el código del endpoint.
