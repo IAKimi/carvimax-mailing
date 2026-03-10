@@ -1,4 +1,4 @@
-# PostIAlo Mail - SaaS de Email Marketing con IA
+# PostIAlo Mailing - SaaS de Email Marketing con IA
 
 ## Overview
 PostIAlo Mail is an AI-powered email marketing automation SaaS platform. It aims to streamline email campaign creation and management by leveraging AI for content and image generation. The project's vision is to provide a comprehensive tool for users to design, generate, and manage their email marketing efforts efficiently.

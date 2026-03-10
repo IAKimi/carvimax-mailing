@@ -99,7 +99,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
           {sidebarExpanded && (
             <span className="font-extrabold tracking-tight text-lg text-white">
-              Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mail</span>
+              Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mailing</span>
             </span>
           )}
         </div>
@@ -161,7 +161,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Mail className="w-4 h-4 text-white" />
           </div>
           <span className="font-extrabold tracking-tight text-lg text-white">
-            Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mail</span>
+            Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mailing</span>
           </span>
         </div>
 
