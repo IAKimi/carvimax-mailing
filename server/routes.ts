@@ -237,12 +237,22 @@ export async function registerRoutes(
       if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
         try {
           const brandData = await storage.getBrandIdentity(req.session.userId!);
-          return await generateEmailContent(campaign.idea, campaign.objective, brandData || null);
+          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null);
+          console.log("[OpenAI] Texto generado exitosamente:", JSON.stringify({ asunto: result.asunto, cta: result.cta_text }));
+          return result;
         } catch (err: any) {
-          console.error("Error generando texto con OpenAI:", err.message);
+          console.error("[OpenAI] ERROR generando texto:", {
+            message: err.message,
+            status: err.status,
+            code: err.code,
+            type: err.type,
+            name: err.name,
+            stack: err.stack?.split("\n").slice(0, 3).join(" | "),
+          });
           return null;
         }
       }
+      console.warn("[OpenAI] Skipped: idea=", !!campaign.idea, "objective=", !!campaign.objective, "configured=", isOpenAIConfigured());
       return null;
     })();
 

@@ -126,6 +126,44 @@ function handleOpenAIError(err: any): never {
   throw err;
 }
 
+function parseEmailResponse(outputText: string | undefined | null): EmailContent {
+  if (!outputText) {
+    throw new Error("OpenAI no devolvió contenido de texto.");
+  }
+
+  let parsed: EmailContent;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    throw new Error("La respuesta de OpenAI no es JSON válido.");
+  }
+
+  if (!parsed.asunto || !parsed.cuerpo_html || !parsed.cta_text) {
+    throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos.");
+  }
+
+  return parsed;
+}
+
+async function callOpenAI(client: OpenAI, params: any, maxRetries = 1): Promise<EmailContent> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await client.responses.create(params);
+
+    if (response.status === "incomplete" && attempt < maxRetries) {
+      console.warn(`[OpenAI] Respuesta incompleta (intento ${attempt + 1}), reintentando...`);
+      continue;
+    }
+
+    if (response.status === "incomplete") {
+      console.warn("[OpenAI] Respuesta incompleta tras reintentos — incomplete_details:", JSON.stringify(response.incomplete_details));
+    }
+
+    return parseEmailResponse(response.output_text);
+  }
+
+  throw new Error("OpenAI no completó la respuesta tras múltiples intentos.");
+}
+
 export async function generateEmailContent(
   idea: string,
   objective: string,
@@ -136,30 +174,14 @@ export async function generateEmailContent(
   const userInput = `Idea: ${idea}\nObjetivo: ${objective}`;
 
   try {
-    const response = await client.responses.create({
+    return await callOpenAI(client, {
       model: "gpt-5-mini",
       instructions,
       input: userInput,
-      text: {
-        format: emailSchema,
-      },
-      max_output_tokens: 800,
-      temperature: 0.7,
+      text: { format: emailSchema },
+      max_output_tokens: 4096,
       store: false,
     });
-
-    const outputText = response.output_text;
-    if (!outputText) {
-      throw new Error("OpenAI no devolvió contenido de texto.");
-    }
-
-    const parsed: EmailContent = JSON.parse(outputText);
-
-    if (!parsed.asunto || !parsed.cuerpo_html || !parsed.cta_text) {
-      throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos.");
-    }
-
-    return parsed;
   } catch (err: any) {
     handleOpenAIError(err);
   }
@@ -176,7 +198,7 @@ export async function regenerateEmailContent(
   const instructions = buildInstructions(brandIdentity);
 
   try {
-    const response = await client.responses.create({
+    return await callOpenAI(client, {
       model: "gpt-5-mini",
       instructions,
       input: [
@@ -193,26 +215,10 @@ export async function regenerateEmailContent(
           content: `Por favor aplica las siguientes correcciones al correo generado y devuelve la propuesta ajustada respetando el formato JSON original:\nCorrecciones: ${userCorrections}`,
         },
       ],
-      text: {
-        format: emailSchema,
-      },
-      max_output_tokens: 800,
-      temperature: 0.7,
+      text: { format: emailSchema },
+      max_output_tokens: 4096,
       store: false,
     });
-
-    const outputText = response.output_text;
-    if (!outputText) {
-      throw new Error("OpenAI no devolvió contenido de texto.");
-    }
-
-    const parsed: EmailContent = JSON.parse(outputText);
-
-    if (!parsed.asunto || !parsed.cuerpo_html || !parsed.cta_text) {
-      throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos tras la corrección.");
-    }
-
-    return parsed;
   } catch (err: any) {
     handleOpenAIError(err);
   }

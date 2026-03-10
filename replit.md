@@ -169,6 +169,10 @@ docs/
 - TipTap: `{ TextStyle }` from `@tiptap/extension-text-style`, `{ Color }` from `@tiptap/extension-color`
 - All UI text in Spanish
 - OpenAI: Responses API con openai.responses.create(), modelo gpt-5-mini, Structured Outputs json_schema
+- OpenAI: max_output_tokens=4096 (modelo de razonamiento necesita tokens adicionales para reasoning antes del output)
+- OpenAI: NO soporta parámetro `temperature` con gpt-5-mini
+- OpenAI: retry automático (1 reintento) si response.status === "incomplete"
+- OpenAI: safe JSON parsing con validación de campos requeridos
 - OpenAI regeneración: usa historial conversacional con array de messages [{role, content}] en campo input
 - OpenAI env var: se lee con process.env.OPENAI_API_KEY en runtime (no al cargar módulo)
 - OpenAI contentJson: { asunto, preheader, cuerpo_html, cta_text }
@@ -178,6 +182,7 @@ docs/
 - Gemini safety: manejo de finishReason (SAFETY, RECITATION, PROHIBITED_CONTENT), promptFeedback.blockReason, safetyRatings.blocked
 - Gemini request body: snake_case; response parsing: camelCase
 - Generación dual: OpenAI (texto) y Gemini (imagen) se ejecutan en paralelo con Promise.all
+- Loading overlay: pantalla de carga "Generando tu correo con IA..." mientras ambos resultados (texto+imagen) están pendientes
 - Límite: máximo 3 versiones por campaña
 
 ## Fases Futuras (Pendientes)

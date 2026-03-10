@@ -512,7 +512,17 @@ export default function CalendarView() {
             </div>
           )}
 
-          {versionsLoading ? (
+          {(generateVersionMutation.isPending || createCampaignMutation.isPending) ? (
+            <div data-testid="overlay-generating" className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-lg font-semibold text-foreground">Generando tu correo con IA...</p>
+                <p className="text-sm text-muted-foreground">Estamos creando la imagen y el texto. Esto puede tardar unos segundos.</p>
+              </div>
+            </div>
+          ) : versionsLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
@@ -782,6 +792,8 @@ export default function CalendarView() {
             </div>
           )}
 
+          {!generateVersionMutation.isPending && !createCampaignMutation.isPending && !versionsLoading && (
+          <>
           <Button
             data-testid="button-toggle-preview"
             variant="outline"
@@ -827,6 +839,8 @@ export default function CalendarView() {
               </motion.div>
             )}
           </AnimatePresence>
+          </>
+          )}
         </div>
 
         <Dialog open={showRegenTextModal} onOpenChange={setShowRegenTextModal}>
