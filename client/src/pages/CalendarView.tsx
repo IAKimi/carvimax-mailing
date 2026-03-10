@@ -90,6 +90,17 @@ export default function CalendarView() {
     },
   });
 
+  const campaignIds = useMemo(() => campaigns.map(c => c.id), [campaigns]);
+  const { data: thumbnails = {} } = useQuery<Record<number, string | null>>({
+    queryKey: ["/api/campaigns/thumbnails", campaignIds],
+    queryFn: async () => {
+      if (campaignIds.length === 0) return {};
+      const res = await apiRequest("POST", "/api/campaigns/thumbnails", { campaignIds });
+      return res.json();
+    },
+    enabled: campaignIds.length > 0,
+  });
+
   const { data: userTemplates = [] } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
   });
@@ -316,6 +327,14 @@ export default function CalendarView() {
 
   function handlePublishNow() {
     if (!editingCampaignId) return;
+    if (!editingCampaign?.templateId) {
+      toast({ title: "Plantilla requerida", description: "Debe seleccionar una plantilla antes de enviar el correo.", variant: "destructive" });
+      return;
+    }
+    if (!editingCampaign?.targetDatabase) {
+      toast({ title: "Base de datos requerida", description: "Debe seleccionar una base de datos de contactos antes de enviar.", variant: "destructive" });
+      return;
+    }
     updateCampaignMutation.mutate(
       { id: editingCampaignId, updates: { status: "sent" } },
       {
@@ -467,6 +486,15 @@ export default function CalendarView() {
   }
 
   function handleApproveText() {
+    if (!localAsunto || !localAsunto.trim() || localAsunto.trim() === "Borrador - Pendiente de generación IA") {
+      toast({ title: "Asunto vacío", description: "Debe tener un asunto válido antes de aprobar el texto.", variant: "destructive" });
+      return;
+    }
+    const strippedText = (selectedHtml || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    if (!selectedHtml || !selectedHtml.trim() || !strippedText) {
+      toast({ title: "Contenido vacío", description: "Debe tener contenido en el cuerpo del correo antes de aprobar.", variant: "destructive" });
+      return;
+    }
     if (hasUnsavedChanges && selectedVersion) {
       const existing = (selectedVersion.contentJson as any) || {};
       const updatedContent = {
@@ -600,7 +628,7 @@ export default function CalendarView() {
 
   const calendarCells = [];
   for (let i = 0; i < startDayOfWeek; i++) {
-    calendarCells.push(<div key={`empty-${i}`} className="aspect-square" />);
+    calendarCells.push(<div key={`empty-${i}`} className="min-h-[80px] md:min-h-[110px]" />);
   }
   for (let day = 1; day <= totalDays; day++) {
     const isToday = todayDay === day && todayMonth === month && todayYear === year;
@@ -610,6 +638,7 @@ export default function CalendarView() {
         day={day}
         isToday={isToday}
         campaigns={campaignsByDay[day] || []}
+        thumbnails={thumbnails}
         onDayClick={handleDayClick}
       />
     );
@@ -901,7 +930,7 @@ export default function CalendarView() {
                       size="sm"
                       className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={handleRegenerateImage}
-                      disabled={isCancelled || versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                      disabled={isCancelled || isSent || versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
                     >
                       {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                       Regenerar ({Math.max(0, 3 - versions.length)})
@@ -911,7 +940,7 @@ export default function CalendarView() {
                       variant="outline"
                       size="sm"
                       className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
-                      disabled={isCancelled}
+                      disabled={isCancelled || isSent}
                       onClick={() => editorFileInputRef.current?.click()}
                     >
                       <Upload className="w-3.5 h-3.5" />
@@ -938,7 +967,7 @@ export default function CalendarView() {
                       size="sm"
                       className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                       onClick={handleEditWithNanoBanana}
-                      disabled={isCancelled || versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
+                      disabled={isCancelled || isSent || versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
                     >
                       {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                       Nano Banana
@@ -971,9 +1000,9 @@ export default function CalendarView() {
                             <button
                               key={v.id}
                               data-testid={`button-select-image-${v.versionNumber}`}
-                              onClick={() => !isCancelled && handleSelectVersion(v.id)}
-                              disabled={isCancelled}
-                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
+                              onClick={() => !(isCancelled || isSent) && handleSelectVersion(v.id)}
+                              disabled={isCancelled || isSent}
+                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${(isCancelled || isSent) ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
                               <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
@@ -984,7 +1013,7 @@ export default function CalendarView() {
                     )}
                   </AnimatePresence>
 
-                  {!imageApproved && !isCancelled && (
+                  {!imageApproved && !isCancelled && !isSent && (
                     <Button
                       data-testid="button-approve-image"
                       onClick={handleApproveImage}
@@ -1026,7 +1055,7 @@ export default function CalendarView() {
                         value={localAsunto}
                         onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={60}
-                        disabled={isCancelled}
+                        disabled={isCancelled || isSent}
                         placeholder="Asunto del correo"
                         className="rounded-xl"
                       />
@@ -1042,7 +1071,7 @@ export default function CalendarView() {
                         value={localPreheader}
                         onChange={(e) => { setLocalPreheader(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={100}
-                        disabled={isCancelled}
+                        disabled={isCancelled || isSent}
                         placeholder="Texto de vista previa"
                         className="rounded-xl"
                       />
@@ -1073,7 +1102,7 @@ export default function CalendarView() {
                         value={localCta}
                         onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={25}
-                        disabled={isCancelled}
+                        disabled={isCancelled || isSent}
                         placeholder="Texto del botón CTA"
                         className="rounded-xl"
                       />
@@ -1086,7 +1115,7 @@ export default function CalendarView() {
                         value={localCtaUrl}
                         onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={500}
-                        disabled={isCancelled}
+                        disabled={isCancelled || isSent}
                         placeholder="https://ejemplo.com/promo"
                         className="rounded-xl"
                         type="url"
@@ -1098,7 +1127,7 @@ export default function CalendarView() {
                     <Button
                       data-testid="button-save-text-changes"
                       onClick={handleSaveTextChanges}
-                      disabled={isCancelled || updateVersionMutation.isPending}
+                      disabled={isCancelled || isSent || updateVersionMutation.isPending}
                       className="w-full rounded-xl gap-2"
                     >
                       {updateVersionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
@@ -1123,7 +1152,7 @@ export default function CalendarView() {
                       size="sm"
                       className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={handleRegenerateText}
-                      disabled={isCancelled || versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
+                      disabled={isCancelled || isSent || versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                     >
                       {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                       Regenerar Texto ({Math.max(0, 3 - versions.length)})
@@ -1161,9 +1190,9 @@ export default function CalendarView() {
                               <button
                                 key={v.id}
                                 data-testid={`button-select-text-${v.versionNumber}`}
-                                onClick={() => !isCancelled && handleSelectVersion(v.id)}
-                                disabled={isCancelled}
-                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
+                                onClick={() => !(isCancelled || isSent) && handleSelectVersion(v.id)}
+                                disabled={isCancelled || isSent}
+                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${(isCancelled || isSent) ? "opacity-60 cursor-not-allowed" : ""}`}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
@@ -1178,7 +1207,7 @@ export default function CalendarView() {
                     )}
                   </AnimatePresence>
 
-                  {!textApproved && !isCancelled && (
+                  {!textApproved && !isCancelled && !isSent && (
                     <Button
                       data-testid="button-approve-text"
                       onClick={handleApproveText}

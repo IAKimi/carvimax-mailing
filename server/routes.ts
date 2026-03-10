@@ -64,9 +64,14 @@ const updateContactSchema = createContactSchema.partial();
 const updateBrandIdentitySchema = z.object({
   companyName: z.string().max(200).nullable().optional(),
   industry: z.string().max(200).nullable().optional(),
-  website: z.string().max(500).refine(
-    (val) => !val || val.length === 0 || val.startsWith("http://") || val.startsWith("https://"),
-    "El sitio web debe comenzar con http:// o https://"
+  website: z.string().max(500).transform(
+    (val) => {
+      if (!val || val.length === 0) return val;
+      if (!val.startsWith("http://") && !val.startsWith("https://")) {
+        return "https://" + val;
+      }
+      return val;
+    }
   ).nullable().optional(),
   whatsapp: z.string().max(30).refine(
     (val) => !val || val.length === 0 || /^[+\d\s()-]+$/.test(val),
@@ -261,7 +266,15 @@ export async function registerRoutes(
     try {
       const { status, ...rest } = req.body;
       const input = updateCampaignSchema.parse(rest);
-      const updates: any = { ...input };
+      const updates: any = {};
+      if (existing.status === "sent") {
+        const contentKeys = ["name", "idea", "objective", "tone", "imagePrompt", "layoutPreference"];
+        const hasContentChanges = contentKeys.some(k => (input as any)[k] !== undefined);
+        if (hasContentChanges) {
+          return res.status(400).json({ message: "No se puede editar el contenido de un correo ya enviado." });
+        }
+      }
+      Object.assign(updates, input);
       if (input.scheduledAt) {
         const newDate = new Date(input.scheduledAt);
         if (isNaN(newDate.getTime())) {
@@ -280,6 +293,14 @@ export async function registerRoutes(
         if (!allowed.includes(status)) {
           return res.status(400).json({ message: `No se puede cambiar el estado de "${existing.status}" a "${status}".` });
         }
+        if (status === "sent") {
+          if (!existing.templateId) {
+            return res.status(400).json({ message: "Debe seleccionar una plantilla antes de enviar." });
+          }
+          if (!existing.targetDatabase) {
+            return res.status(400).json({ message: "Debe seleccionar una base de datos de contactos antes de enviar." });
+          }
+        }
         updates.status = status;
       }
       const campaign = await storage.updateCampaign(id, updates);
@@ -290,6 +311,24 @@ export async function registerRoutes(
       }
       throw err;
     }
+  });
+
+  app.post("/api/campaigns/thumbnails", requireAuth, async (req, res) => {
+    const { campaignIds } = req.body || {};
+    if (!Array.isArray(campaignIds) || campaignIds.length === 0) {
+      return res.json({});
+    }
+    const ids = campaignIds.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id)).slice(0, 50);
+    const userCampaigns = await storage.getCampaignsLight(req.session.userId!);
+    const ownedIds = new Set(userCampaigns.map(c => c.id));
+    const validIds = ids.filter(id => ownedIds.has(id));
+    if (validIds.length === 0) return res.json({});
+    const thumbnails = await storage.getCampaignThumbnails(validIds);
+    const result: Record<number, string | null> = {};
+    for (const t of thumbnails) {
+      result[t.campaignId] = t.imageUrl;
+    }
+    res.json(result);
   });
 
   app.get("/api/campaigns/:id/versions", requireAuth, async (req, res) => {
@@ -310,8 +349,8 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    if (campaign.status === "cancelled") {
-      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    if (campaign.status === "cancelled" || campaign.status === "sent") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -396,8 +435,8 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    if (campaign.status === "cancelled") {
-      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    if (campaign.status === "cancelled" || campaign.status === "sent") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -468,8 +507,8 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    if (campaign.status === "cancelled") {
-      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    if (campaign.status === "cancelled" || campaign.status === "sent") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -517,8 +556,8 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    if (campaign.status === "cancelled") {
-      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    if (campaign.status === "cancelled" || campaign.status === "sent") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -580,8 +619,8 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    if (campaign.status === "cancelled") {
-      return res.status(400).json({ message: "No se puede modificar un correo cancelado." });
+    if (campaign.status === "cancelled" || campaign.status === "sent") {
+      return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
     const versionNumber = versions.length + 1;
@@ -654,19 +693,23 @@ export async function registerRoutes(
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
     const allCampaigns = await storage.getCampaigns(req.session.userId!);
-    const campaignIds = new Set(allCampaigns.map(c => c.id));
-    const existingVersions = [];
-    for (const cId of campaignIds) {
+    const campaignMap = new Map(allCampaigns.map(c => [c.id, c]));
+    const existingVersions: any[] = [];
+    for (const cId of campaignMap.keys()) {
       const vs = await storage.getCampaignVersions(cId);
       existingVersions.push(...vs);
     }
-    if (!existingVersions.some(v => v.id === id)) {
+    const versionData = existingVersions.find(v => v.id === id);
+    if (!versionData) {
       return res.status(404).json({ message: "Versión no encontrada." });
+    }
+    const parentCampaign = campaignMap.get(versionData.campaignId);
+    if (parentCampaign && (parentCampaign.status === "sent" || parentCampaign.status === "cancelled")) {
+      return res.status(400).json({ message: "No se puede modificar versiones de un correo enviado o cancelado." });
     }
     try {
       const input = updateVersionSchema.parse(req.body);
       if (input.isSelected) {
-        const versionData = existingVersions.find(v => v.id === id);
         if (versionData) {
           await storage.deselectAllVersions(versionData.campaignId);
           if (versionData.imageUrl) {
@@ -766,6 +809,12 @@ export async function registerRoutes(
     }
     try {
       const input = updateContactSchema.parse(req.body);
+      if (input.email && input.email.toLowerCase() !== existing.email.toLowerCase()) {
+        const dbContacts = await storage.getContacts(existing.databaseId);
+        if (dbContacts.some(c => c.id !== id && c.email.toLowerCase() === input.email!.toLowerCase())) {
+          return res.status(409).json({ message: "Ya existe un contacto con ese email en esta base de datos." });
+        }
+      }
       const contact = await storage.updateContact(id, input);
       if (!contact) return res.status(404).json({ message: "Contacto no encontrado." });
       res.json(contact);
@@ -804,13 +853,20 @@ export async function registerRoutes(
     }
     const validContacts: Array<{ email: string; name?: string; position?: string; segment?: string }> = [];
     const errors: string[] = [];
+    const seenEmails = new Set<string>();
+    let duplicatesInCsv = 0;
     for (let i = 0; i < contactRows.length; i++) {
       const row = contactRows[i];
-      const email = (row.email || row.Email || row.correo || row.Correo || "").toString().trim();
+      const email = (row.email || row.Email || row.correo || row.Correo || "").toString().trim().toLowerCase();
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         errors.push(`Fila ${i + 1}: email inválido "${email}"`);
         continue;
       }
+      if (seenEmails.has(email)) {
+        duplicatesInCsv++;
+        continue;
+      }
+      seenEmails.add(email);
       validContacts.push({
         email,
         name: (row.name || row.Name || row.nombre || row.Nombre || "").toString().trim() || undefined,
@@ -824,7 +880,23 @@ export async function registerRoutes(
     if (mode === "overwrite") {
       await storage.deleteAllContacts(dbId);
     }
-    const insertData = validContacts.map(c => ({
+    let duplicatesInDb = 0;
+    let contactsToInsert = validContacts;
+    if (mode !== "overwrite") {
+      const existingContacts = await storage.getContacts(dbId);
+      const existingEmails = new Set(existingContacts.map(c => c.email.toLowerCase()));
+      contactsToInsert = validContacts.filter(c => {
+        if (existingEmails.has(c.email.toLowerCase())) {
+          duplicatesInDb++;
+          return false;
+        }
+        return true;
+      });
+      if (contactsToInsert.length === 0) {
+        return res.status(200).json({ imported: 0, duplicates: duplicatesInDb + duplicatesInCsv, errors, message: "Todos los contactos ya existen en la base de datos." });
+      }
+    }
+    const insertData = contactsToInsert.map(c => ({
       userId: req.session.userId!,
       databaseId: dbId,
       email: c.email,
@@ -833,7 +905,7 @@ export async function registerRoutes(
       segment: c.segment || null,
     }));
     const created = await storage.createContacts(insertData);
-    res.status(201).json({ imported: created.length, errors });
+    res.status(201).json({ imported: created.length, duplicates: duplicatesInCsv + duplicatesInDb, errors });
   });
 
   app.get("/api/brand-identity", requireAuth, async (req, res) => {

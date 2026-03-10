@@ -57,21 +57,24 @@ Key files:
 - **Note**: The `country` column was renamed to `position` — the schema uses `position` throughout
 - **Validation**: RFC 5322-compliant email regex on frontend; Zod `.email()` on backend
 
-### Calendar Optimization
+### Calendar Optimization & Display
 - Calendar cells use memoized `CalendarCell` component (`client/src/components/CalendarCell.tsx`)
-- Campaign indicators are colored dots (not thumbnails): green=sent, blue=scheduled, gray=draft, red=cancelled
-- Tooltip on hover shows campaign name and status
+- Campaign display: truncated title + colored left border (emerald=sent, blue=scheduled, gray=draft, red=cancelled) + image thumbnail on hover
+- `POST /api/campaigns/thumbnails` fetches selected version images for visible campaigns (scoped by userId for security)
+- `getCampaignThumbnails()` in storage uses `inArray` to query selected version images in bulk
 - `campaignsByDay` is computed via single-pass O(campaigns) bucketing
 - `GET /api/campaigns` excludes `selectedImageUrl` (base64 images) for lightweight list responses via `getCampaignsLight()`
 - Month-based filtering: campaigns query passes `?year=X&month=Y` to only fetch current month's campaigns + drafts without dates
 - Template selector uses `useMemo` for sorting, static icons instead of iframe previews, and disables/greys out incomplete templates
-- "Vaciar Historial" button with confirmation dialog to delete all campaigns
+- "Vaciar Historial" button always visible with confirmation dialog to delete all campaigns
 - Live preview button ("Vista Previa del Correo") is hidden when both text AND image are approved
 
 ### CSV Import
 - `POST /api/contact-databases/:id/import` with `mode=append|overwrite`
 - Frontend parses CSV with automatic delimiter detection (comma or semicolon)
 - Supports column headers in English and Spanish (email/correo, name/nombre, position/cargo, segment/segmento)
+- Deduplicates emails within CSV and against existing database (in append mode)
+- Contact update (`PATCH /api/contacts/:id`) checks for duplicate emails in same database
 
 ### Template Analysis
 - `POST /api/templates/:id/analyze` endpoint sends template HTML to OpenAI to auto-insert the 6 required placeholders
@@ -82,11 +85,20 @@ Key files:
 - Placeholder images (`placehold.co` URLs) show a warning banner in the editor
 - Users cannot approve a placeholder image — must upload or regenerate a real image first
 
+### Validation & Security Guardrails
+- **Text approval**: Cannot approve empty subject or placeholder "Borrador" text; cannot approve empty body
+- **Image approval**: Cannot approve placeholder images (`placehold.co`)
+- **Publishing**: Backend enforces `templateId` and `targetDatabase` before allowing `sent` status
+- **Sent campaigns**: All AI endpoints block modifications on sent campaigns; content edits blocked on PATCH; version edits blocked
+- **Website field**: Auto-prepends `https://` on both frontend (blur) and backend (Zod transform)
+- **CSV deduplication**: Emails deduplicated within CSV batch and against existing database contacts
+- **Contact update**: Prevents changing email to one already used in same database
+
 ### Project Structure
 - `client/`: Frontend React application.
 - `server/`: Backend Express.js application, including database connection, API routes, and AI integrations.
 - `shared/`: Shared data models (Drizzle + Zod schemas) and API contracts.
-- `client/src/components/CalendarCell.tsx`: Memoized calendar cell with dot indicators.
+- `client/src/components/CalendarCell.tsx`: Memoized calendar cell with campaign name + status + image thumbnails.
 
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.

@@ -292,7 +292,7 @@ export default function BrandIdentity() {
                     </div>
                     <div className="space-y-2">
                       <Label>Sitio Web</Label>
-                      <Input data-testid="input-website" placeholder="https://www.ejemplo.com" value={brand.website} onChange={e => updateField("website", e.target.value)} maxLength={500} className="rounded-xl" />
+                      <Input data-testid="input-website" placeholder="https://www.ejemplo.com" value={brand.website} onChange={e => updateField("website", e.target.value)} onBlur={e => { const v = e.target.value.trim(); if (v && !v.startsWith("http://") && !v.startsWith("https://")) updateField("website", "https://" + v); }} maxLength={500} className="rounded-xl" />
                     </div>
                     <div className="space-y-2">
                       <Label>WhatsApp</Label>

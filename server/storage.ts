@@ -1,4 +1,4 @@
-import { eq, and, ne, gte, lt, isNull, or, sql } from "drizzle-orm";
+import { eq, and, ne, gte, lt, isNull, or, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
@@ -30,6 +30,7 @@ export interface IStorage {
   updateCampaignVersion(id: number, updates: Partial<InsertCampaignVersion>): Promise<CampaignVersion | undefined>;
   deselectAllVersions(campaignId: number): Promise<void>;
 
+  getCampaignThumbnails(campaignIds: number[]): Promise<Array<{ campaignId: number; imageUrl: string | null }>>;
   getDashboardStats(userId: number): Promise<any>;
 
   getContactDatabases(userId: number): Promise<ContactDatabase[]>;
@@ -139,6 +140,20 @@ export class DatabaseStorage implements IStorage {
 
   async getCampaignVersions(campaignId: number): Promise<CampaignVersion[]> {
     return db.select().from(campaignVersions).where(eq(campaignVersions.campaignId, campaignId));
+  }
+
+  async getCampaignThumbnails(campaignIds: number[]): Promise<Array<{ campaignId: number; imageUrl: string | null }>> {
+    if (campaignIds.length === 0) return [];
+    const rows = await db.select({
+      campaignId: campaignVersions.campaignId,
+      imageUrl: campaignVersions.imageUrl,
+    }).from(campaignVersions).where(
+      and(
+        eq(campaignVersions.isSelected, true),
+        inArray(campaignVersions.campaignId, campaignIds)
+      )
+    );
+    return rows;
   }
 
   async createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion> {
