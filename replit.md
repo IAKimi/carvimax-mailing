@@ -34,6 +34,21 @@ The application is built with a modern web stack.
     - **OpenAI (Text Generation)**: Uses `gpt-4.1-mini` with Structured Outputs (JSON schema for `asunto`, `preheader`, `cuerpo_html`, `cta_text`). Utilizes `brand_identity` for context and conversational history for text regeneration. Includes retry logic and refusal handling.
     - **Gemini (Image Generation/Editing)**: Uses `gemini-3.1-flash-image-preview` (Nano Banana 2). Generates images with `responseModalities: ["IMAGE"]` and `aspectRatio: "16:9"`. Supports image-to-image editing by sending original image as `inline_data` and edit instructions as `text`. Includes safety checks for `finishReason` and `safetyRatings`.
 
+### Placeholder System
+The platform uses a standardized placeholder system for email templates. All templates (AI-generated or manually uploaded) can contain these 6 placeholders that map to campaign editor fields:
+- `{{ASUNTO}}` → `contentJson.asunto` (email subject line, placed in `<title>`)
+- `{{PREHEADER}}` → `contentJson.preheader` (preview text, hidden `<span>` in `<body>`)
+- `{{CONTENIDO}}` → `contentJson.cuerpo_html` (main body HTML content)
+- `{{CTA_TEXTO}}` → `contentJson.cta_text` (call-to-action button text)
+- `{{CTA_URL}}` → `contentJson.cta_url` (call-to-action button URL)
+- `{{IMAGEN_URL}}` → `version.imageUrl` (hero image URL)
+
+Templates are validated for placeholder completeness (`hasAllPlaceholders` field). Campaigns can be linked to templates via `templateId`. The `GET /api/campaigns/:id/preview-final` endpoint renders the template with real campaign content injected.
+
+Key files:
+- `shared/schema.ts`: `TEMPLATE_PLACEHOLDERS` constant and `ALL_PLACEHOLDER_KEYS` array
+- `server/templates.ts`: `validateTemplatePlaceholders()` and `renderTemplateWithContent()` utilities
+
 ### Project Structure
 - `client/`: Frontend React application.
 - `server/`: Backend Express.js application, including database connection, API routes, and AI integrations.

@@ -18,6 +18,7 @@ export interface EmailContent {
   preheader: string;
   cuerpo_html: string;
   cta_text: string;
+  cta_url: string;
 }
 
 interface BrandIdentityData {
@@ -100,8 +101,12 @@ const emailSchema = {
         type: "string",
         description: "Texto corto para el botón principal (máximo 25 caracteres)",
       },
+      cta_url: {
+        type: "string",
+        description: "URL sugerida para el botón CTA basada en el contexto de la campaña (ej: https://ejemplo.com/promo). Si no se puede determinar, usar '#'",
+      },
     },
-    required: ["asunto", "preheader", "cuerpo_html", "cta_text"],
+    required: ["asunto", "preheader", "cuerpo_html", "cta_text", "cta_url"],
     additionalProperties: false,
   },
   strict: true,
@@ -140,6 +145,10 @@ function parseEmailResponse(outputText: string | undefined | null): EmailContent
 
   if (!parsed.asunto || !parsed.preheader || !parsed.cuerpo_html || !parsed.cta_text) {
     throw new Error("La respuesta de OpenAI no contiene todos los campos requeridos.");
+  }
+
+  if (!parsed.cta_url) {
+    parsed.cta_url = "#";
   }
 
   return parsed;
@@ -281,33 +290,54 @@ const editTemplateSchema = {
 function buildTemplateInstructions(brand: BrandIdentityData | null): string {
   const brandContext = brand
     ? `
-IDENTIDAD DE MARCA:
+IDENTIDAD DE MARCA Y VISUAL:
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
+- Productos/Servicios: ${brand.products || "No especificados"}
+- Audiencia objetivo: ${brand.targetAudience || "No especificada"}
+- Guía de estilo: ${brand.styleGuide || "No especificada"}
 - Color primario: ${brand.primaryColor || "#002073"}
 - Color secundario: ${brand.secondaryColor || "#e3001b"}
 - Color de acento: ${brand.accentColor || "#f59e0b"}
 - Fuente de títulos: ${brand.headingFont || "Arial, sans-serif"}
 - Fuente de cuerpo: ${brand.bodyFont || "Arial, sans-serif"}
-- Tono: ${brand.tone || "Profesional"}
+- Tono de comunicación: ${brand.tone || "Profesional"}
 `
-    : "IDENTIDAD DE MARCA: No configurada. Usa colores corporativos genéricos profesionales.";
+    : "IDENTIDAD DE MARCA: No configurada. Usa colores corporativos genéricos profesionales con fuentes Arial/Helvetica.";
 
-  return `Eres un diseñador experto de plantillas HTML de email marketing. Genera plantillas HTML completas, profesionales y responsive.
+  return `Eres un diseñador senior experto en plantillas HTML de email marketing con 15 años de experiencia en compatibilidad cross-client (Gmail, Outlook, Apple Mail, Yahoo).
 
 ${brandContext}
 
-REGLAS ESTRICTAS:
-1. El HTML debe ser una plantilla COMPLETA con estructura <html>, <head>, <body>.
-2. Usa SOLO estilos inline (style="...") — los clientes de email no soportan CSS externo ni <style> tags.
-3. La plantilla debe ser responsive usando max-width: 600px y width: 100%.
-4. Incluye placeholders claros marcados con {{doble llave}}: {{ASUNTO}}, {{PREHEADER}}, {{IMAGEN_URL}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}.
-5. Usa tablas HTML para layout (compatibilidad con Outlook).
-6. Incluye un footer con texto de unsubscribe placeholder.
-7. Los colores deben ser coherentes con la marca.
-8. El diseño debe ser limpio, moderno y profesional.
-9. Todo texto de muestra debe estar en español.
-10. El nombre debe ser descriptivo y corto (ej: "Promoción Minimalista", "Newsletter Corporativo").`;
+SISTEMA DE PLACEHOLDERS OBLIGATORIOS:
+Tu plantilla DEBE incluir exactamente estos 6 placeholders. Son marcadores dinámicos que serán reemplazados programáticamente por el sistema. NUNCA uses texto real en su lugar — deben aparecer literalmente como se muestran aquí:
+
+1. {{ASUNTO}} — Ubicación: dentro del tag <title> en el <head>. Es el asunto del correo.
+2. {{PREHEADER}} — Ubicación: como primer elemento dentro del <body>, dentro de un <span> oculto:
+   <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
+   Esta es la técnica estándar para controlar el texto de vista previa en la bandeja de entrada.
+3. {{IMAGEN_URL}} — Ubicación: como valor del atributo src="" de la imagen hero/banner principal del correo. Ejemplo:
+   <img src="{{IMAGEN_URL}}" alt="Imagen del correo" width="600" style="display:block;border:0;width:100%;max-width:600px;" />
+4. {{CONTENIDO}} — Ubicación: como el bloque principal de texto dentro de un <td> de la tabla central. Este contenido ya viene en formato HTML (párrafos, negritas, etc.), así que NO lo envuelvas en tags <p> adicionales.
+5. {{CTA_TEXTO}} — Ubicación: como texto visible dentro del botón principal de acción (<a> con estilo de botón).
+6. {{CTA_URL}} — Ubicación: como valor del atributo href="" del mismo botón de acción.
+
+REGLAS TÉCNICAS DE HTML PARA EMAIL:
+1. Estructura COMPLETA: <!DOCTYPE html>, <html lang="es">, <head> con meta charset y viewport, <body>.
+2. SOLO estilos inline (style="..."). Los clientes de email ignoran <style>, CSS externo y clases.
+3. Ancho máximo: max-width: 600px con width: 100% para responsive.
+4. Layout con TABLAS HTML (<table>, <tr>, <td>) — es la única forma garantizada de layout en Outlook.
+5. Incluye MSO conditional comments para Outlook donde sea necesario (botones, anchos fijos).
+6. Atributos bgcolor="" además de background-color en style para máxima compatibilidad.
+7. Todas las imágenes con atributo alt="", width="" explícito, y style="display:block;border:0;".
+8. Font stacks seguros: usa la fuente de marca con fallbacks (ej: "'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif").
+9. Footer obligatorio con texto de cancelación de suscripción (placeholder).
+10. Los colores DEBEN ser coherentes con la identidad de marca proporcionada.
+11. Diseño limpio, moderno, profesional y visualmente atractivo.
+12. Todo texto auxiliar o decorativo debe estar en español.
+13. El nombre de la plantilla debe ser descriptivo y corto (máx 100 chars), en español.
+14. NUNCA incluyas texto de ejemplo dentro de los placeholders. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} para ser reemplazados por el sistema.
+15. NO uses JavaScript ni event handlers (onclick, onmouseover, etc.).`;
 }
 
 export async function generateTemplateHtml(

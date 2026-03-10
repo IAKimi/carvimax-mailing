@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -6,12 +6,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil } from "lucide-react";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Template } from "@shared/schema";
+import { TEMPLATE_PLACEHOLDERS, ALL_PLACEHOLDER_KEYS } from "@shared/schema";
+
+function checkPlaceholders(html: string) {
+  const present: string[] = [];
+  const missing: string[] = [];
+  for (const key of ALL_PLACEHOLDER_KEYS) {
+    if (html.includes(key)) {
+      present.push(key);
+    } else {
+      missing.push(key);
+    }
+  }
+  return { valid: missing.length === 0, present, missing };
+}
 
 export default function Templates() {
   const { toast } = useToast();
@@ -31,23 +45,31 @@ export default function Templates() {
     queryKey: ["/api/templates"],
   });
 
-  const sortedTemplates = [...templates].sort((a, b) => {
-    if (a.favorite && !b.favorite) return -1;
-    if (!a.favorite && b.favorite) return 1;
-    return 0;
-  });
+  const sortedTemplates = useMemo(() => {
+    return [...templates].sort((a, b) => {
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
+      if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
+      return 0;
+    });
+  }, [templates]);
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; html: string }) => {
       const res = await apiRequest("POST", "/api/templates", data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       setShowDialog(false);
       setNewName("");
       setNewHtml("");
-      toast({ title: "Plantilla guardada", description: "Su plantilla ha sido añadida a la galería." });
+      if (result.missingPlaceholders && result.missingPlaceholders.length > 0) {
+        toast({ title: "Plantilla guardada", description: `Nota: faltan ${result.missingPlaceholders.length} placeholder(s) para compatibilidad completa.` });
+      } else {
+        toast({ title: "Plantilla guardada", description: "Su plantilla es totalmente compatible con el editor de campañas." });
+      }
     },
   });
 
@@ -148,6 +170,10 @@ export default function Templates() {
   }
 
   const editingTemplate = templates.find(t => t.id === editingTemplateId);
+  const newHtmlValidation = newHtml.trim() ? checkPlaceholders(newHtml) : null;
+  const manualHtmlValidation = manualHtml.trim() ? checkPlaceholders(manualHtml) : null;
+
+  const placeholderList = Object.values(TEMPLATE_PLACEHOLDERS);
 
   return (
     <Layout>
@@ -230,6 +256,19 @@ export default function Templates() {
                       <span className="text-[10px] font-bold text-white">lo</span>
                     </div>
                   )}
+                  <div className="absolute top-2 right-2">
+                    {template.hasAllPlaceholders ? (
+                      <span data-testid={`badge-compatible-${template.id}`} className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 shadow-sm">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Compatible
+                      </span>
+                    ) : (
+                      <span data-testid={`badge-incomplete-${template.id}`} className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 shadow-sm">
+                        <AlertTriangle className="w-3 h-3" />
+                        Incompleta
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-4 space-y-2">
                   <div className="flex items-center justify-between gap-1">
@@ -302,7 +341,7 @@ export default function Templates() {
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-lg rounded-2xl">
+        <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Code className="w-5 h-5 text-primary" />
@@ -310,6 +349,22 @@ export default function Templates() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div data-testid="panel-placeholder-info" className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Para que su plantilla funcione con el editor de campañas, incluya estos marcadores en su HTML:</p>
+                  <div className="grid grid-cols-1 gap-1">
+                    {placeholderList.map(p => (
+                      <div key={p.key} className="flex items-baseline gap-2 text-[11px]">
+                        <code className="font-mono text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 rounded px-1 py-0.5 flex-shrink-0">{p.key}</code>
+                        <span className="text-blue-600 dark:text-blue-400">— {p.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Nombre de la Plantilla</Label>
               <Input
@@ -331,6 +386,28 @@ export default function Templates() {
                 className="rounded-xl min-h-[200px] font-mono text-sm"
               />
             </div>
+            {newHtmlValidation && !newHtmlValidation.valid && (
+              <div data-testid="warning-missing-placeholders" className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Placeholders faltantes ({newHtmlValidation.missing.length}):</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {newHtmlValidation.missing.map(m => (
+                        <code key={m} className="text-[10px] font-mono bg-amber-100 dark:bg-amber-900/50 text-amber-700 rounded px-1 py-0.5">{m}</code>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-amber-600 mt-1">La plantilla se guardará pero no será totalmente compatible con el editor.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {newHtmlValidation && newHtmlValidation.valid && (
+              <div data-testid="success-all-placeholders" className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Todos los placeholders presentes. Plantilla totalmente compatible.</p>
+              </div>
+            )}
             {newHtml && (
               <div className="border border-border rounded-xl overflow-hidden">
                 <div className="text-xs font-semibold text-muted-foreground px-3 py-1.5 bg-muted">Vista Previa</div>
@@ -364,7 +441,7 @@ export default function Templates() {
               Crear Plantilla con IA
             </DialogTitle>
             <DialogDescription>
-              Describa la plantilla que necesita y la IA la generará automáticamente.
+              Describa la plantilla que necesita y la IA la generará automáticamente con los 6 placeholders estándar integrados.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
@@ -474,6 +551,27 @@ export default function Templates() {
               onChange={e => setManualHtml(e.target.value)}
               className="rounded-xl min-h-[300px] font-mono text-sm"
             />
+            {manualHtmlValidation && !manualHtmlValidation.valid && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Placeholders faltantes ({manualHtmlValidation.missing.length}):</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {manualHtmlValidation.missing.map(m => (
+                        <code key={m} className="text-[10px] font-mono bg-amber-100 dark:bg-amber-900/50 text-amber-700 rounded px-1 py-0.5">{m}</code>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {manualHtmlValidation && manualHtmlValidation.valid && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Todos los placeholders presentes.</p>
+              </div>
+            )}
             {manualHtml && (
               <div className="border border-border rounded-xl overflow-hidden">
                 <div className="text-xs font-semibold text-muted-foreground px-3 py-1.5 bg-muted">Vista Previa</div>

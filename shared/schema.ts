@@ -22,6 +22,7 @@ export const campaigns = pgTable("campaigns", {
   imagePrompt: text("image_prompt"),
   targetDatabase: text("target_database"),
   selectedImageUrl: text("selected_image_url"),
+  templateId: integer("template_id"),
   scheduledAt: timestamp("scheduled_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -85,8 +86,20 @@ export const templates = pgTable("templates", {
   isAiGenerated: boolean("is_ai_generated").default(false),
   aiEditCount: integer("ai_edit_count").default(0),
   originalHtml: text("original_html"),
+  hasAllPlaceholders: boolean("has_all_placeholders").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const TEMPLATE_PLACEHOLDERS = {
+  ASUNTO: { key: "{{ASUNTO}}", field: "asunto", label: "Asunto del correo", description: "Línea de asunto que aparece en la bandeja de entrada" },
+  PREHEADER: { key: "{{PREHEADER}}", field: "preheader", label: "Vista previa (Preheader)", description: "Texto que aparece después del asunto en la bandeja" },
+  CONTENIDO: { key: "{{CONTENIDO}}", field: "cuerpo_html", label: "Cuerpo del correo", description: "Contenido principal del email en HTML" },
+  CTA_TEXTO: { key: "{{CTA_TEXTO}}", field: "cta_text", label: "Texto del botón", description: "Texto visible del botón de acción (CTA)" },
+  CTA_URL: { key: "{{CTA_URL}}", field: "cta_url", label: "Enlace del botón", description: "URL de destino del botón de acción" },
+  IMAGEN_URL: { key: "{{IMAGEN_URL}}", field: "imageUrl", label: "Imagen principal", description: "URL de la imagen hero del correo" },
+} as const;
+
+export const ALL_PLACEHOLDER_KEYS = Object.values(TEMPLATE_PLACEHOLDERS).map(p => p.key);
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true });

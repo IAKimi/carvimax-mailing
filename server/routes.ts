@@ -6,6 +6,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, editImage, isGeminiConfigured } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, isOpenAIConfigured } from "./openai";
+import { validateTemplatePlaceholders, renderTemplateWithContent } from "./templates";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -45,6 +46,7 @@ const createCampaignSchema = z.object({
   layoutPreference: z.string().max(100).optional(),
   imagePrompt: z.string().max(500, "El prompt de imagen no puede exceder 500 caracteres").nullable().optional(),
   targetDatabase: z.string().max(200).nullable().optional(),
+  templateId: z.number().int().positive().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
 });
 
@@ -735,8 +737,9 @@ export async function registerRoutes(
       });
       const input = createTemplateSchema.parse(req.body);
       const sanitizedHtml = sanitizeHtml(input.html);
-      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false });
-      res.status(201).json(tpl);
+      const validation = validateTemplatePlaceholders(sanitizedHtml);
+      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false, hasAllPlaceholders: validation.valid });
+      res.status(201).json({ ...tpl, missingPlaceholders: validation.missing });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -754,6 +757,8 @@ export async function registerRoutes(
       const input = updateTemplateSchema.parse(req.body);
       if (input.html) {
         input.html = sanitizeHtml(input.html);
+        const validation = validateTemplatePlaceholders(input.html);
+        (input as any).hasAllPlaceholders = validation.valid;
       }
       const tpl = await storage.updateTemplate(id, input);
       res.json(tpl);
@@ -789,6 +794,10 @@ export async function registerRoutes(
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const result = await generateTemplateHtml(prompt, brandData || null);
       const sanitizedHtml = sanitizeHtml(result.html);
+      const validation = validateTemplatePlaceholders(sanitizedHtml);
+      if (validation.missing.length > 0) {
+        console.warn("AI template missing placeholders:", validation.missing);
+      }
       const tpl = await storage.createTemplate({
         userId: req.session.userId!,
         name: result.name,
@@ -797,6 +806,7 @@ export async function registerRoutes(
         isAiGenerated: true,
         aiEditCount: 0,
         originalHtml: sanitizedHtml,
+        hasAllPlaceholders: validation.valid,
       });
       res.status(201).json(tpl);
     } catch (err: any) {
@@ -828,15 +838,38 @@ export async function registerRoutes(
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const editedHtml = await editTemplateHtml(tpl.html, instructions, brandData || null);
       const sanitizedHtml = sanitizeHtml(editedHtml);
+      const validation = validateTemplatePlaceholders(sanitizedHtml);
       const updated = await storage.updateTemplate(id, {
         html: sanitizedHtml,
         aiEditCount: (tpl.aiEditCount || 0) + 1,
+        hasAllPlaceholders: validation.valid,
       });
       res.json(updated);
     } catch (err: any) {
       console.error("Error editando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error editando plantilla." });
     }
+  });
+
+  app.get("/api/campaigns/:id/preview-final", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const userCampaigns = await storage.getCampaigns(req.session.userId!);
+    const campaign = userCampaigns.find(c => c.id === id);
+    if (!campaign) return res.status(404).json({ message: "Campaña no encontrada." });
+    if (!campaign.templateId) return res.status(400).json({ message: "Esta campaña no tiene una plantilla asignada." });
+    const tpls = await storage.getTemplates(req.session.userId!);
+    const template = tpls.find(t => t.id === campaign.templateId);
+    if (!template) return res.status(404).json({ message: "Plantilla no encontrada." });
+    const versions = await storage.getCampaignVersions(id);
+    const selected = versions.find(v => v.isSelected) || versions[0];
+    if (!selected) return res.status(400).json({ message: "No hay versiones generadas para esta campaña." });
+    const result = renderTemplateWithContent(
+      template.html,
+      selected.contentJson as Record<string, unknown> | null,
+      selected.imageUrl || null
+    );
+    res.json({ html: result.html, missingFields: result.missingFields, templateName: template.name });
   });
 
   return httpServer;

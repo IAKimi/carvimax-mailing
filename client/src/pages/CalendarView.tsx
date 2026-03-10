@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   ChevronLeft, ChevronRight, Plus, Sparkles, ArrowLeft,
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
-  Type, Eye, Wand2, Send, Loader2, XCircle, Ban
+  Type, Eye, Wand2, Send, Loader2, XCircle, Ban,
+  FileText, CheckCircle2, AlertTriangle, Link2
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +51,11 @@ export default function CalendarView() {
   const [showRegenTextModal, setShowRegenTextModal] = useState(false);
   const [showRegenImageModal, setShowRegenImageModal] = useState(false);
   const [showEditImageModal, setShowEditImageModal] = useState(false);
+  const [showFinalPreview, setShowFinalPreview] = useState(false);
+  const [finalPreviewHtml, setFinalPreviewHtml] = useState("");
+  const [finalPreviewMissing, setFinalPreviewMissing] = useState<string[]>([]);
+  const [finalPreviewLoading, setFinalPreviewLoading] = useState(false);
+  const [showEditorTemplateSelector, setShowEditorTemplateSelector] = useState(false);
   const [regenTextCorrections, setRegenTextCorrections] = useState("");
   const [regenImagePrompt, setRegenImagePrompt] = useState("");
   const [editImagePrompt, setEditImagePrompt] = useState("");
@@ -57,6 +63,7 @@ export default function CalendarView() {
   const [localAsunto, setLocalAsunto] = useState("");
   const [localPreheader, setLocalPreheader] = useState("");
   const [localCta, setLocalCta] = useState("");
+  const [localCtaUrl, setLocalCtaUrl] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -237,10 +244,43 @@ export default function CalendarView() {
     setShowImageHistory(false);
     setShowTextHistory(false);
     setShowPreview(false);
+    setShowFinalPreview(false);
     setTextApproved(false);
     setImageApproved(false);
     setEditorLocalImageUrl(null);
     setHasUnsavedChanges(false);
+    setShowEditorTemplateSelector(false);
+  }
+
+  async function handleFinalPreview() {
+    if (!editingCampaignId) return;
+    setFinalPreviewLoading(true);
+    try {
+      const res = await apiRequest("GET", `/api/campaigns/${editingCampaignId}/preview-final`);
+      const data = await res.json();
+      setFinalPreviewHtml(data.html);
+      setFinalPreviewMissing(data.missingFields || []);
+      setShowFinalPreview(true);
+    } catch (err: any) {
+      const msg = err?.message || "No se pudo generar la vista previa final.";
+      toast({ title: "Vista previa no disponible", description: msg, variant: "destructive" });
+    } finally {
+      setFinalPreviewLoading(false);
+    }
+  }
+
+  function handleAssignTemplate(templateId: string) {
+    if (!editingCampaignId) return;
+    const tid = templateId ? parseInt(templateId) : null;
+    updateCampaignMutation.mutate(
+      { id: editingCampaignId, updates: { templateId: tid } },
+      {
+        onSuccess: () => {
+          toast({ title: "Plantilla asignada", description: "La plantilla ha sido vinculada a este correo." });
+          setShowEditorTemplateSelector(false);
+        },
+      }
+    );
   }
 
   function handlePublishNow() {
@@ -278,6 +318,7 @@ export default function CalendarView() {
       tone: "profesional",
       imagePrompt: form.imagePrompt || null,
       targetDatabase: form.targetDatabase || null,
+      templateId: form.templateId ? parseInt(form.templateId) : null,
       scheduledAt: form.scheduledDate || null,
     });
   }
@@ -341,6 +382,7 @@ export default function CalendarView() {
         asunto: localAsunto,
         preheader: localPreheader,
         cta_text: localCta,
+        cta_url: localCtaUrl,
       };
       updateVersionMutation.mutate(
         { id: selectedVersion.id, updates: { contentJson: updatedContent } },
@@ -389,11 +431,13 @@ export default function CalendarView() {
       setLocalAsunto(cd?.asunto || cd?.title || "");
       setLocalPreheader(cd?.preheader || "");
       setLocalCta(cd?.cta_text || cd?.cta || "");
+      setLocalCtaUrl(cd?.cta_url || "");
       setHasUnsavedChanges(false);
     } else {
       setLocalAsunto("");
       setLocalPreheader("");
       setLocalCta("");
+      setLocalCtaUrl("");
       setHasUnsavedChanges(false);
     }
   }, [selectedVersion?.id]);
@@ -406,6 +450,7 @@ export default function CalendarView() {
       asunto: localAsunto,
       preheader: localPreheader,
       cta_text: localCta,
+      cta_url: localCtaUrl,
     };
     updateVersionMutation.mutate(
       { id: selectedVersion.id, updates: { contentJson: updatedContent } },
@@ -590,6 +635,65 @@ export default function CalendarView() {
               }`}>
                 Progreso: {progressPercent}%
               </span>
+            </div>
+          )}
+
+          {!isCancelled && !isSent && (
+            <div data-testid="section-template-link" className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Link2 className="w-4 h-4 text-primary flex-shrink-0" />
+                  <div className="min-w-0">
+                    <span className="text-sm font-semibold">Plantilla</span>
+                    {editingCampaign?.templateId ? (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span data-testid="text-template-name" className="text-xs text-muted-foreground truncate">
+                          {userTemplates.find(t => t.id === editingCampaign.templateId)?.name || "Plantilla #" + editingCampaign.templateId}
+                        </span>
+                        {(() => {
+                          const tpl = userTemplates.find(t => t.id === editingCampaign.templateId);
+                          if (!tpl) return null;
+                          return tpl.hasAllPlaceholders ? (
+                            <span data-testid="badge-template-compatible" className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1.5 py-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Compatible
+                            </span>
+                          ) : (
+                            <span data-testid="badge-template-incomplete" className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5" /> Incompleta
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Sin plantilla. Seleccione una para generar el correo final.</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    data-testid="button-change-template"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl gap-1.5 text-xs"
+                    onClick={() => setShowEditorTemplateSelector(true)}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {editingCampaign?.templateId ? "Cambiar" : "Seleccionar"}
+                  </Button>
+                  {editingCampaign?.templateId && (
+                    <Button
+                      data-testid="button-final-preview"
+                      size="sm"
+                      className="rounded-xl gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={handleFinalPreview}
+                      disabled={finalPreviewLoading}
+                    >
+                      {finalPreviewLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                      Vista Previa Final
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -824,6 +928,20 @@ export default function CalendarView() {
                         className="rounded-xl"
                       />
                     </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Enlace del botón (URL)</Label>
+                      <Input
+                        data-testid="input-edit-cta-url"
+                        value={localCtaUrl}
+                        onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        maxLength={500}
+                        disabled={isCancelled}
+                        placeholder="https://ejemplo.com/promo"
+                        className="rounded-xl"
+                        type="url"
+                      />
+                    </div>
                   </div>
 
                   {hasUnsavedChanges && (
@@ -967,6 +1085,113 @@ export default function CalendarView() {
                     sandbox=""
                   />
                 </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showFinalPreview} onOpenChange={setShowFinalPreview}>
+            <DialogContent data-testid="dialog-final-preview" className="sm:max-w-2xl rounded-2xl p-0 max-h-[90vh] overflow-hidden">
+              <div className="p-5 pb-0">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-600" />
+                    Vista Previa Final
+                  </DialogTitle>
+                  <DialogDescription>
+                    Correo completo con la plantilla y el contenido del editor inyectado.
+                  </DialogDescription>
+                </DialogHeader>
+                {finalPreviewMissing.length > 0 && (
+                  <div className="mt-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Campos sin completar:</p>
+                      <p className="text-[11px] text-amber-600 mt-0.5">{finalPreviewMissing.join(", ")}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="overflow-y-auto max-h-[calc(90vh-140px)] px-5 pb-5 pt-3">
+                <div className="border border-border rounded-xl overflow-hidden bg-white">
+                  <iframe
+                    data-testid="iframe-final-preview"
+                    srcDoc={finalPreviewHtml}
+                    className="w-full h-[500px]"
+                    title="Vista previa final"
+                    sandbox=""
+                  />
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showEditorTemplateSelector} onOpenChange={setShowEditorTemplateSelector}>
+            <DialogContent data-testid="dialog-select-template" className="sm:max-w-xl rounded-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Seleccionar Plantilla
+                </DialogTitle>
+                <DialogDescription>
+                  Elija la plantilla para este correo. Las plantillas compatibles tienen todos los placeholders necesarios.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 mt-3">
+                {[...userTemplates].sort((a, b) => {
+                  if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
+                  if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
+                  if (a.favorite && !b.favorite) return -1;
+                  if (!a.favorite && b.favorite) return 1;
+                  return 0;
+                }).map(t => (
+                  <button
+                    key={t.id}
+                    data-testid={`button-assign-template-${t.id}`}
+                    onClick={() => handleAssignTemplate(String(t.id))}
+                    className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left hover:border-primary/40 ${editingCampaign?.templateId === t.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <div className="w-24 h-16 rounded-lg overflow-hidden bg-white border border-border flex-shrink-0">
+                      <iframe
+                        srcDoc={t.html}
+                        sandbox=""
+                        className="w-full h-full pointer-events-none"
+                        style={{ transform: "scale(0.25)", transformOrigin: "top left", width: "400%", height: "400%" }}
+                        title={t.name}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm truncate">{t.name}</span>
+                        {editingCampaign?.templateId === t.id && (
+                          <span className="text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-1.5 py-0.5">Actual</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {t.hasAllPlaceholders ? (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1.5 py-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Compatible
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Incompleta
+                          </span>
+                        )}
+                        {t.isAiGenerated && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-[#002073] text-white rounded-full px-1.5 py-0.5">
+                            <span>Post</span><span className="text-[#e3001b]">IA</span><span>lo</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+                {userTemplates.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No hay plantillas disponibles.</p>
+                    <p className="text-xs mt-1">Cree plantillas en la sección Plantillas.</p>
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>
@@ -1324,14 +1549,42 @@ export default function CalendarView() {
                   <SelectValue placeholder="Seleccione una plantilla..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {userTemplates.map(t => (
-                    <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                  {[...userTemplates].sort((a, b) => {
+                    if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
+                    if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
+                    return 0;
+                  }).map(t => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate">{t.name}</span>
+                        {t.hasAllPlaceholders ? (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
                   ))}
                   {userTemplates.length === 0 && (
                     <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
                   )}
                 </SelectContent>
               </Select>
+              {form.templateId && (
+                <div className="border border-border rounded-xl overflow-hidden bg-white">
+                  <iframe
+                    srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
+                    sandbox=""
+                    className="w-full h-24 pointer-events-none"
+                    style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
+                    title="template-mini-preview"
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Base de Datos de Destino</Label>
