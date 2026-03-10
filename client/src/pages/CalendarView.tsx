@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,6 @@ export default function CalendarView() {
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [showImageHistory, setShowImageHistory] = useState(false);
   const [showTextHistory, setShowTextHistory] = useState(false);
-  const [textEditMode, setTextEditMode] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [textApproved, setTextApproved] = useState(false);
   const [imageApproved, setImageApproved] = useState(false);
@@ -55,6 +54,10 @@ export default function CalendarView() {
   const [regenImagePrompt, setRegenImagePrompt] = useState("");
   const [editImagePrompt, setEditImagePrompt] = useState("");
   const [lastTextCorrections, setLastTextCorrections] = useState("");
+  const [localAsunto, setLocalAsunto] = useState("");
+  const [localPreheader, setLocalPreheader] = useState("");
+  const [localCta, setLocalCta] = useState("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -217,20 +220,20 @@ export default function CalendarView() {
     setEditingCampaignId(campaignId);
     setShowImageHistory(false);
     setShowTextHistory(false);
-    setTextEditMode(false);
     setTextApproved(false);
     setImageApproved(false);
+    setHasUnsavedChanges(false);
   }
 
   function handleBackToCalendar() {
     setEditingCampaignId(null);
     setShowImageHistory(false);
     setShowTextHistory(false);
-    setTextEditMode(false);
     setShowPreview(false);
     setTextApproved(false);
     setImageApproved(false);
     setEditorLocalImageUrl(null);
+    setHasUnsavedChanges(false);
   }
 
   function handlePublishNow() {
@@ -324,9 +327,31 @@ export default function CalendarView() {
   }
 
   function handleApproveText() {
-    setTextApproved(true);
-    setTextEditMode(false);
-    toast({ title: "Texto aprobado" });
+    if (hasUnsavedChanges && selectedVersion) {
+      const existing = (selectedVersion.contentJson as any) || {};
+      const updatedContent = {
+        ...existing,
+        asunto: localAsunto,
+        preheader: localPreheader,
+        cta_text: localCta,
+      };
+      updateVersionMutation.mutate(
+        { id: selectedVersion.id, updates: { contentJson: updatedContent } },
+        {
+          onSuccess: () => {
+            setHasUnsavedChanges(false);
+            setTextApproved(true);
+            toast({ title: "Texto aprobado" });
+          },
+          onError: () => {
+            toast({ title: "Error", description: "No se pudo guardar antes de aprobar.", variant: "destructive" });
+          },
+        }
+      );
+    } else {
+      setTextApproved(true);
+      toast({ title: "Texto aprobado" });
+    }
   }
 
   function handleApproveImage() {
@@ -350,6 +375,45 @@ export default function CalendarView() {
           : ""
     : "";
   const selectedImageUrl = editorLocalImageUrl || selectedVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
+
+  useEffect(() => {
+    if (selectedVersion) {
+      const cd = selectedVersion.contentJson as any;
+      setLocalAsunto(cd?.asunto || cd?.title || "");
+      setLocalPreheader(cd?.preheader || "");
+      setLocalCta(cd?.cta_text || cd?.cta || "");
+      setHasUnsavedChanges(false);
+    } else {
+      setLocalAsunto("");
+      setLocalPreheader("");
+      setLocalCta("");
+      setHasUnsavedChanges(false);
+    }
+  }, [selectedVersion?.id]);
+
+  function handleSaveTextChanges() {
+    if (!selectedVersion) return;
+    const existing = (selectedVersion.contentJson as any) || {};
+    const updatedContent = {
+      ...existing,
+      asunto: localAsunto,
+      preheader: localPreheader,
+      cta_text: localCta,
+    };
+    updateVersionMutation.mutate(
+      { id: selectedVersion.id, updates: { contentJson: updatedContent } },
+      {
+        onSuccess: () => {
+          setHasUnsavedChanges(false);
+          setTextApproved(false);
+          toast({ title: "Cambios guardados" });
+        },
+        onError: () => {
+          toast({ title: "Error", description: "No se pudieron guardar los cambios.", variant: "destructive" });
+        },
+      }
+    );
+  }
 
   const calendarCells = [];
   for (let i = 0; i < startDayOfWeek; i++) {
@@ -527,320 +591,351 @@ export default function CalendarView() {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-card rounded-2xl border border-border p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-primary" />
-                    Editor de Imagen
-                  </h3>
-                  {imageApproved && (
-                    <span data-testid="badge-image-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Aprobada
-                    </span>
-                  )}
-                </div>
-
-                <div className="border border-border rounded-xl overflow-hidden bg-white relative">
-                  <img
-                    data-testid="img-email-preview"
-                    src={selectedImageUrl}
-                    alt="Vista previa de imagen"
-                    className="w-full h-48 object-cover"
-                  />
-                  {(generateVersionMutation.isPending || regenerateImageMutation.isPending || editImageMutation.isPending) && (
-                    <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
-                      <Loader2 className="w-8 h-8 animate-spin text-white" />
-                      <span className="text-white text-sm font-medium">
-                        {editImageMutation.isPending ? "Editando imagen con Nano Banana..." : "Generando imagen con IA..."}
+            <>
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-primary" />
+                      Imagen
+                    </h3>
+                    {imageApproved && (
+                      <span data-testid="badge-image-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Aprobada
                       </span>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    data-testid="button-regenerate-image"
-                    size="sm"
-                    className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={handleRegenerateImage}
-                    disabled={isCancelled || versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
-                  >
-                    {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                    Regenerar ({Math.max(0, 3 - versions.length)})
-                  </Button>
-                  <Button
-                    data-testid="button-upload-image"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
-                    disabled={isCancelled}
-                    onClick={() => editorFileInputRef.current?.click()}
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    Cargar Imagen
-                  </Button>
-                  <input
-                    ref={editorFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const url = URL.createObjectURL(file);
-                        setEditorLocalImageUrl(url);
-                        setImageApproved(false);
-                        toast({ title: "Imagen cargada", description: "Vista previa actualizada." });
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-                  <Button
-                    data-testid="button-nano-banana"
-                    size="sm"
-                    className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
-                    onClick={handleEditWithNanoBanana}
-                    disabled={isCancelled || versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
-                  >
-                    {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                    Editar con Nano Banana
-                  </Button>
+                  <div className="border border-border rounded-xl overflow-hidden bg-white relative">
+                    <img
+                      data-testid="img-email-preview"
+                      src={selectedImageUrl}
+                      alt="Vista previa de imagen"
+                      className="w-full h-48 object-cover"
+                    />
+                    {(regenerateImageMutation.isPending || editImageMutation.isPending) && (
+                      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-8 h-8 animate-spin text-white" />
+                        <span className="text-white text-sm font-medium">
+                          {editImageMutation.isPending ? "Editando imagen con Nano Banana..." : "Generando imagen con IA..."}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      data-testid="button-regenerate-image"
+                      size="sm"
+                      className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={handleRegenerateImage}
+                      disabled={isCancelled || versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                    >
+                      {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      Regenerar ({Math.max(0, 3 - versions.length)})
+                    </Button>
+                    <Button
+                      data-testid="button-upload-image"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
+                      disabled={isCancelled}
+                      onClick={() => editorFileInputRef.current?.click()}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Cargar Imagen
+                    </Button>
+                    <input
+                      ref={editorFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = URL.createObjectURL(file);
+                          setEditorLocalImageUrl(url);
+                          setImageApproved(false);
+                          toast({ title: "Imagen cargada", description: "Vista previa actualizada." });
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button
+                      data-testid="button-nano-banana"
+                      size="sm"
+                      className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
+                      onClick={handleEditWithNanoBanana}
+                      disabled={isCancelled || versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
+                    >
+                      {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                      Nano Banana
+                    </Button>
+                  </div>
+
                   {versions.length > 1 && (
                     <Button
                       data-testid="button-image-history"
                       variant={showImageHistory ? "default" : "secondary"}
                       size="sm"
-                      className="rounded-xl gap-1"
+                      className="rounded-xl gap-1 w-full"
                       onClick={() => setShowImageHistory(!showImageHistory)}
                     >
                       <History className="w-3.5 h-3.5" />
                       Imágenes ({versions.length})
                     </Button>
                   )}
-                </div>
 
-                <AnimatePresence>
-                  {showImageHistory && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
-                        {versions.map(v => (
-                          <button
-                            key={v.id}
-                            data-testid={`button-select-image-${v.versionNumber}`}
-                            onClick={() => !isCancelled && handleSelectVersion(v.id)}
-                            disabled={isCancelled}
-                            className={`rounded-lg border-2 overflow-hidden transition-all ${v.isSelected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
-                          >
-                            <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
-                            <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {!imageApproved && !isCancelled && (
-                  <Button
-                    data-testid="button-approve-image"
-                    onClick={handleApproveImage}
-                    className="w-full rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Check className="w-4 h-4" />
-                    Aprobar Imagen
-                  </Button>
-                )}
-              </div>
-
-              <div className="bg-card rounded-2xl border border-border p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Type className="w-4 h-4 text-primary" />
-                    Editor de Texto
-                  </h3>
-                  {textApproved && (
-                    <span data-testid="badge-text-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Aprobado
-                    </span>
-                  )}
-                </div>
-
-                {selectedAsunto && (
-                  <div className="space-y-1">
-                    <p data-testid="text-email-asunto" className="font-bold text-sm">
-                      <span className="text-muted-foreground font-normal">Asunto: </span>{selectedAsunto}
-                    </p>
-                    {selectedPreheader && (
-                      <p data-testid="text-email-preheader" className="text-xs text-muted-foreground italic">
-                        {selectedPreheader}
-                      </p>
+                  <AnimatePresence>
+                    {showImageHistory && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
+                          {versions.map(v => (
+                            <button
+                              key={v.id}
+                              data-testid={`button-select-image-${v.versionNumber}`}
+                              onClick={() => !isCancelled && handleSelectVersion(v.id)}
+                              disabled={isCancelled}
+                              className={`rounded-lg border-2 overflow-hidden transition-all ${v.isSelected ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
+                            >
+                              <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
+                              <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
                     )}
-                  </div>
-                )}
+                  </AnimatePresence>
 
-                <div className="border border-border rounded-xl overflow-hidden">
-                  {textEditMode && selectedVersion ? (
-                    <TipTapEditor
-                      content={selectedHtml}
-                      onChange={(html) => handleTextChange(selectedVersion.id, html)}
-                    />
-                  ) : (
-                    <div
-                      className="p-4 prose prose-sm max-w-none min-h-[200px]"
-                      dangerouslySetInnerHTML={{ __html: selectedHtml || "<p class='text-muted-foreground'>Sin contenido generado aún.</p>" }}
-                    />
-                  )}
-                </div>
-
-                {selectedCtaText && (
-                  <div className="flex justify-center">
-                    <span data-testid="text-email-cta" className="inline-block px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm">
-                      {selectedCtaText}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    data-testid="button-regenerate-text"
-                    size="sm"
-                    className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={handleRegenerateText}
-                    disabled={isCancelled || versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
-                  >
-                    {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                    Regenerar Texto ({Math.max(0, 3 - versions.length)})
-                  </Button>
-                  <Button
-                    data-testid="button-edit-text-toggle"
-                    variant={textEditMode ? "default" : "outline"}
-                    size="sm"
-                    className="rounded-xl gap-1 border-slate-300"
-                    disabled={isCancelled}
-                    onClick={() => setTextEditMode(!textEditMode)}
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    {textEditMode ? "Ver Resultado" : "Editar Texto"}
-                  </Button>
-                  {versions.length > 1 && (
+                  {!imageApproved && !isCancelled && (
                     <Button
-                      data-testid="button-text-history"
-                      variant={showTextHistory ? "default" : "secondary"}
-                      size="sm"
-                      className="rounded-xl gap-1"
-                      onClick={() => setShowTextHistory(!showTextHistory)}
+                      data-testid="button-approve-image"
+                      onClick={handleApproveImage}
+                      className="w-full rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
-                      <History className="w-3.5 h-3.5" />
-                      Seleccionar Textos ({versions.length})
+                      <Check className="w-4 h-4" />
+                      Aprobar Imagen
                     </Button>
                   )}
                 </div>
 
-                <AnimatePresence>
-                  {showTextHistory && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="space-y-2 pt-2 border-t border-border">
-                        {versions.map(v => {
-                          const vContent = v.contentJson as any;
-                          const html = vContent?.cuerpo_html
-                            || vContent?.html
-                            || vContent?.body
-                            || "";
-                          return (
-                            <button
-                              key={v.id}
-                              data-testid={`button-select-text-${v.versionNumber}`}
-                              onClick={() => !isCancelled && handleSelectVersion(v.id)}
-                              disabled={isCancelled}
-                              className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${v.isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
-                                {v.isSelected && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
-                              </div>
-                              <div className="text-xs text-muted-foreground line-clamp-2" dangerouslySetInnerHTML={{ __html: html.replace(/<[^>]*>/g, " ").substring(0, 120) }} />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold flex items-center gap-2">
+                      <Type className="w-4 h-4 text-primary" />
+                      Texto
+                    </h3>
+                    {textApproved && (
+                      <span data-testid="badge-text-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Aprobado
+                      </span>
+                    )}
+                  </div>
 
-                {!textApproved && !isCancelled && (
-                  <Button
-                    data-testid="button-approve-text"
-                    onClick={handleApproveText}
-                    className="w-full rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Check className="w-4 h-4" />
-                    Aprobar Texto
-                  </Button>
-                )}
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Asunto del correo</Label>
+                        <span className="text-[10px] text-muted-foreground">{localAsunto.length}/60</span>
+                      </div>
+                      <Input
+                        data-testid="input-edit-asunto"
+                        value={localAsunto}
+                        onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        maxLength={60}
+                        disabled={isCancelled}
+                        placeholder="Asunto del correo"
+                        className="rounded-xl"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vista previa (Preheader)</Label>
+                        <span className="text-[10px] text-muted-foreground">{localPreheader.length}/100</span>
+                      </div>
+                      <Input
+                        data-testid="input-edit-preheader"
+                        value={localPreheader}
+                        onChange={(e) => { setLocalPreheader(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        maxLength={100}
+                        disabled={isCancelled}
+                        placeholder="Texto de vista previa"
+                        className="rounded-xl"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cuerpo del correo</Label>
+                      <div data-testid="editor-cuerpo-html" className="border border-border rounded-xl overflow-hidden">
+                        {selectedVersion ? (
+                          <TipTapEditor
+                            key={selectedVersion.id}
+                            content={selectedHtml}
+                            onChange={(html) => handleTextChange(selectedVersion.id, html)}
+                          />
+                        ) : (
+                          <div className="p-4 text-sm text-muted-foreground">Sin contenido generado aún.</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Botón de acción (CTA)</Label>
+                        <span className="text-[10px] text-muted-foreground">{localCta.length}/25</span>
+                      </div>
+                      <Input
+                        data-testid="input-edit-cta"
+                        value={localCta}
+                        onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        maxLength={25}
+                        disabled={isCancelled}
+                        placeholder="Texto del botón CTA"
+                        className="rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  {hasUnsavedChanges && (
+                    <Button
+                      data-testid="button-save-text-changes"
+                      onClick={handleSaveTextChanges}
+                      disabled={isCancelled || updateVersionMutation.isPending}
+                      className="w-full rounded-xl gap-2"
+                    >
+                      {updateVersionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      Guardar Cambios
+                    </Button>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      data-testid="button-regenerate-text"
+                      size="sm"
+                      className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={handleRegenerateText}
+                      disabled={isCancelled || versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
+                    >
+                      {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      Regenerar Texto ({Math.max(0, 3 - versions.length)})
+                    </Button>
+                    {versions.length > 1 && (
+                      <Button
+                        data-testid="button-text-history"
+                        variant={showTextHistory ? "default" : "secondary"}
+                        size="sm"
+                        className="rounded-xl gap-1"
+                        onClick={() => setShowTextHistory(!showTextHistory)}
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        Seleccionar Textos ({versions.length})
+                      </Button>
+                    )}
+                  </div>
+
+                  <AnimatePresence>
+                    {showTextHistory && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-2 pt-2 border-t border-border">
+                          {versions.map(v => {
+                            const vContent = v.contentJson as any;
+                            const html = vContent?.cuerpo_html
+                              || vContent?.html
+                              || vContent?.body
+                              || "";
+                            return (
+                              <button
+                                key={v.id}
+                                data-testid={`button-select-text-${v.versionNumber}`}
+                                onClick={() => !isCancelled && handleSelectVersion(v.id)}
+                                disabled={isCancelled}
+                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${v.isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isCancelled ? "opacity-60 cursor-not-allowed" : ""}`}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
+                                  {v.isSelected && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
+                                </div>
+                                <div className="text-xs text-muted-foreground line-clamp-2" dangerouslySetInnerHTML={{ __html: html.replace(/<[^>]*>/g, " ").substring(0, 120) }} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {!textApproved && !isCancelled && (
+                    <Button
+                      data-testid="button-approve-text"
+                      onClick={handleApproveText}
+                      className="w-full rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <Check className="w-4 h-4" />
+                      Aprobar Texto
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
+
+            <Button
+              data-testid="button-toggle-preview"
+              variant="outline"
+              onClick={() => setShowPreview(true)}
+              className="w-full rounded-xl gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              Vista Previa del Correo
+            </Button>
+            </>
           )}
 
-          {!generateVersionMutation.isPending && !createCampaignMutation.isPending && !versionsLoading && (
-          <>
-          <Button
-            data-testid="button-toggle-preview"
-            variant="outline"
-            onClick={() => setShowPreview(!showPreview)}
-            className="w-full rounded-xl gap-2"
-          >
-            <Eye className="w-4 h-4" />
-            {showPreview ? "Ocultar Vista Previa" : "Vista Previa"}
-          </Button>
-
-          <AnimatePresence>
-            {showPreview && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-                className="overflow-hidden"
-              >
-                <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-                  <h3 className="font-bold flex items-center gap-2 mb-4">
-                    <Eye className="w-4 h-4 text-primary" />
+          <Dialog open={showPreview} onOpenChange={setShowPreview}>
+            <DialogContent data-testid="dialog-preview-email" className="sm:max-w-2xl rounded-2xl p-0 max-h-[90vh] overflow-hidden">
+              <div className="p-5 pb-0">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-primary" />
                     Vista Previa del Correo
-                  </h3>
-                  <div className="border border-border rounded-xl overflow-hidden bg-white">
-                    <iframe
-                      data-testid="iframe-email-preview"
-                      srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
-                        <div style="max-width:600px;margin:0 auto">
-                          ${selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${selectedAsunto}</h2>${selectedPreheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${selectedPreheader}</p>` : ""}</div>` : ""}
-                          <img src="${selectedImageUrl}" style="width:100%;height:200px;object-fit:cover" />
-                          <div style="padding:24px">${selectedHtml}</div>
-                          ${selectedCtaText ? `<div style="padding:0 24px 24px;text-align:center"><a style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${selectedCtaText}</a></div>` : ""}
-                          <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">© 2026 Mi Empresa. Todos los derechos reservados.</div>
-                        </div>
-                      </body></html>`}
-                      className="w-full h-[400px]"
-                      title="Vista previa completa"
-                      sandbox=""
-                    />
-                  </div>
+                  </DialogTitle>
+                  <DialogDescription>
+                    Así se verá tu correo en la bandeja de entrada.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="overflow-y-auto max-h-[calc(90vh-100px)] px-5 pb-5">
+                <div className="border border-border rounded-xl overflow-hidden bg-white">
+                  <iframe
+                    data-testid="iframe-email-preview"
+                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
+                      <div style="max-width:600px;margin:0 auto">
+                        ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
+                        <img src="${selectedImageUrl}" style="width:100%;height:200px;object-fit:cover" />
+                        <div style="padding:24px">${selectedHtml}</div>
+                        ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${localCta || selectedCtaText}</a></div>` : ""}
+                        <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">&copy; 2026 Mi Empresa. Todos los derechos reservados.</div>
+                      </div>
+                    </body></html>`}
+                    className="w-full h-[500px]"
+                    title="Vista previa completa"
+                    sandbox=""
+                  />
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          </>
-          )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Dialog open={showRegenTextModal} onOpenChange={setShowRegenTextModal}>

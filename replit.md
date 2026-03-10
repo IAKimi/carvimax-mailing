@@ -18,6 +18,19 @@ Plataforma SaaS de automatización de correos electrónicos con inteligencia art
 ## Estado Actual
 Todas las features conectadas a PostgreSQL. Autenticación real. Generación de imágenes con Gemini API integrada. Generación de texto con OpenAI Responses API integrada. Regeneración de texto con historial conversacional (correcciones del usuario). Regeneración de imagen con nuevo prompt. Edición de imagen con Nano Banana (image-to-image via Gemini). Cancelación de campañas (soft delete, status "cancelled"). Tags de estado calculados (Cancelado, Enviado, Listo, Generado, Programado, Borrador). Barra de progreso basada en aprobaciones (0%/50%/100%). Calendario, Contactos, Identidad de Marca, Plantillas e Historial todos usan datos reales. Solo light mode.
 
+### Editor de Campaña (CalendarView.tsx)
+- **Card unificada**: Una sola card con grid de 2 columnas (imagen izquierda, texto derecha). En mobile se apilan.
+- **Columna imagen**: Preview de imagen, botones Regenerar/Cargar/NanoBanana, historial de imágenes, Aprobar Imagen.
+- **Columna texto**: 4 campos editables individuales con labels y contadores de caracteres:
+  - Asunto del correo (Input, maxLength=60, contador X/60)
+  - Vista previa / Preheader (Input, maxLength=100, contador X/100)
+  - Cuerpo del correo (TipTap WYSIWYG, key={versionId} para sync correcto)
+  - Botón de acción CTA (Input, maxLength=25, contador X/25)
+- **Guardar cambios**: Botón aparece al editar campos. Save con onSuccess/onError callbacks.
+- **Aprobar texto**: Si hay cambios sin guardar, guarda primero y aprueba solo al confirmar éxito.
+- **Vista previa**: Dialog modal popup (no scroll-down). iframe con renderizado del correo completo. data-testid="dialog-preview-email".
+- **Sin toggle "Editar Texto / Ver Resultado"**: Los campos siempre son editables.
+
 ## Estructura del Proyecto
 ```
 client/src/
