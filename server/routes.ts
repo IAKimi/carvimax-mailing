@@ -1066,7 +1066,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/templates/generate", requireAuth, aiLimiter, async (req, res) => {
-    const { prompt, variants } = req.body || {};
+    const { prompt } = req.body || {};
     if (!prompt || typeof prompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar un prompt para la plantilla." });
     }
@@ -1078,44 +1078,30 @@ export async function registerRoutes(
         return res.status(400).json({ message: "OpenAI no está configurado." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
-      const variantCount = variants === 2 ? 2 : 1;
+      const result = await generateTemplateHtml(prompt, brandData || null);
 
-      const results = await Promise.all(
-        Array.from({ length: variantCount }, (_, i) =>
-          generateTemplateHtml(prompt, brandData || null, variantCount === 2 ? i : undefined)
-        )
-      );
-
-      const savedTemplates = [];
-      for (const result of results) {
-        const sanitizedHtml = sanitizeHtml(result.html);
-        const validation = validateTemplatePlaceholders(sanitizedHtml);
-        if (validation.missing.length > 0) {
-          console.warn("AI template missing placeholders:", validation.missing);
-        }
-        const tpl = await storage.createTemplate({
-          userId: req.session.userId!,
-          name: result.name,
-          html: sanitizedHtml,
-          favorite: false,
-          isAiGenerated: true,
-          aiEditCount: 0,
-          originalHtml: sanitizedHtml,
-          hasAllPlaceholders: validation.valid,
-          isConfirmed: false,
-          versionNumber: 1,
-        });
-        const confirmed = await storage.updateTemplate(tpl.id, {
-          parentTemplateId: tpl.id,
-        });
-        savedTemplates.push(confirmed);
+      const sanitizedHtml = sanitizeHtml(result.html);
+      const validation = validateTemplatePlaceholders(sanitizedHtml);
+      if (validation.missing.length > 0) {
+        console.warn("AI template missing placeholders:", validation.missing);
       }
+      const tpl = await storage.createTemplate({
+        userId: req.session.userId!,
+        name: result.name,
+        html: sanitizedHtml,
+        favorite: false,
+        isAiGenerated: true,
+        aiEditCount: 0,
+        originalHtml: sanitizedHtml,
+        hasAllPlaceholders: validation.valid,
+        isConfirmed: false,
+        versionNumber: 1,
+      });
+      const confirmed = await storage.updateTemplate(tpl.id, {
+        parentTemplateId: tpl.id,
+      });
 
-      if (variantCount === 1) {
-        res.status(201).json(savedTemplates[0]);
-      } else {
-        res.status(201).json({ variants: savedTemplates });
-      }
+      res.status(201).json(confirmed);
     } catch (err: any) {
       console.error("Error generando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error generando plantilla." });
@@ -1128,6 +1114,9 @@ export async function registerRoutes(
     const tpls = await storage.getTemplates(req.session.userId!);
     const tpl = tpls.find(t => t.id === id);
     if (!tpl) return res.status(404).json({ message: "Plantilla no encontrada." });
+    if (tpl.isConfirmed) {
+      return res.status(400).json({ message: "No se puede editar una plantilla confirmada con IA." });
+    }
     const parentId = tpl.parentTemplateId || tpl.id;
     const siblings = await storage.getTemplateVersions(parentId);
     const totalVersions = siblings.length;

@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, RefreshCw, ArrowRight } from "lucide-react";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, ArrowRight, Type } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -51,11 +51,8 @@ export default function Templates() {
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [showVersionsDialog, setShowVersionsDialog] = useState(false);
   const [versionsParentId, setVersionsParentId] = useState<number | null>(null);
-  const [showVariantPicker, setShowVariantPicker] = useState(false);
-  const [variantTemplates, setVariantTemplates] = useState<Template[]>([]);
-  const [variantRegenerationsLeft, setVariantRegenerationsLeft] = useState(2);
-  const [variantPrompt, setVariantPrompt] = useState("");
-  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [showTextEditDialog, setShowTextEditDialog] = useState(false);
+  const [textEditNodes, setTextEditNodes] = useState<{ index: number; original: string; edited: string }[]>([]);
 
   useEffect(() => {
     setCurrentSection("templates");
@@ -125,65 +122,15 @@ export default function Templates() {
 
   const generateAiMutation = useMutation({
     mutationFn: async (prompt: string) => {
-      const res = await apiRequest("POST", "/api/templates/generate", { prompt, variants: 2 });
+      const res = await apiRequest("POST", "/api/templates/generate", { prompt });
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowAiDialog(false);
-      if (data.variants && data.variants.length === 2) {
-        setVariantTemplates(data.variants);
-        setVariantPrompt(aiPrompt);
-        setVariantRegenerationsLeft(2);
-        setShowVariantPicker(true);
-      } else {
-        toast({ title: "Plantilla generada", description: "Su plantilla ha sido creada con IA." });
-      }
       setAiPrompt("");
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const regenerateVariantMutation = useMutation({
-    mutationFn: async ({ prompt, oldVariantIds }: { prompt: string; oldVariantIds: number[] }) => {
-      const res = await apiRequest("POST", "/api/templates/generate", { prompt, variants: 2 });
-      const data = await res.json();
-      return { data, oldVariantIds };
-    },
-    onSuccess: ({ data, oldVariantIds }: { data: any; oldVariantIds: number[] }) => {
-      if (data.variants && data.variants.length === 2) {
-        for (const id of oldVariantIds) {
-          apiRequest("DELETE", `/api/templates/${id}`).catch(() => {});
-        }
-        setVariantTemplates(data.variants);
-        setVariantRegenerationsLeft(prev => prev - 1);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const regenerateSelectedMutation = useMutation({
-    mutationFn: async ({ templateId, prompt }: { templateId: number; prompt: string }) => {
-      const res = await apiRequest("POST", "/api/templates/generate", { prompt, variants: 1 });
-      const data = await res.json();
-      return { newTemplate: data, oldTemplateId: templateId };
-    },
-    onSuccess: ({ newTemplate, oldTemplateId }: { newTemplate: any; oldTemplateId: number }) => {
-      apiRequest("DELETE", `/api/templates/${oldTemplateId}`).catch(() => {});
-      if (newTemplate?.id) {
-        setSelectedVariantId(newTemplate.id);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-      setVariantRegenerationsLeft(prev => prev - 1);
-      toast({ title: "Plantilla regenerada", description: `"${newTemplate.name}" ha reemplazado la versión anterior.` });
+      toast({ title: "Plantilla generada", description: "Su plantilla ha sido creada con IA." });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -358,6 +305,65 @@ export default function Templates() {
     setEditingTemplateId(template.id);
     setManualHtml(template.html);
     setShowManualEditDialog(true);
+  }
+
+  function extractTextNodes(html: string): { index: number; original: string }[] {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const nodes: { index: number; original: string }[] = [];
+    const placeholderPattern = /\{\{[A-Z_]+\}\}/;
+    let idx = 0;
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const text = (node.textContent || "").trim();
+      if (text.length > 2 && !placeholderPattern.test(text)) {
+        const parent = node.parentElement;
+        if (parent && !["STYLE", "SCRIPT"].includes(parent.tagName)) {
+          nodes.push({ index: idx, original: text });
+        }
+      }
+      idx++;
+    }
+    return nodes;
+  }
+
+  function openTextEdit(template: Template) {
+    setEditingTemplateId(template.id);
+    const nodes = extractTextNodes(template.html);
+    setTextEditNodes(nodes.map(n => ({ ...n, edited: n.original })));
+    setShowTextEditDialog(true);
+  }
+
+  function applyTextEdits() {
+    if (!editingTemplateId) return;
+    const template = templates.find(t => t.id === editingTemplateId);
+    if (!template) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(template.html, "text/html");
+    const placeholderPattern = /\{\{[A-Z_]+\}\}/;
+    let idx = 0;
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    let node: Node | null;
+    const editMap = new Map(textEditNodes.filter(n => n.edited !== n.original).map(n => [n.index, n.edited]));
+    while ((node = walker.nextNode())) {
+      const text = (node.textContent || "").trim();
+      if (text.length > 2 && !placeholderPattern.test(text)) {
+        const parent = node.parentElement;
+        if (parent && !["STYLE", "SCRIPT"].includes(parent.tagName)) {
+          if (editMap.has(idx)) {
+            node.textContent = (node.textContent || "").replace(text, editMap.get(idx)!);
+          }
+        }
+      }
+      idx++;
+    }
+    const serializer = new XMLSerializer();
+    const html = serializer.serializeToString(doc);
+    updateMutation.mutate({ id: editingTemplateId, html });
+    setShowTextEditDialog(false);
+    setTextEditNodes([]);
   }
 
   const editingTemplate = templates.find(t => t.id === editingTemplateId);
@@ -577,31 +583,7 @@ export default function Templates() {
                       </Button>
                     </div>
                   )}
-                  {selectedVariantId === template.id && variantRegenerationsLeft > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        data-testid={`button-regenerate-selected-${template.id}`}
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl gap-1 text-xs flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
-                        disabled={regenerateSelectedMutation.isPending}
-                        onClick={() => {
-                          regenerateSelectedMutation.mutate({
-                            templateId: template.id,
-                            prompt: variantPrompt,
-                          });
-                        }}
-                      >
-                        {regenerateSelectedMutation.isPending ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-3 h-3" />
-                        )}
-                        Regenerar ({variantRegenerationsLeft} restantes)
-                      </Button>
-                    </div>
-                  )}
-                  {template.isAiGenerated && (
+                  {template.isAiGenerated && !(template as any).isConfirmed && (
                     <div className="flex items-center gap-2">
                       {getVersionCount(template) < 3 ? (
                         <Button
@@ -612,7 +594,7 @@ export default function Templates() {
                           onClick={() => openEditAi(template)}
                         >
                           <Wand2 className="w-3 h-3" />
-                          {(template as any).isConfirmed ? "Editar con IA" : "Nueva versión IA"}
+                          Nueva versión IA
                         </Button>
                       ) : (
                         <Button
@@ -630,6 +612,18 @@ export default function Templates() {
                         {getVersionCount(template)}/3 versiones
                       </span>
                     </div>
+                  )}
+                  {template.isAiGenerated && (
+                    <Button
+                      data-testid={`button-text-edit-${template.id}`}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1 text-xs w-full"
+                      onClick={() => openTextEdit(template)}
+                    >
+                      <Type className="w-3 h-3" />
+                      Editar textos
+                    </Button>
                   )}
                   {!template.isAiGenerated && !template.hasAllPlaceholders && (
                     <div className="flex items-center gap-2">
@@ -1025,101 +1019,55 @@ export default function Templates() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showVariantPicker} onOpenChange={(open) => {
-        if (!open) {
-          for (const v of variantTemplates) {
-            apiRequest("DELETE", `/api/templates/${v.id}`).catch(() => {});
-          }
-          queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-          setShowVariantPicker(false);
-          setVariantTemplates([]);
-        }
-      }}>
-        <DialogContent className="sm:max-w-4xl rounded-2xl">
+      <Dialog open={showTextEditDialog} onOpenChange={(open) => { setShowTextEditDialog(open); if (!open) { setEditingTemplateId(null); setTextEditNodes([]); } }}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-emerald-600" />
-              Seleccione una Propuesta
+              <Type className="w-5 h-5 text-blue-600" />
+              Editar Textos — {editingTemplate?.name}
             </DialogTitle>
             <DialogDescription>
-              La IA generó 2 propuestas de diseño. Escoja la que prefiera. La otra será descartada.
-              {variantRegenerationsLeft > 0 && (
-                <span className="ml-1 font-medium">({variantRegenerationsLeft} regeneraciones restantes)</span>
-              )}
+              Modifique los textos de la plantilla sin alterar el diseño ni la estructura.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            {variantTemplates.map((v, idx) => (
-              <div key={v.id} data-testid={`variant-card-${idx}`} className="border border-border rounded-xl overflow-hidden">
-                <div className="h-64 bg-white overflow-hidden">
-                  <iframe
-                    srcDoc={v.html}
-                    sandbox=""
-                    className="w-full h-full pointer-events-none"
-                    style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", height: "286%" }}
-                    title={`Propuesta ${idx + 1}`}
+          <div className="space-y-3 mt-2">
+            {textEditNodes.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No se encontraron textos editables en esta plantilla.</p>
+            ) : (
+              textEditNodes.map((node, i) => (
+                <div key={node.index} className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Texto {i + 1}</Label>
+                  <Textarea
+                    data-testid={`input-text-node-${i}`}
+                    value={node.edited}
+                    onChange={e => {
+                      const updated = [...textEditNodes];
+                      updated[i] = { ...updated[i], edited: e.target.value };
+                      setTextEditNodes(updated);
+                    }}
+                    className="rounded-xl text-sm min-h-[60px]"
                   />
                 </div>
-                <div className="p-3 space-y-2 border-t border-border">
-                  <span className="text-sm font-semibold">Propuesta {idx + 1}</span>
-                  <p className="text-xs text-muted-foreground truncate">{v.name}</p>
-                  <Button
-                    data-testid={`button-select-variant-${idx}`}
-                    onClick={async () => {
-                      const discardId = variantTemplates.find((_, i) => i !== idx)?.id;
-                      if (discardId) {
-                        try {
-                          await apiRequest("DELETE", `/api/templates/${discardId}`);
-                        } catch (e) {
-                          console.error("Error discarding variant:", e);
-                        }
-                      }
-                      setSelectedVariantId(v.id);
-                      setVariantTemplates([]);
-                      setShowVariantPicker(false);
-                      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-                      toast({ title: "Plantilla seleccionada", description: `"${v.name}" ha sido conservada. Puede regenerarla ${variantRegenerationsLeft} veces más.` });
-                    }}
-                    className="w-full rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                    size="sm"
-                  >
-                    <CheckCircle2 className="w-3 h-3" />
-                    Seleccionar esta
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {variantRegenerationsLeft > 0 && (
-            <div className="flex justify-center mt-2">
+              ))
+            )}
+            {textEditNodes.length > 0 && (
               <Button
-                data-testid="button-regenerate-variants"
-                variant="outline"
-                className="rounded-xl gap-2"
-                disabled={regenerateVariantMutation.isPending}
-                onClick={() => {
-                  regenerateVariantMutation.mutate({
-                    prompt: variantPrompt,
-                    oldVariantIds: variantTemplates.map(v => v.id),
-                  });
-                }}
+                data-testid="button-save-text-edits"
+                onClick={applyTextEdits}
+                className="w-full rounded-xl gap-2"
+                disabled={updateMutation.isPending || textEditNodes.every(n => n.edited === n.original)}
               >
-                {regenerateVariantMutation.isPending ? (
+                {updateMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Regenerando...
+                    Guardando...
                   </>
                 ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    Regenerar ambas ({variantRegenerationsLeft})
-                  </>
+                  "Guardar Cambios de Texto"
                 )}
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>

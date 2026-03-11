@@ -48,8 +48,6 @@ function buildInstructions(brand: BrandIdentityData | null): string {
 IDENTIDAD DE MARCA:
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
-- Sitio web: ${brand.website || "No especificado"}
-- WhatsApp: ${brand.whatsapp || "No especificado"}
 - Misión: ${brand.mission || "No especificada"}
 - Visión: ${brand.vision || "No especificada"}
 - Productos/Servicios: ${brand.products || "No especificados"}
@@ -57,11 +55,6 @@ IDENTIDAD DE MARCA:
 - Guía de estilo: ${brand.styleGuide || "No especificada"}
 - Público objetivo: ${brand.targetAudience || "No especificado"}
 - Tono de comunicación: ${brand.tone || "Profesional"}
-- Color primario: ${brand.primaryColor || "No especificado"}
-- Color secundario: ${brand.secondaryColor || "No especificado"}
-- Color de acento: ${brand.accentColor || "No especificado"}
-- Fuente de títulos: ${brand.headingFont || "No especificada"}
-- Fuente de cuerpo: ${brand.bodyFont || "No especificada"}
 `
     : `
 IDENTIDAD DE MARCA: No configurada. Usa un tono profesional y genérico.
@@ -356,31 +349,27 @@ function buildTemplateInstructions(brand: BrandIdentityData | null): string {
   const logoUrl = brand?.logoUrl && !brand.logoUrl.startsWith("data:") ? brand.logoUrl : null;
   const logoSection = logoUrl
     ? `- Logo de la empresa (URL): ${logoUrl}
-- INSTRUCCIÓN DE LOGO: Incluir el logo como imagen en la ESQUINA SUPERIOR IZQUIERDA del header, debajo del titular y sobre el fondo de color del header. Usar <img src="${logoUrl}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />. El logo debe ser visible y estar alineado a la izquierda dentro de la tabla del header.`
+- INSTRUCCIÓN DE LOGO: Incluir el logo como imagen en la ESQUINA SUPERIOR IZQUIERDA del header. Usar <img src="${logoUrl}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />.`
     : brand?.logoUrl?.startsWith("data:")
-      ? `- INSTRUCCIÓN DE LOGO: El usuario tiene un logo cargado. Incluir un placeholder {{LOGO_URL}} en la ESQUINA SUPERIOR IZQUIERDA del header como <img src="{{LOGO_URL}}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />. El logo debe estar alineado a la izquierda dentro de la tabla del header.`
+      ? `- INSTRUCCIÓN DE LOGO: Incluir un placeholder {{LOGO_URL}} en la ESQUINA SUPERIOR IZQUIERDA del header como <img src="{{LOGO_URL}}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />.`
       : "- Logo: No configurado. Usar solo el nombre de la empresa como texto en el header.";
 
   const footerContactSection = (() => {
     const parts: string[] = [];
-    if (brand?.website) parts.push(`Sitio web: ${brand.website} (incluir como enlace clickeable)`);
-    if (brand?.whatsapp) parts.push(`WhatsApp: ${brand.whatsapp} (incluir como texto visible)`);
+    if (brand?.website) parts.push(`Sitio web: ${brand.website}`);
+    if (brand?.whatsapp) parts.push(`WhatsApp: ${brand.whatsapp}`);
     if (parts.length > 0) {
-      return `\n- FOOTER CON DATOS DE CONTACTO: El footer DEBE incluir, además del enlace de cancelación de suscripción, una sección de contacto con: ${parts.join(" y ")}. Formatear de manera elegante con un texto como "Para más información:" o "Contáctanos:".`;
+      return `\n- FOOTER: Incluir ${parts.join(" y ")} y enlace de cancelación de suscripción.`;
     }
-    return "\n- FOOTER: Si no hay datos de contacto, la IA debe proponer una frase profesional de cierre coherente con el tono de la marca, además del enlace de cancelación de suscripción.";
+    return "\n- FOOTER: Incluir enlace de cancelación de suscripción.";
   })();
 
   const brandContext = brand
     ? `
-IDENTIDAD DE MARCA Y VISUAL:
+IDENTIDAD VISUAL:
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
-- Misión: ${brand.mission || "No especificada"}
-- Visión: ${brand.vision || "No especificada"}
-- Historia: ${brand.history || "No especificada"}
-- Audiencia objetivo: ${brand.targetAudience || "No especificada"}
-- Tono de comunicación: ${brand.tone || "Profesional"}
+- Productos/Servicios: ${brand.products || "No especificados"}
 - Color primario: ${primaryColor}
 - Color secundario: ${secondaryColor}
 - Color de acento: ${accentColor}
@@ -390,7 +379,7 @@ ${logoSection}
 - Sitio web: ${brand.website || "No configurado"}
 - WhatsApp: ${brand.whatsapp || "No configurado"}
 `
-    : "IDENTIDAD DE MARCA: No configurada. Usa colores corporativos genéricos profesionales con fuentes Arial/Helvetica.";
+    : "IDENTIDAD VISUAL: No configurada. Usa colores corporativos genéricos profesionales con fuentes Arial/Helvetica.";
 
   const stylePrompt = VISUAL_STYLE_PROMPTS[visualStyle] || VISUAL_STYLE_PROMPTS["moderno"];
 
@@ -470,19 +459,15 @@ const VARIANT_INSTRUCTIONS = [
 
 export async function generateTemplateHtml(
   prompt: string,
-  brandIdentity: BrandIdentityData | null,
-  variantIndex?: number
+  brandIdentity: BrandIdentityData | null
 ): Promise<TemplateContent> {
   const client = getClient();
   const instructions = buildTemplateInstructions(brandIdentity);
-  const variantSuffix = variantIndex !== undefined && variantIndex < VARIANT_INSTRUCTIONS.length
-    ? `\n\n${VARIANT_INSTRUCTIONS[variantIndex]}`
-    : "";
 
   try {
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      instructions: instructions + variantSuffix,
+      instructions,
       input: `Genera una plantilla HTML de email marketing basada en esta descripción:\n${prompt}`,
       text: { format: templateSchema },
       max_output_tokens: 4000,

@@ -39,9 +39,11 @@ The application is built with a modern web stack, featuring a React frontend and
 - **Calendar**: Displays campaigns with status indicators (emerald=sent, blue=scheduled, gray=draft, red=cancelled) and image thumbnails on hover. Optimized for performance with memoized components and bulk image fetching.
 - **CSV/XLSX Import**: Supports importing contact data with automatic delimiter detection, English/Spanish column header mapping, and deduplication.
 - **Template Analysis**: AI-powered analysis to auto-insert placeholders into existing HTML templates.
-- **2-Variant Template Generation**: Generates 2 template proposals in parallel; user picks one from a side-by-side comparison dialog. Max 2 regenerations allowed. Orphan variants are cleaned up on dialog close.
+- **Single Template Generation**: Generates 1 template per request. Users can create new AI versions (up to 3) before confirming. Manual text editing available for all AI templates.
 - **Visual Style Presets**: 5 presets (Minimalista, Corporativo, Moderno, Creativo, Elegante) stored in `brand_identity.visual_style`, injected into template generation prompts via `VISUAL_STYLE_PROMPTS`.
-- **Template Prompt Context**: Includes company name, industry, mission, vision, history, target audience, tone, colors, fonts, logo URL (base64 logos use placeholder), website, WhatsApp, and visual style. Products/styleGuide fields excluded.
+- **Optimized AI Prompts**: Template generation (`buildTemplateInstructions`) uses visual-only data (company, industry, products, colors, fonts, logo, website, whatsapp). Campaign content (`buildInstructions`) uses copywriting-only data (company, industry, mission, vision, products, history, styleGuide, tone, targetAudience). Gemini receives only user prompt + action.
+- **Manual Text Editing**: AI-generated templates support inline text editing — extracts non-placeholder text nodes from HTML and allows editing without altering layout/styles.
+- **Confirmed Template Lockdown**: Once a template is confirmed (`isConfirmed=true`), AI editing buttons are hidden. Only preview, rename, text edit, and delete remain.
 - **Validation & Security**: Enforces content approval, prevents modification of sent campaigns, and includes various input validations (e.g., website field auto-prepends `https://`).
 - **Target Audience**: Optional `targetAudience` field in campaigns, which is passed to AI prompts to tailor content.
 - **Historial de Correos**: Collapsible cards show campaign details, with client-side date range filtering.
@@ -49,7 +51,6 @@ The application is built with a modern web stack, featuring a React frontend and
 - **Guided Tutorial Mode (Bombillo)**: Interactive, step-by-step guidance for new users, highlighting UI elements and providing tips, persisted in local storage.
 - **Logo Hosting**: `POST /api/brand/logo-upload` saves uploaded logos (PNG/JPG/WebP only, no SVG) to `uploads/logos/` and returns a public URL. Static serving via `app.use("/uploads", express.static(...))`.
 - **Sender Configuration**: `senderName` and `senderEmail` fields in brand identity, used as email sender info when dispatching campaigns.
-- **Template Variant Differentiation**: Variant A uses classic centered hero layout; Variant B uses dynamic alternating sections. Distinct `VARIANT_INSTRUCTIONS` in `openai.ts`.
 - **Make.com Integration**: Campaigns are sent via `sendCampaignToWebhook()` which POSTs rendered HTML + contacts to `MAKE_WEBHOOK_URL`. Status lifecycle: draft → sending → sent (with rollback on failure). Background scheduler checks every 60s for scheduled campaigns. Callback endpoint at `POST /api/webhooks/make-callback` updates campaign status.
 - **Ownership Checks**: Target database ownership is verified before sending to prevent cross-tenant data leakage.
 - **Progressive Onboarding**: Sidebar sections unlock progressively as the user completes steps. `GET /api/onboarding-status` returns `{hasBrand, hasTemplates, hasContactDatabases}`. Locked sidebar items show a lock icon and toast on click. Route protection redirects users who try to access locked sections via URL. "Siguiente" navigation buttons guide users through the flow: Brand → Templates → Contacts → Calendar.
