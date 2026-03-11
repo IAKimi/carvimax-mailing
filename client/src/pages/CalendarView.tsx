@@ -835,7 +835,10 @@ export default function CalendarView() {
       if (editingCampaign.status === "draft") statusTags.push({ label: "Borrador", className: "bg-gray-100 text-gray-600" });
     }
 
-    const progressPercent = isCancelled || isSent ? -1 : (imageApproved ? 50 : 0) + (textApproved ? 50 : 0);
+    const isFailed = editingCampaign?.status === "failed";
+    const isPartial = editingCampaign?.status === "partial";
+    const isLocked = isCancelled || isSent || isSending || isFailed || isPartial;
+    const progressPercent = isLocked ? -1 : (imageApproved ? 50 : 0) + (textApproved ? 50 : 0);
 
     return (
       <Layout>
@@ -864,7 +867,7 @@ export default function CalendarView() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {!isCancelled && !isSent && (
+              {!isLocked && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
@@ -898,7 +901,7 @@ export default function CalendarView() {
                   </AlertDialogContent>
                 </AlertDialog>
               )}
-              {textApproved && imageApproved && !isCancelled && (
+              {textApproved && imageApproved && !isLocked && (
                 <Button
                   data-testid="button-publish-now"
                   onClick={handlePublishNow}
@@ -918,8 +921,51 @@ export default function CalendarView() {
             </div>
           )}
 
-          {(isSending || isSent) && (editingCampaign.totalExpectedSends ?? 0) > 0 && (
+          {(isSending || isSent || isFailed || isPartial) && (editingCampaign.totalExpectedSends ?? 0) > 0 && (
             <SendProgressBar campaignId={editingCampaign.id} campaign={editingCampaign} />
+          )}
+
+          {(isSent || isSending || isFailed || isPartial) && selectedVersion && (
+            <div data-testid="section-sent-summary" className="bg-card rounded-2xl border border-border p-5 shadow-sm space-y-4">
+              <h3 className="font-bold flex items-center gap-2">
+                <Eye className="w-4 h-4 text-primary" />
+                Vista Final del Correo
+              </h3>
+              <div className="border border-border rounded-xl overflow-hidden bg-white">
+                <iframe
+                  data-testid="iframe-sent-preview"
+                  srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
+                    <div style="max-width:600px;margin:0 auto">
+                      ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
+                      <img src="${selectedImageUrl}" style="width:100%;height:200px;object-fit:cover" />
+                      <div style="padding:24px">${selectedHtml}</div>
+                      ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a href="${localCtaUrl || '#'}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${localCta || selectedCtaText}</a></div>` : ""}
+                    </div>
+                  </body></html>`}
+                  className="w-full border-0"
+                  style={{ minHeight: "500px" }}
+                  title="Vista final del correo enviado"
+                />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">Asunto</p>
+                  <p className="text-sm font-semibold truncate">{localAsunto || selectedAsunto || "—"}</p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">CTA</p>
+                  <p className="text-sm font-semibold truncate">{localCta || selectedCtaText || "—"}</p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">Versión</p>
+                  <p className="text-sm font-semibold">V{selectedVersion.versionNumber}</p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">Estado</p>
+                  <p className="text-sm font-semibold">{isSending ? "Enviando..." : isFailed ? "Fallido" : isPartial ? "Envío parcial" : isSent ? "Enviado" : "—"}</p>
+                </div>
+              </div>
+            </div>
           )}
 
           {progressPercent >= 0 && (
@@ -941,7 +987,7 @@ export default function CalendarView() {
             </div>
           )}
 
-          {!isCancelled && !isSent && (
+          {!isLocked && (
             <div data-testid="section-template-link" className="bg-card rounded-2xl border border-border p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-3 min-w-0">
@@ -1028,7 +1074,7 @@ export default function CalendarView() {
                       }
                     );
                   }}
-                  disabled={isCancelled || isSent}
+                  disabled={isLocked}
                 >
                   <SelectTrigger data-testid="select-editor-database" className="w-48 text-xs rounded-xl">
                     <SelectValue placeholder="Seleccionar..." />
@@ -1044,7 +1090,7 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {(generateVersionMutation.isPending || createCampaignMutation.isPending) ? (
+          {!isSent && !isSending && !isFailed && !isPartial && ((generateVersionMutation.isPending || createCampaignMutation.isPending) ? (
             <div data-testid="overlay-generating" className="flex flex-col items-center justify-center py-24 gap-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
@@ -1117,7 +1163,7 @@ export default function CalendarView() {
                       variant="outline"
                       size="sm"
                       className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
-                      disabled={isCancelled || isSent}
+                      disabled={isLocked}
                       onClick={() => editorFileInputRef.current?.click()}
                     >
                       <Upload className="w-3.5 h-3.5" />
@@ -1177,9 +1223,9 @@ export default function CalendarView() {
                             <button
                               key={v.id}
                               data-testid={`button-select-image-${v.versionNumber}`}
-                              onClick={() => !(isCancelled || isSent) && handleSelectVersion(v.id)}
-                              disabled={isCancelled || isSent}
-                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${(isCancelled || isSent) ? "opacity-60 cursor-not-allowed" : ""}`}
+                              onClick={() => !isLocked && handleSelectVersion(v.id)}
+                              disabled={isLocked}
+                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
                               <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
@@ -1190,7 +1236,7 @@ export default function CalendarView() {
                     )}
                   </AnimatePresence>
 
-                  {!imageApproved && !isCancelled && !isSent && (
+                  {!imageApproved && !isLocked && (
                     <Button
                       data-testid="button-approve-image"
                       onClick={handleApproveImage}
@@ -1244,7 +1290,7 @@ export default function CalendarView() {
                         value={localAsunto}
                         onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={60}
-                        disabled={isCancelled || isSent}
+                        disabled={isLocked}
                         placeholder="Asunto del correo"
                         className="rounded-xl"
                       />
@@ -1260,7 +1306,7 @@ export default function CalendarView() {
                         value={localPreheader}
                         onChange={(e) => { setLocalPreheader(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={100}
-                        disabled={isCancelled || isSent}
+                        disabled={isLocked}
                         placeholder="Texto de vista previa"
                         className="rounded-xl"
                       />
@@ -1291,7 +1337,7 @@ export default function CalendarView() {
                         value={localCta}
                         onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={25}
-                        disabled={isCancelled || isSent}
+                        disabled={isLocked}
                         placeholder="Texto del botón CTA"
                         className="rounded-xl"
                       />
@@ -1304,7 +1350,7 @@ export default function CalendarView() {
                         value={localCtaUrl}
                         onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={500}
-                        disabled={isCancelled || isSent}
+                        disabled={isLocked}
                         placeholder="https://ejemplo.com/promo"
                         className="rounded-xl"
                         type="url"
@@ -1379,9 +1425,9 @@ export default function CalendarView() {
                               <button
                                 key={v.id}
                                 data-testid={`button-select-text-${v.versionNumber}`}
-                                onClick={() => !(isCancelled || isSent) && handleSelectVersion(v.id)}
-                                disabled={isCancelled || isSent}
-                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${(isCancelled || isSent) ? "opacity-60 cursor-not-allowed" : ""}`}
+                                onClick={() => !isLocked && handleSelectVersion(v.id)}
+                                disabled={isLocked}
+                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
@@ -1396,7 +1442,7 @@ export default function CalendarView() {
                     )}
                   </AnimatePresence>
 
-                  {!textApproved && !isCancelled && !isSent && (
+                  {!textApproved && !isLocked && (
                     <Button
                       data-testid="button-approve-text"
                       onClick={handleApproveText}
@@ -1411,7 +1457,7 @@ export default function CalendarView() {
             </div>
 
             </>
-          )}
+          ))}
 
           <Dialog open={showPreview} onOpenChange={setShowPreview}>
             <DialogContent data-testid="dialog-preview-email" className="sm:max-w-2xl rounded-2xl p-0 max-h-[90vh] overflow-hidden">
