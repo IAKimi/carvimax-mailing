@@ -140,13 +140,34 @@ function saveBase64Image(base64DataUrl: string, prefix: string = "img"): string 
   return filename;
 }
 
-function getImagePublicUrl(filename: string, req: Request): string {
+function getImagePublicUrl(filename: string, req?: Request): string {
   if (filename.startsWith("http://") || filename.startsWith("https://") || filename.startsWith("data:")) {
     return filename;
   }
-  const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  return `${protocol}://${host}/uploads/campaigns/${filename}`;
+  let baseUrl: string;
+  if (req && req.headers) {
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    baseUrl = `${protocol}://${host}`;
+  } else {
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
+    baseUrl = `https://${domain}`;
+  }
+  return `${baseUrl}/uploads/campaigns/${filename}`;
+}
+
+function loadImageAsBase64(imageUrl: string): string {
+  if (imageUrl.startsWith("data:")) return imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
+  const basename = path.basename(imageUrl);
+  if (basename !== imageUrl || basename.includes("..")) return imageUrl;
+  const uploadsDir = path.resolve(process.cwd(), "uploads", "campaigns");
+  const filePath = path.join(uploadsDir, basename);
+  if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) return imageUrl;
+  const buffer = fs.readFileSync(filePath);
+  const ext = path.extname(basename).slice(1).toLowerCase();
+  const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+  return `data:${mime};base64,${buffer.toString("base64")}`;
 }
 
 function cleanHtmlForEmail(html: string): string {
@@ -294,7 +315,11 @@ export async function registerRoutes(
     const yearParam = req.query.year ? Number(req.query.year) : undefined;
     const monthParam = req.query.month ? Number(req.query.month) : undefined;
     const campaigns = await storage.getCampaignsLight(req.session.userId!, yearParam, monthParam);
-    res.json(campaigns);
+    const resolved = campaigns.map((c: any) => ({
+      ...c,
+      selectedImageUrl: c.selectedImageUrl ? getImagePublicUrl(c.selectedImageUrl, req) : c.selectedImageUrl,
+    }));
+    res.json(resolved);
   });
 
   app.get("/api/campaigns/:id", requireAuth, async (req, res) => {
@@ -304,7 +329,11 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    res.json(campaign);
+    const resolved = {
+      ...campaign,
+      selectedImageUrl: (campaign as any).selectedImageUrl ? getImagePublicUrl((campaign as any).selectedImageUrl, req) : (campaign as any).selectedImageUrl,
+    };
+    res.json(resolved);
   });
 
   app.post("/api/campaigns", requireAuth, async (req, res) => {
@@ -402,7 +431,7 @@ export async function registerRoutes(
     const thumbnails = await storage.getCampaignThumbnails(validIds);
     const result: Record<number, string | null> = {};
     for (const t of thumbnails) {
-      result[t.campaignId] = t.imageUrl;
+      result[t.campaignId] = t.imageUrl ? getImagePublicUrl(t.imageUrl, req) : null;
     }
     res.json(result);
   });
@@ -415,7 +444,11 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
     const versions = await storage.getCampaignVersions(id);
-    res.json(versions);
+    const resolvedVersions = versions.map(v => ({
+      ...v,
+      imageUrl: v.imageUrl ? getImagePublicUrl(v.imageUrl, req) : v.imageUrl,
+    }));
+    res.json(resolvedVersions);
   });
 
   app.post("/api/campaigns/:id/generate", requireAuth, aiLimiter, async (req, res) => {
@@ -716,13 +749,26 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Acción no válida. Opciones: agregar, reemplazar, fusionar, estilo, borrar_elemento." });
     }
 
-    const refs: string[] = Array.isArray(referenceImages) ? referenceImages : [];
-    if (refs.length > 3) {
+    const rawRefs: string[] = Array.isArray(referenceImages) ? referenceImages : [];
+    if (rawRefs.length > 3) {
       return res.status(400).json({ message: "Máximo 3 imágenes de referencia permitidas." });
     }
-    for (const ref of refs) {
-      if (typeof ref !== "string" || !ref.startsWith("data:image/")) {
-        return res.status(400).json({ message: "Cada imagen de referencia debe ser un data URL válido (data:image/...)." });
+    const refs: string[] = [];
+    for (const ref of rawRefs) {
+      if (typeof ref !== "string") {
+        return res.status(400).json({ message: "Cada imagen de referencia debe ser un string válido." });
+      }
+      if (ref.startsWith("data:image/")) {
+        refs.push(ref);
+      } else if (ref.includes("/uploads/campaigns/")) {
+        const rawFilename = ref.split("/uploads/campaigns/").pop() || "";
+        const safeFilename = path.basename(rawFilename);
+        if (!safeFilename || safeFilename.includes("..")) {
+          return res.status(400).json({ message: "Nombre de archivo de referencia inválido." });
+        }
+        refs.push(loadImageAsBase64(safeFilename));
+      } else {
+        return res.status(400).json({ message: "Formato de imagen de referencia no válido." });
       }
     }
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
@@ -730,13 +776,15 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
 
-    let imageUrl: string;
+    const currentImageBase64 = loadImageAsBase64(selectedVersion.imageUrl);
+
+    let rawImageUrl: string;
     try {
       if (!isGeminiConfigured()) {
         return res.status(400).json({ message: "Gemini no está configurado." });
       }
-      imageUrl = await editImageAdvanced({
-        currentImageBase64: selectedVersion.imageUrl,
+      rawImageUrl = await editImageAdvanced({
+        currentImageBase64,
         referenceImagesBase64: refs,
         userText: editPrompt,
         selectedAction: selectedAction as AdvancedAction,
@@ -747,6 +795,8 @@ export async function registerRoutes(
       const isInputError = msg.includes("no soportado") || msg.includes("excede el límite") || msg.includes("no válida") || msg.includes("bloqueado") || msg.includes("prohibido");
       return res.status(isInputError ? 400 : 500).json({ message: msg });
     }
+
+    const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
 
     await storage.deselectAllVersions(campaignId);
     const newVersion = await storage.createCampaignVersion({
@@ -1257,10 +1307,11 @@ export async function registerRoutes(
     const selected = versions.find(v => v.isSelected) || versions[0];
     if (!selected) return res.status(400).json({ message: "No hay versiones generadas para esta campaña." });
     const brandData = await storage.getBrandIdentity(req.session.userId!);
+    const imagePublicUrl = selected.imageUrl ? getImagePublicUrl(selected.imageUrl, req) : null;
     const result = renderTemplateWithContent(
       template.html,
       selected.contentJson as Record<string, unknown> | null,
-      selected.imageUrl || null,
+      imagePublicUrl,
       brandData
     );
     res.json({ html: result.html, missingFields: result.missingFields, templateName: template.name });
@@ -1293,10 +1344,12 @@ export async function registerRoutes(
 
       const brandData = await storage.getBrandIdentity(userId);
 
+      const imagePublicUrl = selected.imageUrl ? getImagePublicUrl(selected.imageUrl) : null;
+
       let renderedHtml = renderTemplateWithContent(
         template.html,
         selected.contentJson as Record<string, unknown> | null,
-        selected.imageUrl || null,
+        imagePublicUrl,
         brandData
       ).html;
 

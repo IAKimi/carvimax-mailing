@@ -411,6 +411,11 @@ export default function CalendarView() {
 
   function handleGenerate() {
     if (!form.idea.trim()) return;
+    let scheduledAt: string | null = null;
+    if (form.scheduledDate) {
+      const localDate = new Date(form.scheduledDate);
+      scheduledAt = localDate.toISOString();
+    }
     createCampaignMutation.mutate({
       name: form.idea.substring(0, 200),
       idea: form.idea,
@@ -420,7 +425,7 @@ export default function CalendarView() {
       targetDatabase: form.targetDatabase || null,
       targetAudience: showTargetAudience && form.targetAudience.trim() ? form.targetAudience.trim() : null,
       templateId: form.templateId ? parseInt(form.templateId) : null,
-      scheduledAt: form.scheduledDate || null,
+      scheduledAt,
     });
   }
 
@@ -737,7 +742,7 @@ export default function CalendarView() {
                 ))}
               </div>
               <p className="text-sm text-muted-foreground">
-                {editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt).toLocaleDateString("es") : "Sin fecha"}
+                {editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt).toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Sin fecha"}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1418,8 +1423,8 @@ export default function CalendarView() {
           </Dialog>
         </div>
 
-        <Dialog open={showRegenTextModal} onOpenChange={setShowRegenTextModal}>
-          <DialogContent className="sm:max-w-lg rounded-2xl">
+        <Dialog open={showRegenTextModal} onOpenChange={(open) => { if (!open && regenerateTextMutation.isPending) return; setShowRegenTextModal(open); }}>
+          <DialogContent className="sm:max-w-lg rounded-2xl" onInteractOutside={e => { if (regenerateTextMutation.isPending) e.preventDefault(); }} onEscapeKeyDown={e => { if (regenerateTextMutation.isPending) e.preventDefault(); }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <RefreshCw className="w-5 h-5 text-blue-600" />
@@ -1474,8 +1479,8 @@ export default function CalendarView() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showRegenImageModal} onOpenChange={setShowRegenImageModal}>
-          <DialogContent className="sm:max-w-lg rounded-2xl">
+        <Dialog open={showRegenImageModal} onOpenChange={(open) => { if (!open && regenerateImageMutation.isPending) return; setShowRegenImageModal(open); }}>
+          <DialogContent className="sm:max-w-lg rounded-2xl" onInteractOutside={e => { if (regenerateImageMutation.isPending) e.preventDefault(); }} onEscapeKeyDown={e => { if (regenerateImageMutation.isPending) e.preventDefault(); }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <RefreshCw className="w-5 h-5 text-blue-600" />
@@ -1513,8 +1518,8 @@ export default function CalendarView() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showEditImageModal} onOpenChange={setShowEditImageModal}>
-          <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+        <Dialog open={showEditImageModal} onOpenChange={(open) => { if (!open && editImageMutation.isPending) return; setShowEditImageModal(open); }}>
+          <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={e => { if (editImageMutation.isPending) e.preventDefault(); }} onEscapeKeyDown={e => { if (editImageMutation.isPending) e.preventDefault(); }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-amber-500" />
