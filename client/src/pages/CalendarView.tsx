@@ -162,6 +162,7 @@ export default function CalendarView() {
   const [showImageHistory, setShowImageHistory] = useState(false);
   const [showTextHistory, setShowTextHistory] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [sentPreviewHeight, setSentPreviewHeight] = useState(0);
   const [textApproved, setTextApproved] = useState(false);
   const [imageApproved, setImageApproved] = useState(false);
   const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "" });
@@ -195,6 +196,16 @@ export default function CalendarView() {
 
   useEffect(() => {
     tutorial.setCurrentSection("calendar");
+  }, []);
+
+  useEffect(() => {
+    function handlePreviewMessage(e: MessageEvent) {
+      if (e.data?.type === "sent-preview-height" && typeof e.data.height === "number") {
+        setSentPreviewHeight(e.data.height);
+      }
+    }
+    window.addEventListener("message", handlePreviewMessage);
+    return () => window.removeEventListener("message", handlePreviewMessage);
   }, []);
 
   useEffect(() => {
@@ -935,16 +946,23 @@ export default function CalendarView() {
                 <div className="border border-border rounded-xl overflow-hidden bg-white">
                   <iframe
                     data-testid="iframe-sent-preview"
-                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
+                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                       <div style="max-width:600px;margin:0 auto">
                         ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
                         <img src="${selectedImageUrl}" style="width:100%;height:auto;display:block" />
                         <div style="padding:24px">${selectedHtml}</div>
                         ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a href="${localCtaUrl || '#'}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${localCta || selectedCtaText}</a></div>` : ""}
                       </div>
+                      <script>
+                        function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
+                        window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                        new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                        var imgs=document.querySelectorAll('img');
+                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                      </script>
                     </body></html>`}
                     className="w-full border-0"
-                    style={{ minHeight: "700px" }}
+                    style={{ minHeight: "400px", height: sentPreviewHeight > 0 ? sentPreviewHeight + "px" : "700px" }}
                     title="Vista final del correo enviado"
                   />
                 </div>
