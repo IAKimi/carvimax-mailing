@@ -32,6 +32,7 @@ export interface IStorage {
 
   getCampaignThumbnails(campaignIds: number[]): Promise<Array<{ campaignId: number; imageUrl: string | null }>>;
   getDashboardStats(userId: number): Promise<any>;
+  getDashboardMetrics(userId: number): Promise<any>;
 
   getContactDatabases(userId: number): Promise<ContactDatabase[]>;
   createContactDatabase(data: InsertContactDatabase): Promise<ContactDatabase>;
@@ -188,6 +189,114 @@ export class DatabaseStorage implements IStorage {
       recentCampaigns: userCampaigns
         .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
         .slice(0, 5),
+    };
+  }
+
+  async getDashboardMetrics(userId: number): Promise<any> {
+    const userCampaigns = await db.select().from(campaigns).where(eq(campaigns.userId, userId));
+
+    const statusCounts: Record<string, number> = { draft: 0, scheduled: 0, sent: 0, cancelled: 0 };
+    for (const c of userCampaigns) {
+      statusCounts[c.status] = (statusCounts[c.status] || 0) + 1;
+    }
+
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const timeline: Record<string, number> = {};
+    for (const c of userCampaigns) {
+      const d = c.scheduledAt || c.createdAt;
+      if (d && d >= currentMonthStart && d < currentMonthEnd) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        timeline[key] = (timeline[key] || 0) + 1;
+      }
+    }
+    const campaignTimeline = Object.entries(timeline)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const userDbs = await db.select().from(contactDatabases).where(eq(contactDatabases.userId, userId));
+    const dbIdToName: Record<string, string> = {};
+    for (const d of userDbs) {
+      dbIdToName[String(d.id)] = d.name;
+    }
+
+    const dbCounts: Record<string, number> = {};
+    for (const c of userCampaigns) {
+      if (c.targetDatabase) {
+        const dbName = dbIdToName[c.targetDatabase] || c.targetDatabase;
+        dbCounts[dbName] = (dbCounts[dbName] || 0) + 1;
+      }
+    }
+    const topDatabases = Object.entries(dbCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    const usedDbIds = new Set(userCampaigns.filter(c => c.status === "sent" && c.targetDatabase).map(c => c.targetDatabase!));
+    let totalContactsReached = 0;
+    if (usedDbIds.size > 0) {
+      const matchingDbIds = userDbs.filter(d => usedDbIds.has(String(d.id))).map(d => d.id);
+      if (matchingDbIds.length > 0) {
+        const [contactCount] = await db.select({ c: count() }).from(contacts).where(inArray(contacts.databaseId, matchingDbIds));
+        totalContactsReached = contactCount.c;
+      }
+    }
+
+    const allVersions = await db.select({ campaignId: campaignVersions.campaignId })
+      .from(campaignVersions)
+      .where(inArray(campaignVersions.campaignId, userCampaigns.map(c => c.id).length > 0 ? userCampaigns.map(c => c.id) : [0]));
+    const versionsBycamp: Record<number, number> = {};
+    for (const v of allVersions) {
+      versionsBycamp[v.campaignId] = (versionsBycamp[v.campaignId] || 0) + 1;
+    }
+    const vCounts = Object.values(versionsBycamp);
+    const averageVersionsPerCampaign = vCounts.length > 0 ? Math.round((vCounts.reduce((s, n) => s + n, 0) / vCounts.length) * 10) / 10 : 0;
+
+    const templateCounts: Record<number, number> = {};
+    for (const c of userCampaigns) {
+      if (c.templateId) {
+        templateCounts[c.templateId] = (templateCounts[c.templateId] || 0) + 1;
+      }
+    }
+    const topTemplateIds = Object.entries(templateCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+    const topTemplates: Array<{ name: string; count: number }> = [];
+    for (const [tid, cnt] of topTemplateIds) {
+      const tpl = await db.select({ name: templates.name }).from(templates).where(eq(templates.id, Number(tid)));
+      topTemplates.push({ name: tpl[0]?.name || `Plantilla #${tid}`, count: cnt });
+    }
+
+    const campaignsByMonth: Array<{ month: string; count: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const mDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const key = `${mDate.getFullYear()}-${String(mDate.getMonth() + 1).padStart(2, "0")}`;
+      const cnt = userCampaigns.filter(c => {
+        const d = c.scheduledAt || c.createdAt;
+        return d && d >= mDate && d < mEnd;
+      }).length;
+      campaignsByMonth.push({ month: key, count: cnt });
+    }
+
+    const recentCampaigns = [...userCampaigns]
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+      .slice(0, 5)
+      .map(c => ({ id: c.id, name: c.name, status: c.status, date: c.scheduledAt || c.createdAt }));
+
+    const [dbCountResult] = await db.select({ c: count() }).from(contactDatabases).where(eq(contactDatabases.userId, userId));
+
+    return {
+      totalCampaigns: statusCounts,
+      campaignTimeline,
+      topDatabases,
+      totalContactsReached,
+      averageVersionsPerCampaign,
+      topTemplates,
+      campaignsByMonth,
+      recentCampaigns,
+      totalDatabases: dbCountResult.c,
     };
   }
 

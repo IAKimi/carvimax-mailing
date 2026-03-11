@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { TutorialProvider } from "@/contexts/TutorialContext";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 import Home from "@/pages/Home";
@@ -14,6 +15,7 @@ import MyEmails from "@/pages/MyEmails";
 import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
 import AdminUsers from "@/pages/AdminUsers";
+import Dashboard from "@/pages/Dashboard";
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
@@ -91,6 +93,7 @@ function Router() {
       <Route path="/templates">{() => <ProtectedRoute component={Templates} />}</Route>
       <Route path="/emails">{() => <ProtectedRoute component={MyEmails} />}</Route>
       <Route path="/contacts">{() => <ProtectedRoute component={Contacts} />}</Route>
+      <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
       <Route path="/campaigns/:id">{() => <ProtectedRoute component={CampaignEditor} />}</Route>
       <Route path="/admin/users">{() => <ProtectedRoute component={AdminUsers} adminOnly />}</Route>
       <Route path="/admin">{() => <Redirect to="/admin/users" />}</Route>
@@ -102,10 +105,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <TutorialProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </TutorialProvider>
     </QueryClientProvider>
   );
 }

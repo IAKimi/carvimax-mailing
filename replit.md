@@ -122,6 +122,23 @@ Key files:
 - **Collapsible cards**: Each campaign shows only a title like "Correo programado para el 11 de marzo de 2026". Clicking expands to show full details (idea, objetivo, tono, layout, público objetivo, prompt de imagen, base de datos)
 - **Date filter**: Client-side date range filter (from/to) with toggle button. Filters history items by `scheduledAt` date
 
+### Dashboard (Analytics)
+- **Route**: `/dashboard` — accessible from sidebar (BarChart3 icon)
+- **API**: `GET /api/dashboard/metrics` returns user-specific metrics via `getDashboardMetrics(userId)` in storage.ts
+- **Metrics**: totalCampaigns (by status), campaignTimeline (daily current month), topDatabases (top 5), totalContactsReached, averageVersionsPerCampaign, topTemplates (top 5), campaignsByMonth (last 6 months), recentCampaigns (last 5)
+- **Charts**: Recharts library — LineChart for monthly timeline, BarChart for campaigns by month, ranked lists for databases and templates
+- **Brand Colors**: Charts use #002073 (primary) and #e3001b (accent)
+
+### Guided Tutorial Mode (Bombillo)
+- **Toggle**: Lightbulb icon in sidebar bottom section — yellow glow when active, dim when off
+- **State**: `TutorialContext` with `tutorialActive`, `currentSection`, `currentStepIndex`; persisted in localStorage
+- **Components**: `TutorialHighlight` (yellow ring on active field), `TutorialTip` (floating card with step #, label, description, prev/next buttons)
+- **Section Steps**: Defined in `TUTORIAL_SECTIONS` in `TutorialContext.tsx` — Brand Identity (14 fields), Calendar (8 steps), Contacts (3 steps), Templates (2 steps), Historial (1 step), Dashboard (1 step)
+- **Brand Identity Integration**: Auto-expands collapsible sections, detects first empty field, advances on blur when content exists
+- **Calendar Integration**: Shows overview tip on calendar, auto-advances to form fields when dialog opens, blur-based advancement
+- **Other Pages**: Simple overview tips for Contacts, Templates, Historial, and Dashboard
+- **Files**: `client/src/contexts/TutorialContext.tsx`, `client/src/components/TutorialHighlight.tsx`, `client/src/components/TutorialTip.tsx`
+
 ### Section Introductions
 - Each major section (Calendario, Base de Datos, Plantillas) has a brief explanatory subtitle for new users
 - Home page "Mi Producto" and "¿Cómo funciona?" sections are expanded by default
@@ -143,6 +160,7 @@ Key files:
 - **TipTap**: WYSIWYG editor used in the frontend.
 - **Framer Motion**: For animations in the frontend.
 - **Wouter**: For client-side routing.
+- **Recharts**: For dashboard charts and data visualization.
 - **Lucide React / React Icons (SI)**: Icon libraries.
 - **express-rate-limit**: For rate limiting API requests.
 - **Drizzle ORM**: Object-Relational Mapper for PostgreSQL.

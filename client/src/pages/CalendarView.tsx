@@ -21,6 +21,9 @@ import { TipTapEditor } from "@/components/TipTapEditor";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Campaign, CampaignVersion, Template, ContactDatabase } from "@shared/schema";
+import { useTutorial } from "@/contexts/TutorialContext";
+import { TutorialHighlight } from "@/components/TutorialHighlight";
+import { TutorialTip } from "@/components/TutorialTip";
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -36,6 +39,7 @@ function campaignToDateStr(c: Campaign): string {
 
 export default function CalendarView() {
   const { toast } = useToast();
+  const tutorial = useTutorial();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -74,6 +78,31 @@ export default function CalendarView() {
   const [justSaved, setJustSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    tutorial.setCurrentSection("calendar");
+  }, []);
+
+  useEffect(() => {
+    if (tutorial.tutorialActive && showNewDialog && tutorial.currentStepIndex === 0) {
+      tutorial.setCurrentStepIndex(1);
+    }
+  }, [showNewDialog, tutorial.tutorialActive]);
+
+  useEffect(() => {
+    if (tutorial.tutorialActive && !showNewDialog && !editingCampaignId) {
+      tutorial.setCurrentStepIndex(0);
+    }
+  }, [showNewDialog, editingCampaignId, tutorial.tutorialActive]);
+
+  const advanceTutorialOnBlur = useCallback((currentFieldId: string, currentValue: string) => {
+    if (!tutorial.tutorialActive) return;
+    const step = tutorial.getCurrentStep();
+    if (!step || step.fieldId !== currentFieldId) return;
+    if (currentValue && currentValue.trim()) {
+      tutorial.nextStep();
+    }
+  }, [tutorial]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -1626,10 +1655,12 @@ export default function CalendarView() {
     <Layout>
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold">Calendario</h1>
-            <p className="text-muted-foreground mt-1">Organiza tu estrategia mensual. Haz clic en cualquier día para crear una nueva campaña con IA o gestionar tus envíos programados.</p>
-          </div>
+          <TutorialHighlight fieldId="calendar-overview">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-extrabold">Calendario</h1>
+              <p className="text-muted-foreground mt-1">Organiza tu estrategia mensual. Haz clic en cualquier día para crear una nueva campaña con IA o gestionar tus envíos programados.</p>
+            </div>
+          </TutorialHighlight>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
@@ -1751,65 +1782,75 @@ export default function CalendarView() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5 mt-3">
-            <div className="space-y-2">
-              <Label>Idea / Tema</Label>
-              <Textarea
-                data-testid="input-calendar-idea"
-                placeholder="Ej: Promoción de verano con 30% de descuento en todo el catálogo"
-                value={form.idea}
-                onChange={e => setForm(f => ({ ...f, idea: e.target.value }))}
-                className="rounded-xl min-h-[80px]"
-                maxLength={1000}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Objetivo</Label>
-              <Textarea
-                data-testid="input-calendar-objective"
-                placeholder="Ej: Aumentar ventas del catálogo nuevo, generar tráfico al sitio web"
-                value={form.objective}
-                onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
-                className="rounded-xl min-h-[70px]"
-                maxLength={1000}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input
-                  data-testid="checkbox-target-audience"
-                  type="checkbox"
-                  id="targetAudienceToggle"
-                  checked={showTargetAudience}
-                  onChange={e => {
-                    setShowTargetAudience(e.target.checked);
-                    if (!e.target.checked) setForm(f => ({ ...f, targetAudience: "" }));
-                  }}
-                  className="rounded border-border"
+            <TutorialHighlight fieldId="idea">
+              <div className="space-y-2">
+                <Label>Idea / Tema</Label>
+                <Textarea
+                  data-testid="input-calendar-idea"
+                  placeholder="Ej: Promoción de verano con 30% de descuento en todo el catálogo"
+                  value={form.idea}
+                  onChange={e => setForm(f => ({ ...f, idea: e.target.value }))}
+                  onBlur={() => advanceTutorialOnBlur("idea", form.idea)}
+                  className="rounded-xl min-h-[80px]"
+                  maxLength={1000}
                 />
-                <Label htmlFor="targetAudienceToggle" className="cursor-pointer text-sm">Definir público objetivo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
               </div>
-              <AnimatePresence>
-                {showTargetAudience && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <Textarea
-                      data-testid="input-calendar-target-audience"
-                      placeholder="Ej: Gerentes de logística en Centroamérica, directores de marketing de empresas medianas"
-                      value={form.targetAudience}
-                      onChange={e => setForm(f => ({ ...f, targetAudience: e.target.value }))}
-                      className="rounded-xl min-h-[60px] mt-1"
-                      maxLength={1000}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            <div className="space-y-2">
-              <Label>Imagen del Correo</Label>
+            </TutorialHighlight>
+            <TutorialHighlight fieldId="objective">
+              <div className="space-y-2">
+                <Label>Objetivo</Label>
+                <Textarea
+                  data-testid="input-calendar-objective"
+                  placeholder="Ej: Aumentar ventas del catálogo nuevo, generar tráfico al sitio web"
+                  value={form.objective}
+                  onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
+                  onBlur={() => advanceTutorialOnBlur("objective", form.objective)}
+                  className="rounded-xl min-h-[70px]"
+                  maxLength={1000}
+                />
+              </div>
+            </TutorialHighlight>
+            <TutorialHighlight fieldId="targetAudience">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    data-testid="checkbox-target-audience"
+                    type="checkbox"
+                    id="targetAudienceToggle"
+                    checked={showTargetAudience}
+                    onChange={e => {
+                      setShowTargetAudience(e.target.checked);
+                      if (!e.target.checked) setForm(f => ({ ...f, targetAudience: "" }));
+                    }}
+                    className="rounded border-border"
+                  />
+                  <Label htmlFor="targetAudienceToggle" className="cursor-pointer text-sm">Definir público objetivo <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+                </div>
+                <AnimatePresence>
+                  {showTargetAudience && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <Textarea
+                        data-testid="input-calendar-target-audience"
+                        placeholder="Ej: Gerentes de logística en Centroamérica, directores de marketing de empresas medianas"
+                        value={form.targetAudience}
+                        onChange={e => setForm(f => ({ ...f, targetAudience: e.target.value }))}
+                        onBlur={() => advanceTutorialOnBlur("targetAudience", form.targetAudience)}
+                        className="rounded-xl min-h-[60px] mt-1"
+                        maxLength={1000}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </TutorialHighlight>
+            <TutorialHighlight fieldId="imagePrompt">
+              <div className="space-y-2">
+                <Label>Imagen del Correo</Label>
               <div className="flex gap-2">
                 <Button
                   data-testid="button-image-prompt-toggle"
@@ -1871,6 +1912,7 @@ export default function CalendarView() {
                       placeholder="Ej: Una imagen profesional con colores corporativos mostrando un equipo de trabajo colaborando"
                       value={form.imagePrompt}
                       onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
+                      onBlur={() => advanceTutorialOnBlur("imagePrompt", form.imagePrompt)}
                       className="rounded-xl min-h-[70px] mt-2"
                       maxLength={1000}
                     />
@@ -1890,78 +1932,102 @@ export default function CalendarView() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-            <div className="space-y-2">
-              <Label>Plantilla</Label>
-              <Select value={form.templateId} onValueChange={(v) => setForm(f => ({ ...f, templateId: v }))}>
-                <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
-                  <SelectValue placeholder="Seleccione una plantilla..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {[...userTemplates].sort((a, b) => {
-                    if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
-                    if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
-                    return 0;
-                  }).map(t => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      <div className="flex items-center gap-2">
-                        <span className="truncate">{t.name}</span>
-                        {t.hasAllPlaceholders ? (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
-                            <CheckCircle2 className="w-2.5 h-2.5" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                  {userTemplates.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
-                  )}
-                </SelectContent>
-              </Select>
-              {form.templateId && (
-                <div className="border border-border rounded-xl overflow-hidden bg-white">
-                  <iframe
-                    srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
-                    sandbox=""
-                    className="w-full h-24 pointer-events-none"
-                    style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
-                    title="template-mini-preview"
-                  />
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Base de Datos de Destino</Label>
-              <Select value={form.targetDatabase} onValueChange={(v) => setForm(f => ({ ...f, targetDatabase: v }))}>
-                <SelectTrigger data-testid="select-calendar-database" className="rounded-xl">
-                  <SelectValue placeholder="Seleccione una base de datos..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {userDatabases.map(db => (
-                    <SelectItem key={db.id} value={String(db.id)}>{db.name}</SelectItem>
-                  ))}
-                  {userDatabases.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No hay bases de datos. Créelas en Contactos.</div>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Fecha y Hora de Programación</Label>
-              <Input
-                data-testid="input-calendar-date"
-                type="datetime-local"
-                value={form.scheduledDate}
-                onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
-                className="rounded-xl"
-                min={new Date().toISOString().slice(0, 16)}
-              />
-            </div>
+              </div>
+            </TutorialHighlight>
+            <TutorialHighlight fieldId="template">
+              <div className="space-y-2">
+                <Label>Plantilla</Label>
+                <Select
+                  value={form.templateId}
+                  onValueChange={(v) => {
+                    setForm(f => ({ ...f, templateId: v }));
+                    if (tutorial.tutorialActive && tutorial.getCurrentStep()?.fieldId === "template" && v) {
+                      tutorial.nextStep();
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
+                    <SelectValue placeholder="Seleccione una plantilla..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...userTemplates].sort((a, b) => {
+                      if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
+                      if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
+                      return 0;
+                    }).map(t => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        <div className="flex items-center gap-2">
+                          <span className="truncate">{t.name}</span>
+                          {t.hasAllPlaceholders ? (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                    {userTemplates.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                {form.templateId && (
+                  <div className="border border-border rounded-xl overflow-hidden bg-white">
+                    <iframe
+                      srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
+                      sandbox=""
+                      className="w-full h-24 pointer-events-none"
+                      style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
+                      title="template-mini-preview"
+                    />
+                  </div>
+                )}
+              </div>
+            </TutorialHighlight>
+            <TutorialHighlight fieldId="targetDatabase">
+              <div className="space-y-2">
+                <Label>Base de Datos de Destino</Label>
+                <Select
+                  value={form.targetDatabase}
+                  onValueChange={(v) => {
+                    setForm(f => ({ ...f, targetDatabase: v }));
+                    if (tutorial.tutorialActive && tutorial.getCurrentStep()?.fieldId === "targetDatabase" && v) {
+                      tutorial.nextStep();
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-calendar-database" className="rounded-xl">
+                    <SelectValue placeholder="Seleccione una base de datos..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userDatabases.map(db => (
+                      <SelectItem key={db.id} value={String(db.id)}>{db.name}</SelectItem>
+                    ))}
+                    {userDatabases.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No hay bases de datos. Créelas en Contactos.</div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </TutorialHighlight>
+            <TutorialHighlight fieldId="scheduledDate">
+              <div className="space-y-2">
+                <Label>Fecha y Hora de Programación</Label>
+                <Input
+                  data-testid="input-calendar-date"
+                  type="datetime-local"
+                  value={form.scheduledDate}
+                  onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
+                  onBlur={() => advanceTutorialOnBlur("scheduledDate", form.scheduledDate)}
+                  className="rounded-xl"
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+              </div>
+            </TutorialHighlight>
             <Button
               data-testid="button-generate-email"
               onClick={handleGenerate}
@@ -1979,6 +2045,7 @@ export default function CalendarView() {
           </div>
         </DialogContent>
       </Dialog>
+      <TutorialTip />
     </Layout>
   );
 }

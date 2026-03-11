@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield } from "lucide-react";
+import { useTutorial } from "@/contexts/TutorialContext";
+import { TutorialHighlight } from "@/components/TutorialHighlight";
+import { TutorialTip } from "@/components/TutorialTip";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -29,6 +32,7 @@ function checkPlaceholders(html: string) {
 
 export default function Templates() {
   const { toast } = useToast();
+  const { setCurrentSection, tutorialActive } = useTutorial();
   const [showDialog, setShowDialog] = useState(false);
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [showEditAiDialog, setShowEditAiDialog] = useState(false);
@@ -45,6 +49,10 @@ export default function Templates() {
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [showVersionsDialog, setShowVersionsDialog] = useState(false);
   const [versionsParentId, setVersionsParentId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentSection("templates");
+  }, [setCurrentSection]);
 
   const { data: templates = [], isLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
@@ -301,14 +309,16 @@ export default function Templates() {
             <p className="text-muted-foreground mt-1">Administre sus plantillas HTML de correo electrónico. Genere plantillas con IA o suba las suyas para usarlas en sus campañas.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              data-testid="button-create-ai-template"
-              onClick={() => setShowAiDialog(true)}
-              className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <Sparkles className="w-4 h-4" />
-              Crear con IA
-            </Button>
+            <TutorialHighlight fieldId="generate-ai">
+              <Button
+                data-testid="button-create-ai-template"
+                onClick={() => setShowAiDialog(true)}
+                className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Sparkles className="w-4 h-4" />
+                Crear con IA
+              </Button>
+            </TutorialHighlight>
             <Button
               data-testid="button-add-template"
               onClick={() => setShowDialog(true)}
@@ -321,6 +331,7 @@ export default function Templates() {
           </div>
         </div>
 
+        <TutorialHighlight fieldId="templates-overview">
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[1, 2, 3].map(i => (
@@ -574,6 +585,9 @@ export default function Templates() {
             ))}
           </div>
         )}
+        </TutorialHighlight>
+
+        {tutorialActive && <TutorialTip />}
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

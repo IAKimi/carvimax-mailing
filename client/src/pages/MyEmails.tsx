@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X } from "lucide-react";
+import { useTutorial } from "@/contexts/TutorialContext";
+import { TutorialHighlight } from "@/components/TutorialHighlight";
+import { TutorialTip } from "@/components/TutorialTip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +23,11 @@ export default function MyEmails() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const { setCurrentSection, tutorialActive } = useTutorial();
+
+  useEffect(() => {
+    setCurrentSection("emails");
+  }, [setCurrentSection]);
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
@@ -120,6 +128,7 @@ export default function MyEmails() {
           )}
         </AnimatePresence>
 
+        <TutorialHighlight fieldId="historial-overview">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -231,6 +240,8 @@ export default function MyEmails() {
             )}
           </div>
         )}
+        </TutorialHighlight>
+        {tutorialActive && <TutorialTip />}
       </div>
     </Layout>
   );

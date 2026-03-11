@@ -1,6 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Plus, Search, ChevronDown, ChevronUp, Database, Trash2, Pencil, FileUp, FileWarning, Check, X, Loader2, UserPlus, AlertCircle } from "lucide-react";
+import { useTutorial } from "@/contexts/TutorialContext";
+import { TutorialHighlight } from "@/components/TutorialHighlight";
+import { TutorialTip } from "@/components/TutorialTip";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -260,17 +263,19 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
             Agregar Contacto
           </Button>
         )}
-        <Button
-          data-testid={`button-add-csv-${db.id}`}
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          onClick={() => csvAppendRef.current?.click()}
-          disabled={csvImportMutation.isPending}
-        >
-          {csvImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-          Añadir a Base de Datos
-        </Button>
+        <TutorialHighlight fieldId="import-contacts">
+          <Button
+            data-testid={`button-add-csv-${db.id}`}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => csvAppendRef.current?.click()}
+            disabled={csvImportMutation.isPending}
+          >
+            {csvImportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+            Añadir a Base de Datos
+          </Button>
+        </TutorialHighlight>
         <input
           ref={csvAppendRef}
           type="file"
@@ -537,6 +542,11 @@ export default function Contacts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editModeDbId, setEditModeDbId] = useState<number | null>(null);
   const { toast } = useToast();
+  const { setCurrentSection, tutorialActive } = useTutorial();
+
+  useEffect(() => {
+    setCurrentSection("contacts");
+  }, [setCurrentSection]);
 
   const { data: databases = [], isLoading: databasesLoading } = useQuery<ContactDatabaseType[]>({
     queryKey: ["/api/contact-databases"],
@@ -598,12 +608,14 @@ export default function Contacts() {
             <p className="text-muted-foreground mt-1">Carga y organiza tus listas de contactos. Importa archivos CSV o Excel para segmentar y enviar correos personalizados.</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-new-database" className="rounded-xl gap-2">
-                <Plus className="w-4 h-4" />
-                Nueva Base de Datos
-              </Button>
-            </DialogTrigger>
+            <TutorialHighlight fieldId="new-database">
+              <DialogTrigger asChild>
+                <Button data-testid="button-new-database" className="rounded-xl gap-2">
+                  <Plus className="w-4 h-4" />
+                  Nueva Base de Datos
+                </Button>
+              </DialogTrigger>
+            </TutorialHighlight>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Crear Nueva Base de Datos</DialogTitle>
@@ -638,6 +650,7 @@ export default function Contacts() {
           </Dialog>
         </div>
 
+        <TutorialHighlight fieldId="contacts-overview">
         <div className="space-y-3">
           {databasesLoading ? (
             <div className="space-y-3">
@@ -721,6 +734,9 @@ export default function Contacts() {
             </div>
           )}
         </div>
+        </TutorialHighlight>
+
+        {tutorialActive && <TutorialTip />}
       </div>
     </Layout>
   );

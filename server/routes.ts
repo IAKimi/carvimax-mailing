@@ -232,6 +232,16 @@ export async function registerRoutes(
     res.json(stats);
   });
 
+  app.get("/api/dashboard/metrics", requireAuth, async (req, res) => {
+    try {
+      const metrics = await storage.getDashboardMetrics(req.session.userId!);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching dashboard metrics:", error);
+      res.status(500).json({ message: "Error al obtener métricas del dashboard" });
+    }
+  });
+
   app.get("/api/campaigns", requireAuth, async (req, res) => {
     const yearParam = req.query.year ? Number(req.query.year) : undefined;
     const monthParam = req.query.month ? Number(req.query.month) : undefined;

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { BrandIdentity as BrandIdentityType } from "@shared/schema";
+import { useTutorial, TUTORIAL_SECTIONS } from "@/contexts/TutorialContext";
+import { TutorialHighlight } from "@/components/TutorialHighlight";
+import { TutorialTip } from "@/components/TutorialTip";
 
 const FONTS = [
   "Inter", "Roboto", "Open Sans", "Montserrat", "Poppins",
@@ -108,6 +111,35 @@ function SectionDivider({ label }: { label: string }) {
   );
 }
 
+const LEFT_SECTION_FIELDS = new Set(["companyName", "industry", "website", "whatsapp", "mission", "vision", "products", "history"]);
+const RIGHT_SECTION_FIELDS = new Set(["styleGuide", "targetAudience", "tone", "colors", "fonts", "logo"]);
+
+function getFieldValue(brand: typeof DEFAULT_BRAND, fieldId: string): string {
+  const map: Record<string, string> = {
+    companyName: brand.companyName,
+    industry: brand.industry,
+    website: brand.website,
+    whatsapp: brand.whatsapp,
+    mission: brand.mission,
+    vision: brand.vision,
+    products: brand.products,
+    history: brand.history,
+    styleGuide: brand.styleGuide,
+    targetAudience: brand.targetAudience,
+    tone: brand.tone,
+    colors: brand.primaryColor,
+    fonts: brand.headingFont,
+    logo: brand.logoUrl,
+  };
+  return map[fieldId] || "";
+}
+
+function isFieldEmpty(brand: typeof DEFAULT_BRAND, fieldId: string): boolean {
+  if (fieldId === "tone" || fieldId === "colors" || fieldId === "fonts") return false;
+  const val = getFieldValue(brand, fieldId);
+  return val.trim() === "";
+}
+
 export default function BrandIdentity() {
   const { toast } = useToast();
   const [saved, setSaved] = useState(false);
@@ -116,6 +148,57 @@ export default function BrandIdentity() {
   const [brand, setBrand] = useState({ ...DEFAULT_BRAND });
   const [initialized, setInitialized] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const { tutorialActive, setCurrentSection, setCurrentStepIndex, currentSection } = useTutorial();
+
+  useEffect(() => {
+    setCurrentSection("brand");
+  }, [setCurrentSection]);
+
+  useEffect(() => {
+    if (tutorialActive && currentSection === "brand") {
+      setLeftOpen(true);
+      setRightOpen(true);
+    }
+  }, [tutorialActive, currentSection]);
+
+  useEffect(() => {
+    if (tutorialActive && currentSection === "brand" && initialized) {
+      const steps = TUTORIAL_SECTIONS["brand"] || [];
+      const firstEmptyIndex = steps.findIndex(s => isFieldEmpty(brand, s.fieldId));
+      if (firstEmptyIndex >= 0) {
+        setCurrentStepIndex(firstEmptyIndex);
+      }
+    }
+  }, [tutorialActive, currentSection, initialized]);
+
+  const handleTutorialBlur = useCallback((fieldId: string) => {
+    if (!tutorialActive || currentSection !== "brand") return;
+    const val = getFieldValue(brand, fieldId);
+    if (val.trim() === "") return;
+    const steps = TUTORIAL_SECTIONS["brand"] || [];
+    const currentIdx = steps.findIndex(s => s.fieldId === fieldId);
+    if (currentIdx < 0) return;
+    for (let i = currentIdx + 1; i < steps.length; i++) {
+      if (isFieldEmpty(brand, steps[i].fieldId)) {
+        setCurrentStepIndex(i);
+        if (LEFT_SECTION_FIELDS.has(steps[i].fieldId)) setLeftOpen(true);
+        if (RIGHT_SECTION_FIELDS.has(steps[i].fieldId)) setRightOpen(true);
+        return;
+      }
+    }
+    for (let i = 0; i < currentIdx; i++) {
+      if (isFieldEmpty(brand, steps[i].fieldId)) {
+        setCurrentStepIndex(i);
+        if (LEFT_SECTION_FIELDS.has(steps[i].fieldId)) setLeftOpen(true);
+        if (RIGHT_SECTION_FIELDS.has(steps[i].fieldId)) setRightOpen(true);
+        return;
+      }
+    }
+    if (currentIdx < steps.length - 1) {
+      setCurrentStepIndex(currentIdx + 1);
+    }
+  }, [tutorialActive, currentSection, brand, setCurrentStepIndex]);
 
   const { data: brandData, isLoading } = useQuery<BrandIdentityType | null>({
     queryKey: ["/api/brand-identity"],
@@ -282,47 +365,63 @@ export default function BrandIdentity() {
                 <div className="px-5 pb-6 space-y-2">
                   <SectionDivider label="Información General" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Nombre de la Empresa</Label>
-                      <Input data-testid="input-company-name" placeholder="Ej: Mi Empresa S.A." value={brand.companyName} onChange={e => updateField("companyName", e.target.value)} maxLength={200} className="rounded-xl" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Industria / Rubro</Label>
-                      <Input data-testid="input-industry" placeholder="Ej: Tecnología, Salud, Retail" value={brand.industry} onChange={e => updateField("industry", e.target.value)} maxLength={200} className="rounded-xl" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Sitio Web</Label>
-                      <Input data-testid="input-website" placeholder="https://www.ejemplo.com" value={brand.website} onChange={e => updateField("website", e.target.value)} onBlur={e => { const v = e.target.value.trim(); if (v && !v.startsWith("http://") && !v.startsWith("https://")) updateField("website", "https://" + v); }} maxLength={500} className="rounded-xl" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>WhatsApp</Label>
-                      <Input data-testid="input-whatsapp" placeholder="+52 55 1234 5678" value={brand.whatsapp} onChange={e => updateField("whatsapp", e.target.value)} maxLength={30} className="rounded-xl" />
-                    </div>
+                    <TutorialHighlight fieldId="companyName">
+                      <div className="space-y-2">
+                        <Label>Nombre de la Empresa</Label>
+                        <Input data-testid="input-company-name" placeholder="Ej: Mi Empresa S.A." value={brand.companyName} onChange={e => updateField("companyName", e.target.value)} onBlur={() => handleTutorialBlur("companyName")} maxLength={200} className="rounded-xl" />
+                      </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight fieldId="industry">
+                      <div className="space-y-2">
+                        <Label>Industria / Rubro</Label>
+                        <Input data-testid="input-industry" placeholder="Ej: Tecnología, Salud, Retail" value={brand.industry} onChange={e => updateField("industry", e.target.value)} onBlur={() => handleTutorialBlur("industry")} maxLength={200} className="rounded-xl" />
+                      </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight fieldId="website">
+                      <div className="space-y-2">
+                        <Label>Sitio Web</Label>
+                        <Input data-testid="input-website" placeholder="https://www.ejemplo.com" value={brand.website} onChange={e => updateField("website", e.target.value)} onBlur={e => { const v = e.target.value.trim(); if (v && !v.startsWith("http://") && !v.startsWith("https://")) updateField("website", "https://" + v); handleTutorialBlur("website"); }} maxLength={500} className="rounded-xl" />
+                      </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight fieldId="whatsapp">
+                      <div className="space-y-2">
+                        <Label>WhatsApp</Label>
+                        <Input data-testid="input-whatsapp" placeholder="+52 55 1234 5678" value={brand.whatsapp} onChange={e => updateField("whatsapp", e.target.value)} onBlur={() => handleTutorialBlur("whatsapp")} maxLength={30} className="rounded-xl" />
+                      </div>
+                    </TutorialHighlight>
                   </div>
 
                   <SectionDivider label="Misión y Visión" />
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Misión</Label>
-                      <Textarea data-testid="input-mission" placeholder="¿Cuál es la misión de su empresa?" value={brand.mission} onChange={e => updateField("mission", e.target.value)} maxLength={2000} className="rounded-xl min-h-[100px]" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Visión</Label>
-                      <Textarea data-testid="input-vision" placeholder="¿Cuál es la visión de su empresa?" value={brand.vision} onChange={e => updateField("vision", e.target.value)} maxLength={2000} className="rounded-xl min-h-[100px]" />
-                    </div>
+                    <TutorialHighlight fieldId="mission">
+                      <div className="space-y-2">
+                        <Label>Misión</Label>
+                        <Textarea data-testid="input-mission" placeholder="¿Cuál es la misión de su empresa?" value={brand.mission} onChange={e => updateField("mission", e.target.value)} onBlur={() => handleTutorialBlur("mission")} maxLength={2000} className="rounded-xl min-h-[100px]" />
+                      </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight fieldId="vision">
+                      <div className="space-y-2">
+                        <Label>Visión</Label>
+                        <Textarea data-testid="input-vision" placeholder="¿Cuál es la visión de su empresa?" value={brand.vision} onChange={e => updateField("vision", e.target.value)} onBlur={() => handleTutorialBlur("vision")} maxLength={2000} className="rounded-xl min-h-[100px]" />
+                      </div>
+                    </TutorialHighlight>
                   </div>
 
                   <SectionDivider label="Productos y Servicios" />
-                  <div className="space-y-2">
-                    <Label>Describa sus productos y servicios principales</Label>
-                    <Textarea data-testid="input-products" placeholder="Liste y describa los productos o servicios que ofrece..." value={brand.products} onChange={e => updateField("products", e.target.value)} maxLength={2000} className="rounded-xl min-h-[120px]" />
-                  </div>
+                  <TutorialHighlight fieldId="products">
+                    <div className="space-y-2">
+                      <Label>Describa sus productos y servicios principales</Label>
+                      <Textarea data-testid="input-products" placeholder="Liste y describa los productos o servicios que ofrece..." value={brand.products} onChange={e => updateField("products", e.target.value)} onBlur={() => handleTutorialBlur("products")} maxLength={2000} className="rounded-xl min-h-[120px]" />
+                    </div>
+                  </TutorialHighlight>
 
                   <SectionDivider label="Historia de la Compañía" />
-                  <div className="space-y-2">
-                    <Label>Cuéntenos sobre la historia y trayectoria</Label>
-                    <Textarea data-testid="input-history" placeholder="¿Cómo surgió la empresa? ¿Cuáles son sus logros más importantes?" value={brand.history} onChange={e => updateField("history", e.target.value)} maxLength={2000} className="rounded-xl min-h-[120px]" />
-                  </div>
+                  <TutorialHighlight fieldId="history">
+                    <div className="space-y-2">
+                      <Label>Cuéntenos sobre la historia y trayectoria</Label>
+                      <Textarea data-testid="input-history" placeholder="¿Cómo surgió la empresa? ¿Cuáles son sus logros más importantes?" value={brand.history} onChange={e => updateField("history", e.target.value)} onBlur={() => handleTutorialBlur("history")} maxLength={2000} className="rounded-xl min-h-[120px]" />
+                    </div>
+                  </TutorialHighlight>
                 </div>
               </CollapsibleContent>
             </div>
@@ -343,117 +442,128 @@ export default function BrandIdentity() {
                 <div className="px-5 pb-6 space-y-2">
                   <SectionDivider label="Lineamientos de Redacción" />
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Guías y Estilos de Contenido</Label>
-                      <Textarea data-testid="input-style-guide" placeholder="¿Qué tipo de lenguaje prefiere? ¿Formal o informal? ¿Frases cortas o largas?" value={brand.styleGuide} onChange={e => updateField("styleGuide", e.target.value)} maxLength={2000} className="rounded-xl min-h-[100px]" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Público Objetivo</Label>
-                      <Textarea data-testid="input-target-audience" placeholder="Describa a su público: rango de edad, intereses, necesidades..." value={brand.targetAudience} onChange={e => updateField("targetAudience", e.target.value)} maxLength={2000} className="rounded-xl min-h-[80px]" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tono de Comunicación</Label>
-                      <Select value={brand.tone} onValueChange={(v) => updateField("tone", v)}>
-                        <SelectTrigger data-testid="select-tone" className="rounded-xl">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="profesional">Profesional</SelectItem>
-                          <SelectItem value="amigable">Amigable</SelectItem>
-                          <SelectItem value="formal">Formal</SelectItem>
-                          <SelectItem value="casual">Casual</SelectItem>
-                          <SelectItem value="emocional">Emocional</SelectItem>
-                          <SelectItem value="inspirador">Inspirador</SelectItem>
-                          <SelectItem value="corporativo">Corporativo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <TutorialHighlight fieldId="styleGuide">
+                      <div className="space-y-2">
+                        <Label>Guías y Estilos de Contenido</Label>
+                        <Textarea data-testid="input-style-guide" placeholder="¿Qué tipo de lenguaje prefiere? ¿Formal o informal? ¿Frases cortas o largas?" value={brand.styleGuide} onChange={e => updateField("styleGuide", e.target.value)} onBlur={() => handleTutorialBlur("styleGuide")} maxLength={2000} className="rounded-xl min-h-[100px]" />
+                      </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight fieldId="targetAudience">
+                      <div className="space-y-2">
+                        <Label>Público Objetivo</Label>
+                        <Textarea data-testid="input-target-audience" placeholder="Describa a su público: rango de edad, intereses, necesidades..." value={brand.targetAudience} onChange={e => updateField("targetAudience", e.target.value)} onBlur={() => handleTutorialBlur("targetAudience")} maxLength={2000} className="rounded-xl min-h-[80px]" />
+                      </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight fieldId="tone">
+                      <div className="space-y-2">
+                        <Label>Tono de Comunicación</Label>
+                        <Select value={brand.tone} onValueChange={(v) => { updateField("tone", v); handleTutorialBlur("tone"); }}>
+                          <SelectTrigger data-testid="select-tone" className="rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="profesional">Profesional</SelectItem>
+                            <SelectItem value="amigable">Amigable</SelectItem>
+                            <SelectItem value="formal">Formal</SelectItem>
+                            <SelectItem value="casual">Casual</SelectItem>
+                            <SelectItem value="emocional">Emocional</SelectItem>
+                            <SelectItem value="inspirador">Inspirador</SelectItem>
+                            <SelectItem value="corporativo">Corporativo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TutorialHighlight>
                   </div>
 
                   <SectionDivider label="Identidad Visual" />
                   <div className="space-y-6">
-                    <div>
-                      <Label className="mb-3 block">Colores de Marca</Label>
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground">Color Primario</Label>
-                          <div className="flex items-center gap-3">
-                            <input
-                              data-testid="input-primary-color"
-                              type="color"
-                              value={brand.primaryColor}
-                              onChange={e => updateField("primaryColor", e.target.value)}
-                              className="w-12 h-10 rounded-lg cursor-pointer border border-border"
-                            />
-                            <Input value={brand.primaryColor} onChange={e => updateField("primaryColor", e.target.value)} className="rounded-xl flex-1 font-mono text-sm" />
+                    <TutorialHighlight fieldId="colors">
+                      <div>
+                        <Label className="mb-3 block">Colores de Marca</Label>
+                        <div className="grid grid-cols-1 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Color Primario</Label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                data-testid="input-primary-color"
+                                type="color"
+                                value={brand.primaryColor}
+                                onChange={e => updateField("primaryColor", e.target.value)}
+                                className="w-12 h-10 rounded-lg cursor-pointer border border-border"
+                              />
+                              <Input value={brand.primaryColor} onChange={e => updateField("primaryColor", e.target.value)} className="rounded-xl flex-1 font-mono text-sm" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Color Secundario</Label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                data-testid="input-secondary-color"
+                                type="color"
+                                value={brand.secondaryColor}
+                                onChange={e => updateField("secondaryColor", e.target.value)}
+                                className="w-12 h-10 rounded-lg cursor-pointer border border-border"
+                              />
+                              <Input value={brand.secondaryColor} onChange={e => updateField("secondaryColor", e.target.value)} className="rounded-xl flex-1 font-mono text-sm" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Color de Acento</Label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                data-testid="input-accent-color"
+                                type="color"
+                                value={brand.accentColor}
+                                onChange={e => updateField("accentColor", e.target.value)}
+                                className="w-12 h-10 rounded-lg cursor-pointer border border-border"
+                              />
+                              <Input value={brand.accentColor} onChange={e => updateField("accentColor", e.target.value)} className="rounded-xl flex-1 font-mono text-sm" />
+                            </div>
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground">Color Secundario</Label>
-                          <div className="flex items-center gap-3">
-                            <input
-                              data-testid="input-secondary-color"
-                              type="color"
-                              value={brand.secondaryColor}
-                              onChange={e => updateField("secondaryColor", e.target.value)}
-                              className="w-12 h-10 rounded-lg cursor-pointer border border-border"
-                            />
-                            <Input value={brand.secondaryColor} onChange={e => updateField("secondaryColor", e.target.value)} className="rounded-xl flex-1 font-mono text-sm" />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground">Color de Acento</Label>
-                          <div className="flex items-center gap-3">
-                            <input
-                              data-testid="input-accent-color"
-                              type="color"
-                              value={brand.accentColor}
-                              onChange={e => updateField("accentColor", e.target.value)}
-                              className="w-12 h-10 rounded-lg cursor-pointer border border-border"
-                            />
-                            <Input value={brand.accentColor} onChange={e => updateField("accentColor", e.target.value)} className="rounded-xl flex-1 font-mono text-sm" />
-                          </div>
+                        <div className="mt-3 flex gap-2">
+                          <div className="h-8 flex-1 rounded-lg" style={{ backgroundColor: brand.primaryColor }} />
+                          <div className="h-8 flex-1 rounded-lg" style={{ backgroundColor: brand.secondaryColor }} />
+                          <div className="h-8 flex-1 rounded-lg" style={{ backgroundColor: brand.accentColor }} />
                         </div>
                       </div>
-                      <div className="mt-3 flex gap-2">
-                        <div className="h-8 flex-1 rounded-lg" style={{ backgroundColor: brand.primaryColor }} />
-                        <div className="h-8 flex-1 rounded-lg" style={{ backgroundColor: brand.secondaryColor }} />
-                        <div className="h-8 flex-1 rounded-lg" style={{ backgroundColor: brand.accentColor }} />
-                      </div>
-                    </div>
+                    </TutorialHighlight>
 
-                    <div>
-                      <Label className="mb-3 block">Tipografías</Label>
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground">Fuente para Títulos</Label>
-                          <Select value={brand.headingFont} onValueChange={(v) => updateField("headingFont", v)}>
-                            <SelectTrigger data-testid="select-heading-font" className="rounded-xl">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FONTS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-lg font-bold" style={{ fontFamily: brand.headingFont }}>Vista previa del título</p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs text-muted-foreground">Fuente para Cuerpo</Label>
-                          <Select value={brand.bodyFont} onValueChange={(v) => updateField("bodyFont", v)}>
-                            <SelectTrigger data-testid="select-body-font" className="rounded-xl">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FONTS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-sm" style={{ fontFamily: brand.bodyFont }}>Vista previa del cuerpo de texto regular</p>
+                    <TutorialHighlight fieldId="fonts">
+                      <div>
+                        <Label className="mb-3 block">Tipografías</Label>
+                        <div className="grid grid-cols-1 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Fuente para Títulos</Label>
+                            <Select value={brand.headingFont} onValueChange={(v) => updateField("headingFont", v)}>
+                              <SelectTrigger data-testid="select-heading-font" className="rounded-xl">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {FONTS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-lg font-bold" style={{ fontFamily: brand.headingFont }}>Vista previa del título</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Fuente para Cuerpo</Label>
+                            <Select value={brand.bodyFont} onValueChange={(v) => updateField("bodyFont", v)}>
+                              <SelectTrigger data-testid="select-body-font" className="rounded-xl">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {FONTS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-sm" style={{ fontFamily: brand.bodyFont }}>Vista previa del cuerpo de texto regular</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </TutorialHighlight>
 
-                    <div>
-                      <Label className="mb-3 block">Logo de la Empresa</Label>
+                    <TutorialHighlight fieldId="logo">
+                      <div>
+                        <Label className="mb-3 block">Logo de la Empresa</Label>
                       <input
                         ref={logoInputRef}
                         type="file"
@@ -521,7 +631,8 @@ export default function BrandIdentity() {
                           <p className="text-xs text-muted-foreground mt-1">PNG, JPG o SVG (máx. 2MB)</p>
                         </div>
                       )}
-                    </div>
+                      </div>
+                    </TutorialHighlight>
                   </div>
                 </div>
               </CollapsibleContent>
@@ -529,6 +640,7 @@ export default function BrandIdentity() {
           </Collapsible>
         </div>
       </div>
+      <TutorialTip />
     </Layout>
   );
 }
