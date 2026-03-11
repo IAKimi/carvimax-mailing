@@ -931,38 +931,65 @@ export default function CalendarView() {
                 <Eye className="w-4 h-4 text-primary" />
                 Vista Final del Correo
               </h3>
-              <div className="border border-border rounded-xl overflow-hidden bg-white">
-                <iframe
-                  data-testid="iframe-sent-preview"
-                  srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
-                    <div style="max-width:600px;margin:0 auto">
-                      ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
-                      <img src="${selectedImageUrl}" style="width:100%;height:200px;object-fit:cover" />
-                      <div style="padding:24px">${selectedHtml}</div>
-                      ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a href="${localCtaUrl || '#'}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${localCta || selectedCtaText}</a></div>` : ""}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+                <div className="border border-border rounded-xl overflow-hidden bg-white">
+                  <iframe
+                    data-testid="iframe-sent-preview"
+                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
+                      <div style="max-width:600px;margin:0 auto">
+                        ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
+                        <img src="${selectedImageUrl}" style="width:100%;height:auto;display:block" />
+                        <div style="padding:24px">${selectedHtml}</div>
+                        ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a href="${localCtaUrl || '#'}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${localCta || selectedCtaText}</a></div>` : ""}
+                      </div>
+                    </body></html>`}
+                    className="w-full border-0"
+                    style={{ minHeight: "700px" }}
+                    title="Vista final del correo enviado"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <div className="bg-muted/50 rounded-xl p-4">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Asunto</p>
+                    <p className="text-sm font-semibold leading-snug">{localAsunto || selectedAsunto || "—"}</p>
+                  </div>
+                  {(localPreheader || selectedPreheader) && (
+                    <div className="bg-muted/50 rounded-xl p-4">
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Preheader</p>
+                      <p className="text-sm font-semibold leading-snug">{localPreheader || selectedPreheader}</p>
                     </div>
-                  </body></html>`}
-                  className="w-full border-0"
-                  style={{ minHeight: "500px" }}
-                  title="Vista final del correo enviado"
-                />
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">Asunto</p>
-                  <p className="text-sm font-semibold truncate">{localAsunto || selectedAsunto || "—"}</p>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">CTA</p>
-                  <p className="text-sm font-semibold truncate">{localCta || selectedCtaText || "—"}</p>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">Versión</p>
-                  <p className="text-sm font-semibold">V{selectedVersion.versionNumber}</p>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">Estado</p>
-                  <p className="text-sm font-semibold">{isSending ? "Enviando..." : isFailed ? "Fallido" : isPartial ? "Envío parcial" : isSent ? "Enviado" : "—"}</p>
+                  )}
+                  <div className="bg-muted/50 rounded-xl p-4">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Botón CTA</p>
+                    <p className="text-sm font-semibold leading-snug">{localCta || selectedCtaText || "—"}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-xl p-4">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Versión</p>
+                    <p className="text-sm font-semibold">V{selectedVersion.versionNumber}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-xl p-4">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Estado</p>
+                    <p className={`text-sm font-semibold ${isFailed ? "text-red-600" : isPartial ? "text-amber-600" : isSending ? "text-blue-600" : "text-emerald-600"}`}>
+                      {isSending ? "Enviando..." : isFailed ? "Fallido" : isPartial ? "Envío parcial" : isSent ? "Enviado" : "—"}
+                    </p>
+                  </div>
+                  <div className="bg-muted/50 rounded-xl p-4">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Base de Datos</p>
+                    <p className="text-sm font-semibold leading-snug flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      {editingCampaign?.targetDatabase
+                        ? (userDatabases.find(db => String(db.id) === editingCampaign.targetDatabase)?.name || editingCampaign.targetDatabase)
+                        : "Sin base de datos"}
+                    </p>
+                  </div>
+                  {editingCampaign?.scheduledAt && (
+                    <div className="bg-muted/50 rounded-xl p-4">
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Fecha de Envío</p>
+                      <p className="text-sm font-semibold leading-snug">
+                        {new Date(editingCampaign.scheduledAt).toLocaleString("es", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
