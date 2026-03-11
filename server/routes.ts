@@ -126,6 +126,29 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
 
 const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/zmq7ppo7dusjmowvqznkbc6etvqvonr4";
 
+function saveBase64Image(base64DataUrl: string, prefix: string = "img"): string {
+  const match = base64DataUrl.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/);
+  if (!match) return base64DataUrl;
+  const ext = match[1] === "jpeg" ? "jpg" : match[1];
+  const buffer = Buffer.from(match[2], "base64");
+  const filename = `${prefix}_${crypto.randomBytes(12).toString("hex")}.${ext}`;
+  const uploadsDir = path.resolve(process.cwd(), "uploads", "campaigns");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  fs.writeFileSync(path.join(uploadsDir, filename), buffer);
+  return filename;
+}
+
+function getImagePublicUrl(filename: string, req: Request): string {
+  if (filename.startsWith("http://") || filename.startsWith("https://") || filename.startsWith("data:")) {
+    return filename;
+  }
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  return `${protocol}://${host}/uploads/campaigns/${filename}`;
+}
+
 function cleanHtmlForEmail(html: string): string {
   return html
     .replace(/\s+xmlns="[^"]*"/g, "")
@@ -449,7 +472,9 @@ export async function registerRoutes(
       return null;
     })();
 
-    const [imageUrl, emailContent] = await Promise.all([imagePromise, textPromise]);
+    const [rawImageUrl, emailContent] = await Promise.all([imagePromise, textPromise]);
+
+    const imageUrl = rawImageUrl ? saveBase64Image(rawImageUrl, `campaign_${campaignId}`) : null;
 
     const contentJson = emailContent
       ? {
@@ -580,16 +605,18 @@ export async function registerRoutes(
 
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
 
-    let imageUrl: string;
+    let rawImageUrl: string;
     try {
       if (!isGeminiConfigured()) {
         return res.status(400).json({ message: "Gemini no está configurado." });
       }
-      imageUrl = await generateImage(imagePrompt);
+      rawImageUrl = await generateImage(imagePrompt);
     } catch (err: any) {
       console.error("Error regenerando imagen con Gemini:", err.message);
       return res.status(500).json({ message: err.message || "Error regenerando imagen." });
     }
+
+    const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
 
     await storage.deselectAllVersions(campaignId);
     const newVersion = await storage.createCampaignVersion({
@@ -632,25 +659,20 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
 
-    const base64Portion = selectedVersion.imageUrl.includes(",")
-      ? selectedVersion.imageUrl.split(",")[1]
-      : selectedVersion.imageUrl;
-    const imageSizeBytes = Math.ceil((base64Portion.length * 3) / 4);
-    const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
-    if (imageSizeBytes > MAX_IMAGE_SIZE) {
-      return res.status(400).json({ message: "La imagen es demasiado grande para editar (máximo 20 MB)." });
-    }
+    const currentImageBase64 = loadImageAsBase64(selectedVersion.imageUrl);
 
-    let imageUrl: string;
+    let rawImageUrl: string;
     try {
       if (!isGeminiConfigured()) {
         return res.status(400).json({ message: "Gemini no está configurado." });
       }
-      imageUrl = await editImage(selectedVersion.imageUrl, editPrompt);
+      rawImageUrl = await editImage(currentImageBase64, editPrompt);
     } catch (err: any) {
       console.error("Error editando imagen con Gemini:", err.message);
       return res.status(500).json({ message: err.message || "Error editando imagen." });
     }
+
+    const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
 
     await storage.deselectAllVersions(campaignId);
     const newVersion = await storage.createCampaignVersion({
