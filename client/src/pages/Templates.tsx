@@ -359,8 +359,8 @@ export default function Templates() {
       }
       idx++;
     }
-    const serializer = new XMLSerializer();
-    const html = serializer.serializeToString(doc);
+    const doctype = "<!DOCTYPE html>";
+    const html = doctype + doc.documentElement.outerHTML;
     updateMutation.mutate({ id: editingTemplateId, html });
     setShowTextEditDialog(false);
     setTextEditNodes([]);

@@ -286,7 +286,18 @@ export default function CalendarView() {
     setSelectedDay(day);
     const dayCampaigns = getCampaignsForDay(day);
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T09:00`, imagePrompt: "", targetAudience: "" });
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    let defaultTime = "09:00";
+    if (dateStr === todayStr) {
+      const nextHour = now.getHours() + 1;
+      if (nextHour < 24) {
+        defaultTime = `${String(nextHour).padStart(2, "0")}:00`;
+      } else {
+        defaultTime = "23:59";
+      }
+    }
+    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "" });
     setShowTargetAudience(false);
     setImageSourceMode(null);
     setUploadedImageFile(null);
@@ -1476,21 +1487,18 @@ export default function CalendarView() {
             </DialogHeader>
             <div className="space-y-4 mt-2">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prompt original</Label>
-                <div data-testid="text-regen-image-original" className="text-sm bg-muted/50 rounded-xl px-3 py-2 text-muted-foreground">
-                  {editingCampaign?.imagePrompt || "Sin prompt original"}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold uppercase tracking-wide">Nuevo prompt</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wide">Prompt de imagen</Label>
                 <Textarea
                   data-testid="input-regen-image-prompt"
-                  placeholder="Escriba un nuevo prompt completo para la imagen..."
+                  placeholder="Escriba un prompt para la imagen..."
                   value={regenImagePrompt}
                   onChange={e => setRegenImagePrompt(e.target.value)}
-                  className="rounded-xl min-h-[100px]"
-                  maxLength={500}
+                  className="rounded-xl min-h-[120px]"
+                  maxLength={1200}
                 />
+                <div className="flex justify-end">
+                  <span className="text-[10px] text-muted-foreground">{regenImagePrompt.length}/1200</span>
+                </div>
               </div>
               <Button
                 data-testid="button-confirm-regen-image"
@@ -1632,7 +1640,7 @@ export default function CalendarView() {
                   value={editImagePrompt}
                   onChange={e => setEditImagePrompt(e.target.value)}
                   className="rounded-xl min-h-[80px]"
-                  maxLength={1000}
+                  maxLength={1200}
                 />
               </div>
 
@@ -1920,7 +1928,7 @@ export default function CalendarView() {
                       onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
                       onBlur={() => advanceTutorialOnBlur("imagePrompt", form.imagePrompt)}
                       className="rounded-xl min-h-[70px] mt-2"
-                      maxLength={1000}
+                      maxLength={1200}
                     />
                   </motion.div>
                 )}
@@ -2030,7 +2038,7 @@ export default function CalendarView() {
                   onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
                   onBlur={() => advanceTutorialOnBlur("scheduledDate", form.scheduledDate)}
                   className="rounded-xl"
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}T${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`; })()}
                 />
               </div>
             </TutorialHighlight>

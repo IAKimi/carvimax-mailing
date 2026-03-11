@@ -47,7 +47,7 @@ const createCampaignSchema = z.object({
   objective: z.string().min(1).max(1000, "El objetivo no puede exceder 1000 caracteres"),
   tone: z.string().min(1).max(100, "El tono no puede exceder 100 caracteres"),
   layoutPreference: z.string().max(100).optional(),
-  imagePrompt: z.string().max(1000, "El prompt de imagen no puede exceder 1000 caracteres").nullable().optional(),
+  imagePrompt: z.string().max(1200, "El prompt de imagen no puede exceder 1200 caracteres").nullable().optional(),
   targetDatabase: z.string().max(200).nullable().optional(),
   targetAudience: z.string().max(1000, "El público objetivo no puede exceder 1000 caracteres").nullable().optional(),
   templateId: z.number().int().positive().nullable().optional(),
@@ -125,6 +125,19 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/zmq7ppo7dusjmowvqznkbc6etvqvonr4";
+
+function cleanHtmlForEmail(html: string): string {
+  return html
+    .replace(/\s+xmlns="[^"]*"/g, "")
+    .replace(/\s+xmlns:[a-z]+="[^"]*"/g, "")
+    .replace(/<([a-z]+)([^>]*?)\s*\/>/gi, (match, tag, attrs) => {
+      const voidElements = ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"];
+      if (voidElements.includes(tag.toLowerCase())) {
+        return `<${tag}${attrs}>`;
+      }
+      return `<${tag}${attrs}></${tag}>`;
+    });
+}
 
 function sanitizeHtml(html: string): string {
   return html
@@ -561,8 +574,8 @@ export async function registerRoutes(
     if (!imagePrompt || typeof imagePrompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar un prompt de imagen." });
     }
-    if (imagePrompt.length > 500) {
-      return res.status(400).json({ message: "El prompt de imagen no puede exceder 500 caracteres." });
+    if (imagePrompt.length > 1200) {
+      return res.status(400).json({ message: "El prompt de imagen no puede exceder 1200 caracteres." });
     }
 
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
@@ -610,8 +623,8 @@ export async function registerRoutes(
     if (!editPrompt || typeof editPrompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar instrucciones de edición." });
     }
-    if (editPrompt.length > 1000) {
-      return res.status(400).json({ message: "Las instrucciones de edición no pueden exceder 1000 caracteres." });
+    if (editPrompt.length > 1200) {
+      return res.status(400).json({ message: "Las instrucciones de edición no pueden exceder 1200 caracteres." });
     }
 
     const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
@@ -674,8 +687,8 @@ export async function registerRoutes(
     if (!editPrompt || typeof editPrompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar instrucciones de edición." });
     }
-    if (editPrompt.length > 1000) {
-      return res.status(400).json({ message: "Las instrucciones no pueden exceder 1000 caracteres." });
+    if (editPrompt.length > 1200) {
+      return res.status(400).json({ message: "Las instrucciones no pueden exceder 1200 caracteres." });
     }
     if (!selectedAction || !VALID_ADVANCED_ACTIONS.includes(selectedAction)) {
       return res.status(400).json({ message: "Acción no válida. Opciones: agregar, reemplazar, fusionar, estilo, borrar_elemento." });
@@ -1284,7 +1297,7 @@ export async function registerRoutes(
 
       const payload = {
         subject,
-        html_content: renderedHtml,
+        html_content: cleanHtmlForEmail(renderedHtml),
         sender_name: brandData?.senderName || brandData?.companyName || "PostIAlo Mailing",
         sender_email: brandData?.senderEmail || "noreply@postialo.com",
         campaign_id: String(campaignId),

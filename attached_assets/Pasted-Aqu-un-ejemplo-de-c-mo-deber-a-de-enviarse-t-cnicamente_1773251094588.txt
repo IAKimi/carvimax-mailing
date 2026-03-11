@@ -1,0 +1,48 @@
+Aquí un ejemplo de cómo debería de enviarse técnicamente para que lo puedan procesar diferentes motores de correo.
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEGUIMIENTO</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 20px;">
+
+    <h2 style="text-align: center;">Retroalimentación de referido asignado a {{3.`1`}} en fecha: {{3.`2`}}</h2>
+
+    <p>Estimado encargado, a continuación se detalla la información del referido asignado al asesor:</p>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <tr>
+            <th colspan="2" style="background-color: #D32F2F; color: white; text-align: center; padding: 10px; font-weight: bold;">DATOS DE SEGUIMIENTO</th>
+        </tr>
+        <tr>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">Código RF</td>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">{{1.id_referido}}</td>
+        </tr>
+      <tr style="background-color: #FDEDED;">
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">Nombre del Solicitante</td>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">{{6.`1`}}</td>
+        </tr>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">Teléfono de Contacto</td>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">{{6.`3`}}</td>
+        </tr>
+        <tr style="background-color: #FDEDED;">
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">Estado de referido</td>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">{{1.estado}}</td>
+        </tr>
+        <tr>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">Descripción proporcionada por {{3.`1`}}</td>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">{{1.descripcion}}</td>
+        </tr>
+        <tr style="background-color: #FDEDED;">
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">Tiempo transcurrido desde asignación</td>
+            <td style="width: 50%; border: 1px solid #D32F2F; padding: 8px; text-align: center;">{{3.`4`}}</td>
+        </tr>
+    </table>
+
+    <p style="margin-top: 20px;">Por favor, mantente atento al ciclo de vida de este referido.</p>
+
+</body>
+</html>
