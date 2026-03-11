@@ -1,5 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { type Server } from "http";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -92,6 +95,11 @@ const updateBrandIdentitySchema = z.object({
   bodyFont: z.string().max(100).nullable().optional(),
   logoUrl: z.string().max(3000000).nullable().optional(),
   visualStyle: z.string().max(50).nullable().optional(),
+  senderName: z.string().max(200).nullable().optional(),
+  senderEmail: z.string().max(200).refine(
+    (val) => !val || val.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+    "El correo del remitente no es válido"
+  ).nullable().optional(),
 });
 
 const updateVersionSchema = z.object({
@@ -109,11 +117,14 @@ const updateTemplateSchema = z.object({
 });
 
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  draft: ["scheduled", "cancelled"],
-  scheduled: ["cancelled", "sent"],
+  draft: ["scheduled", "sending", "cancelled"],
+  scheduled: ["cancelled", "sending", "sent"],
+  sending: ["sent", "cancelled"],
   sent: [],
   cancelled: [],
 };
+
+const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/zmq7ppo7dusjmowvqznkbc6etvqvonr4";
 
 function sanitizeHtml(html: string): string {
   return html
@@ -956,6 +967,38 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/brand/logo-upload", requireAuth, async (req, res) => {
+    try {
+      const { base64 } = req.body;
+      if (!base64 || typeof base64 !== "string") {
+        return res.status(400).json({ message: "Debe proporcionar la imagen en base64." });
+      }
+      const match = base64.match(/^data:(image\/(png|jpeg|jpg|webp));base64,(.+)$/);
+      if (!match) {
+        return res.status(400).json({ message: "Formato de imagen inválido." });
+      }
+      const ext = match[2] === "jpeg" || match[2] === "jpg" ? "jpg" : match[2];
+      const buffer = Buffer.from(match[3], "base64");
+      if (buffer.length > 2 * 1024 * 1024) {
+        return res.status(400).json({ message: "La imagen no puede exceder 2MB." });
+      }
+      const filename = `${req.session.userId}_${crypto.randomBytes(8).toString("hex")}.${ext}`;
+      const uploadsDir = path.resolve(process.cwd(), "uploads", "logos");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(uploadsDir, filename), buffer);
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const logoUrl = `${protocol}://${host}/uploads/logos/${filename}`;
+      await storage.upsertBrandIdentity(req.session.userId!, { logoUrl });
+      res.json({ logoUrl });
+    } catch (err: any) {
+      console.error("Error uploading logo:", err.message);
+      return res.status(500).json({ message: "Error al subir el logo." });
+    }
+  });
+
   app.get("/api/templates", requireAuth, async (req, res) => {
     const tpls = await storage.getTemplates(req.session.userId!);
     res.json(tpls);
@@ -1027,7 +1070,9 @@ export async function registerRoutes(
       const variantCount = variants === 2 ? 2 : 1;
 
       const results = await Promise.all(
-        Array.from({ length: variantCount }, () => generateTemplateHtml(prompt, brandData || null))
+        Array.from({ length: variantCount }, (_, i) =>
+          generateTemplateHtml(prompt, brandData || null, variantCount === 2 ? i : undefined)
+        )
       );
 
       const savedTemplates = [];
@@ -1176,12 +1221,161 @@ export async function registerRoutes(
     const versions = await storage.getCampaignVersions(id);
     const selected = versions.find(v => v.isSelected) || versions[0];
     if (!selected) return res.status(400).json({ message: "No hay versiones generadas para esta campaña." });
+    const brandData = await storage.getBrandIdentity(req.session.userId!);
     const result = renderTemplateWithContent(
       template.html,
       selected.contentJson as Record<string, unknown> | null,
-      selected.imageUrl || null
+      selected.imageUrl || null,
+      brandData
     );
     res.json({ html: result.html, missingFields: result.missingFields, templateName: template.name });
+  });
+
+  async function sendCampaignToWebhook(campaignId: number, userId: number): Promise<{ success: boolean; error?: string }> {
+    try {
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== userId) {
+        return { success: false, error: "Campaña no encontrada." };
+      }
+      if (!campaign.templateId) {
+        return { success: false, error: "La campaña no tiene plantilla asignada." };
+      }
+      if (!campaign.targetDatabase) {
+        return { success: false, error: "La campaña no tiene base de datos de contactos asignada." };
+      }
+
+      const tpls = await storage.getTemplates(userId);
+      const template = tpls.find(t => t.id === campaign.templateId);
+      if (!template) {
+        return { success: false, error: "Plantilla no encontrada." };
+      }
+
+      const versions = await storage.getCampaignVersions(campaignId);
+      const selected = versions.find(v => v.isSelected) || versions[0];
+      if (!selected) {
+        return { success: false, error: "No hay versiones generadas para esta campaña." };
+      }
+
+      const brandData = await storage.getBrandIdentity(userId);
+
+      let renderedHtml = renderTemplateWithContent(
+        template.html,
+        selected.contentJson as Record<string, unknown> | null,
+        selected.imageUrl || null,
+        brandData
+      ).html;
+
+      const dbId = parseInt(campaign.targetDatabase, 10);
+      if (isNaN(dbId)) {
+        return { success: false, error: "Base de datos de contactos inválida." };
+      }
+      const contactDbs = await storage.getContactDatabases(userId);
+      const targetDb = contactDbs.find(db => db.id === dbId);
+      if (!targetDb) {
+        return { success: false, error: "La base de datos de contactos no pertenece a este usuario." };
+      }
+      const contactsList = await storage.getContacts(dbId);
+      if (contactsList.length === 0) {
+        return { success: false, error: "La base de datos de contactos está vacía." };
+      }
+
+      const contentJson = selected.contentJson as Record<string, unknown> | null;
+      const subject = (contentJson?.asunto as string) || campaign.name || "Sin asunto";
+
+      const payload = {
+        subject,
+        html_content: renderedHtml,
+        sender_name: brandData?.senderName || brandData?.companyName || "PostIAlo Mailing",
+        sender_email: brandData?.senderEmail || "noreply@postialo.com",
+        campaign_id: String(campaignId),
+        contacts: contactsList.map(c => ({
+          name: c.name || "",
+          email: c.email,
+        })),
+      };
+
+      const previousStatus = campaign.status || "draft";
+      await storage.updateCampaign(campaignId, { status: "sending" });
+
+      const webhookRes = await fetch(MAKE_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!webhookRes.ok) {
+        const errText = await webhookRes.text().catch(() => "Error desconocido");
+        console.error(`Make webhook error (${webhookRes.status}):`, errText);
+        await storage.updateCampaign(campaignId, { status: previousStatus as any });
+        return { success: false, error: `Error al enviar al webhook: ${webhookRes.status}` };
+      }
+
+      await storage.updateCampaign(campaignId, { status: "sent" });
+      return { success: true };
+    } catch (err: any) {
+      console.error("Error sending campaign to webhook:", err.message);
+      try {
+        await storage.updateCampaign(campaignId, { status: previousStatus as any });
+      } catch {}
+      return { success: false, error: err.message || "Error interno al enviar." };
+    }
+  }
+
+  app.post("/api/campaigns/:id/send", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(id);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    if (campaign.status === "sent") {
+      return res.status(400).json({ message: "Esta campaña ya fue enviada." });
+    }
+    if (campaign.status === "sending") {
+      return res.status(400).json({ message: "Esta campaña se está enviando." });
+    }
+    if (campaign.status === "cancelled") {
+      return res.status(400).json({ message: "Esta campaña fue cancelada." });
+    }
+
+    const result = await sendCampaignToWebhook(id, req.session.userId!);
+    if (!result.success) {
+      return res.status(400).json({ message: result.error });
+    }
+    res.json({ message: "Campaña enviada exitosamente." });
+  });
+
+  const webhookCallbackLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 200,
+    message: { message: "Demasiadas solicitudes." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.post("/api/webhooks/make-callback", webhookCallbackLimiter, async (req, res) => {
+    try {
+      const { campaign_id, status, message_id } = req.body || {};
+      if (!campaign_id) {
+        return res.status(400).json({ message: "campaign_id es requerido." });
+      }
+      const campaignId = parseInt(campaign_id, 10);
+      if (isNaN(campaignId)) {
+        return res.status(400).json({ message: "campaign_id inválido." });
+      }
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ message: "Campaña no encontrada." });
+      }
+      if (status === "success" || status === "sent") {
+        await storage.updateCampaign(campaignId, { status: "sent" });
+      }
+      console.log(`Make callback: campaign=${campaign_id} status=${status} messageId=${message_id || "N/A"}`);
+      res.json({ received: true });
+    } catch (err: any) {
+      console.error("Error processing Make callback:", err.message);
+      return res.status(500).json({ message: "Error procesando callback." });
+    }
   });
 
   async function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -1397,5 +1591,28 @@ export async function registerRoutes(
     res.json({ message: "Has vuelto a tu cuenta de administrador." });
   });
 
-  return httpServer;
+  function startCampaignScheduler() {
+    console.log("Campaign scheduler started (checking every 60s)");
+    setInterval(async () => {
+      try {
+        const allCampaigns = await storage.getAllScheduledCampaigns();
+        const now = new Date();
+        for (const campaign of allCampaigns) {
+          if (campaign.status === "scheduled" && campaign.scheduledAt && new Date(campaign.scheduledAt) <= now) {
+            console.log(`Scheduler: firing campaign #${campaign.id} (scheduled for ${campaign.scheduledAt})`);
+            const result = await sendCampaignToWebhook(campaign.id, campaign.userId);
+            if (!result.success) {
+              console.error(`Scheduler: failed to send campaign #${campaign.id}: ${result.error}`);
+            } else {
+              console.log(`Scheduler: campaign #${campaign.id} sent successfully`);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error("Scheduler error:", err.message);
+      }
+    }, 60 * 1000);
+  }
+
+  return { httpServer, startCampaignScheduler };
 }

@@ -47,11 +47,17 @@ The application is built with a modern web stack, featuring a React frontend and
 - **Historial de Correos**: Collapsible cards show campaign details, with client-side date range filtering.
 - **Dashboard (Analytics)**: Displays user-specific metrics (total campaigns, timeline, top databases/templates, contacts reached) using Recharts, with brand color schemes.
 - **Guided Tutorial Mode (Bombillo)**: Interactive, step-by-step guidance for new users, highlighting UI elements and providing tips, persisted in local storage.
+- **Logo Hosting**: `POST /api/brand/logo-upload` saves uploaded logos (PNG/JPG/WebP only, no SVG) to `uploads/logos/` and returns a public URL. Static serving via `app.use("/uploads", express.static(...))`.
+- **Sender Configuration**: `senderName` and `senderEmail` fields in brand identity, used as email sender info when dispatching campaigns.
+- **Template Variant Differentiation**: Variant A uses classic centered hero layout; Variant B uses dynamic alternating sections. Distinct `VARIANT_INSTRUCTIONS` in `openai.ts`.
+- **Make.com Integration**: Campaigns are sent via `sendCampaignToWebhook()` which POSTs rendered HTML + contacts to `MAKE_WEBHOOK_URL`. Status lifecycle: draft → sending → sent (with rollback on failure). Background scheduler checks every 60s for scheduled campaigns. Callback endpoint at `POST /api/webhooks/make-callback` updates campaign status.
+- **Ownership Checks**: Target database ownership is verified before sending to prevent cross-tenant data leakage.
 
 ## External Dependencies
 - **PostgreSQL**: Primary database.
 - **OpenAI API**: For AI text generation, regeneration, and template analysis.
 - **Google Gemini API**: For AI image generation and advanced image editing.
+- **Make.com Webhook**: Campaign distribution via hardcoded webhook URL.
 - **bcryptjs**: Password hashing.
 - **express-session**: Session management.
 - **connect-pg-simple**: PostgreSQL session store.

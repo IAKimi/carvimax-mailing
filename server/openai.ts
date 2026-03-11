@@ -450,17 +450,39 @@ REGLAS TÉCNICAS DE HTML PARA EMAIL:
 15. NO uses JavaScript ni event handlers (onclick, onmouseover, etc.).`;
 }
 
+const VARIANT_INSTRUCTIONS = [
+  `ENFOQUE DE LAYOUT — VARIANTE A:
+- Layout clásico centrado con imagen hero de ancho completo arriba
+- Contenido en una sola columna, centrado
+- CTA como botón prominente centrado debajo del texto
+- Header con fondo sólido del color primario
+- Espaciado generoso y simétrico
+- Estilo visual limpio y directo`,
+
+  `ENFOQUE DE LAYOUT — VARIANTE B:
+- Layout más dinámico con secciones de fondo alterno (color/blanco)
+- Imagen hero con bordes redondeados y margen lateral (no de ancho completo)
+- CTA alineado a la izquierda o con diseño tipo tarjeta con borde
+- Header minimalista con fondo blanco o transparente
+- Uso de separadores visuales o líneas decorativas entre secciones
+- Estructura más compacta con menos espaciado vertical`,
+];
+
 export async function generateTemplateHtml(
   prompt: string,
-  brandIdentity: BrandIdentityData | null
+  brandIdentity: BrandIdentityData | null,
+  variantIndex?: number
 ): Promise<TemplateContent> {
   const client = getClient();
   const instructions = buildTemplateInstructions(brandIdentity);
+  const variantSuffix = variantIndex !== undefined && variantIndex < VARIANT_INSTRUCTIONS.length
+    ? `\n\n${VARIANT_INSTRUCTIONS[variantIndex]}`
+    : "";
 
   try {
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      instructions,
+      instructions: instructions + variantSuffix,
       input: `Genera una plantilla HTML de email marketing basada en esta descripción:\n${prompt}`,
       text: { format: templateSchema },
       max_output_tokens: 4000,

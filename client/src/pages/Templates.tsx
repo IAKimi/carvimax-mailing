@@ -53,6 +53,7 @@ export default function Templates() {
   const [variantTemplates, setVariantTemplates] = useState<Template[]>([]);
   const [variantRegenerationsLeft, setVariantRegenerationsLeft] = useState(2);
   const [variantPrompt, setVariantPrompt] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
 
   useEffect(() => {
     setCurrentSection("templates");
@@ -157,6 +158,26 @@ export default function Templates() {
         setVariantRegenerationsLeft(prev => prev - 1);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const regenerateSelectedMutation = useMutation({
+    mutationFn: async ({ templateId, prompt }: { templateId: number; prompt: string }) => {
+      const res = await apiRequest("POST", "/api/templates/generate", { prompt, variants: 1 });
+      const data = await res.json();
+      return { newTemplate: data, oldTemplateId: templateId };
+    },
+    onSuccess: ({ newTemplate, oldTemplateId }: { newTemplate: any; oldTemplateId: number }) => {
+      apiRequest("DELETE", `/api/templates/${oldTemplateId}`).catch(() => {});
+      if (newTemplate?.id) {
+        setSelectedVariantId(newTemplate.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      setVariantRegenerationsLeft(prev => prev - 1);
+      toast({ title: "Plantilla regenerada", description: `"${newTemplate.name}" ha reemplazado la versión anterior.` });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -540,6 +561,30 @@ export default function Templates() {
                       >
                         {confirmMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
                         Confirmar
+                      </Button>
+                    </div>
+                  )}
+                  {selectedVariantId === template.id && variantRegenerationsLeft > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        data-testid={`button-regenerate-selected-${template.id}`}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1 text-xs flex-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+                        disabled={regenerateSelectedMutation.isPending}
+                        onClick={() => {
+                          regenerateSelectedMutation.mutate({
+                            templateId: template.id,
+                            prompt: variantPrompt,
+                          });
+                        }}
+                      >
+                        {regenerateSelectedMutation.isPending ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3 h-3" />
+                        )}
+                        Regenerar ({variantRegenerationsLeft} restantes)
                       </Button>
                     </div>
                   )}
@@ -1000,10 +1045,11 @@ export default function Templates() {
                           console.error("Error discarding variant:", e);
                         }
                       }
+                      setSelectedVariantId(v.id);
                       setVariantTemplates([]);
                       setShowVariantPicker(false);
                       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
-                      toast({ title: "Plantilla seleccionada", description: `"${v.name}" ha sido conservada.` });
+                      toast({ title: "Plantilla seleccionada", description: `"${v.name}" ha sido conservada. Puede regenerarla ${variantRegenerationsLeft} veces más.` });
                     }}
                     className="w-full rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                     size="sm"

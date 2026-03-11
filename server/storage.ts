@@ -21,6 +21,7 @@ export interface IStorage {
   getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]>;
   getCampaigns(userId: number): Promise<Campaign[]>;
   getCampaign(id: number): Promise<Campaign | undefined>;
+  getAllScheduledCampaigns(): Promise<Campaign[]>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined>;
   deleteAllCampaigns(userId: number): Promise<void>;
@@ -125,6 +126,10 @@ export class DatabaseStorage implements IStorage {
   async getCampaign(id: number): Promise<Campaign | undefined> {
     const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
     return campaign;
+  }
+
+  async getAllScheduledCampaigns(): Promise<Campaign[]> {
+    return db.select().from(campaigns).where(eq(campaigns.status, "scheduled"));
   }
 
   async createCampaign(campaign: InsertCampaign): Promise<Campaign> {

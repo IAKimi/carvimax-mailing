@@ -357,6 +357,21 @@ export default function CalendarView() {
     );
   }
 
+  const sendCampaignMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/campaigns/${id}/send`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({ title: "Campaña enviada", description: "Su correo ha sido enviado al sistema de distribución." });
+      handleBackToCalendar();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al enviar", description: err.message, variant: "destructive" });
+    },
+  });
+
   function handlePublishNow() {
     if (!editingCampaignId) return;
     if (!editingCampaign?.templateId) {
@@ -367,15 +382,7 @@ export default function CalendarView() {
       toast({ title: "Base de datos requerida", description: "Debe seleccionar una base de datos de contactos antes de enviar.", variant: "destructive" });
       return;
     }
-    updateCampaignMutation.mutate(
-      { id: editingCampaignId, updates: { status: "sent" } },
-      {
-        onSuccess: () => {
-          toast({ title: "Publicación en proceso", description: "Su correo está siendo enviado ahora mismo." });
-          handleBackToCalendar();
-        },
-      }
-    );
+    sendCampaignMutation.mutate(editingCampaignId);
   }
 
   function handleCancelCampaign() {
@@ -762,10 +769,14 @@ export default function CalendarView() {
                   data-testid="button-publish-now"
                   onClick={handlePublishNow}
                   className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  disabled={updateCampaignMutation.isPending}
+                  disabled={sendCampaignMutation.isPending || updateCampaignMutation.isPending}
                 >
-                  <Send className="w-4 h-4" />
-                  Publicar Ahora
+                  {sendCampaignMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {sendCampaignMutation.isPending ? "Enviando..." : "Publicar Ahora"}
                 </Button>
               )}
             </div>

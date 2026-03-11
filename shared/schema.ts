@@ -80,6 +80,8 @@ export const brandIdentity = pgTable("brand_identity", {
   bodyFont: text("body_font"),
   logoUrl: text("logo_url"),
   visualStyle: text("visual_style").default("moderno"),
+  senderName: text("sender_name"),
+  senderEmail: text("sender_email"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

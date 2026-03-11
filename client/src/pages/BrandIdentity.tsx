@@ -50,6 +50,8 @@ const BRAND_FIELDS: { key: string; default: string }[] = [
   { key: "bodyFont", default: "Inter" },
   { key: "logoUrl", default: "" },
   { key: "visualStyle", default: "moderno" },
+  { key: "senderName", default: "" },
+  { key: "senderEmail", default: "" },
 ];
 
 const DEFAULT_BRAND = {
@@ -71,6 +73,8 @@ const DEFAULT_BRAND = {
   bodyFont: "Inter",
   logoUrl: "",
   visualStyle: "moderno",
+  senderName: "",
+  senderEmail: "",
 };
 
 function getProgressColor(pct: number): string {
@@ -228,6 +232,8 @@ export default function BrandIdentity() {
         bodyFont: brandData.bodyFont || "Inter",
         logoUrl: brandData.logoUrl || "",
         visualStyle: brandData.visualStyle || "moderno",
+        senderName: (brandData as any).senderName || "",
+        senderEmail: (brandData as any).senderEmail || "",
       });
       setInitialized(true);
     } else if (brandData === null && !initialized) {
@@ -393,6 +399,20 @@ export default function BrandIdentity() {
                         <Input data-testid="input-whatsapp" placeholder="+52 55 1234 5678" value={brand.whatsapp} onChange={e => updateField("whatsapp", e.target.value)} onBlur={() => handleTutorialBlur("whatsapp")} maxLength={30} className="rounded-xl" />
                       </div>
                     </TutorialHighlight>
+                  </div>
+
+                  <SectionDivider label="Configuración de Envío" />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nombre del Remitente</Label>
+                      <Input data-testid="input-sender-name" placeholder="Ej: Mi Empresa Marketing" value={brand.senderName} onChange={e => updateField("senderName", e.target.value)} maxLength={200} className="rounded-xl" />
+                      <p className="text-xs text-muted-foreground">Este nombre aparecerá como remitente en los correos enviados.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Correo del Remitente</Label>
+                      <Input data-testid="input-sender-email" type="email" placeholder="Ej: marketing@miempresa.com" value={brand.senderEmail} onChange={e => updateField("senderEmail", e.target.value)} maxLength={200} className="rounded-xl" />
+                      <p className="text-xs text-muted-foreground">El correo desde el cual se enviarán las campañas (debe estar verificado en Brevo).</p>
+                    </div>
                   </div>
 
                   <SectionDivider label="Misión y Visión" />
@@ -571,7 +591,7 @@ export default function BrandIdentity() {
                       <input
                         ref={logoInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        accept="image/png,image/jpeg,image/webp"
                         className="hidden"
                         data-testid="input-logo-file"
                         onChange={(e) => {
@@ -581,13 +601,22 @@ export default function BrandIdentity() {
                             toast({ title: "El archivo excede 2MB", variant: "destructive" });
                             return;
                           }
-                          if (!["image/png", "image/jpeg", "image/svg+xml", "image/webp"].includes(file.type)) {
-                            toast({ title: "Formato no soportado. Use PNG, JPG, SVG o WebP", variant: "destructive" });
+                          if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+                            toast({ title: "Formato no soportado. Use PNG, JPG o WebP", variant: "destructive" });
                             return;
                           }
                           const reader = new FileReader();
-                          reader.onload = () => {
-                            setBrand(b => ({ ...b, logoUrl: reader.result as string }));
+                          reader.onload = async () => {
+                            const base64 = reader.result as string;
+                            try {
+                              const res = await apiRequest("POST", "/api/brand/logo-upload", { base64 });
+                              const data = await res.json();
+                              setBrand(b => ({ ...b, logoUrl: data.logoUrl }));
+                              toast({ title: "Logo subido correctamente" });
+                            } catch (err: any) {
+                              setBrand(b => ({ ...b, logoUrl: base64 }));
+                              toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });
+                            }
                           };
                           reader.readAsDataURL(file);
                           e.target.value = "";

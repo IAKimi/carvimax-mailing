@@ -1,4 +1,5 @@
 import { ALL_PLACEHOLDER_KEYS, TEMPLATE_PLACEHOLDERS } from "@shared/schema";
+import type { BrandIdentity } from "@shared/schema";
 
 export interface PlaceholderValidation {
   valid: boolean;
@@ -33,7 +34,8 @@ export interface RenderResult {
 export function renderTemplateWithContent(
   templateHtml: string,
   contentJson: Record<string, unknown> | null,
-  imageUrl: string | null
+  imageUrl: string | null,
+  brandData?: Partial<BrandIdentity> | null
 ): RenderResult {
   let html = templateHtml;
   const missingFields: string[] = [];
@@ -57,6 +59,10 @@ export function renderTemplateWithContent(
   html = html.replace(/\{\{CTA_TEXTO\}\}/g, ctaTexto);
   html = html.replace(/\{\{CTA_URL\}\}/g, ctaUrl);
   html = html.replace(/\{\{IMAGEN_URL\}\}/g, imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen");
+
+  if (brandData?.logoUrl && html.includes("{{LOGO_URL}}")) {
+    html = html.replace(/\{\{LOGO_URL\}\}/g, brandData.logoUrl);
+  }
 
   return { html, missingFields };
 }
