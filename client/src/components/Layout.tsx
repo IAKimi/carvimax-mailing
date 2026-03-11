@@ -14,24 +14,56 @@ import {
   ArrowLeft,
   Eye,
   BarChart3,
-  Lightbulb
+  Lightbulb,
+  Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getQueryFn, queryClient } from "@/lib/queryClient";
 import { useTutorial } from "@/contexts/TutorialContext";
+import { useToast } from "@/hooks/use-toast";
+
+interface OnboardingStatus {
+  hasBrand: boolean;
+  hasTemplates: boolean;
+  hasContactDatabases: boolean;
+}
 
 const NAV_ITEMS = [
-  { icon: Home, label: "Inicio", href: "/" },
-  { icon: Palette, label: "Identidad de Marca", href: "/brand" },
-  { icon: CalendarDays, label: "Calendario", href: "/calendar" },
-  { icon: LayoutTemplate, label: "Plantillas", href: "/templates" },
-  { icon: Mail, label: "Historial", href: "/emails" },
-  { icon: Database, label: "Base de Datos", href: "/contacts" },
-  { icon: BarChart3, label: "Dashboard", href: "/dashboard" },
+  { icon: Home, label: "Inicio", href: "/", requiresLevel: 0 },
+  { icon: Palette, label: "Identidad de Marca", href: "/brand", requiresLevel: 0 },
+  { icon: LayoutTemplate, label: "Plantillas", href: "/templates", requiresLevel: 1 },
+  { icon: Database, label: "Base de Datos", href: "/contacts", requiresLevel: 2 },
+  { icon: CalendarDays, label: "Calendario", href: "/calendar", requiresLevel: 3 },
+  { icon: Mail, label: "Historial", href: "/emails", requiresLevel: 3 },
+  { icon: BarChart3, label: "Dashboard", href: "/dashboard", requiresLevel: 3 },
 ];
 
+function getOnboardingLevel(status: OnboardingStatus | undefined): number {
+  if (!status) return 0;
+  if (!status.hasBrand) return 0;
+  if (!status.hasTemplates) return 1;
+  if (!status.hasContactDatabases) return 2;
+  return 3;
+}
+
+function getLockedMessage(requiredLevel: number, currentLevel: number): string {
+  if (currentLevel < 1 && requiredLevel >= 1) {
+    return "Primero completa tu Identidad de Marca para desbloquear esta sección.";
+  }
+  if (currentLevel < 2 && requiredLevel >= 2) {
+    return "Primero crea al menos una plantilla para desbloquear esta sección.";
+  }
+  if (currentLevel < 3 && requiredLevel >= 3) {
+    return "Necesitas tener al menos una plantilla y una base de datos para acceder aquí.";
+  }
+  return "Sección bloqueada.";
+}
+
 let _sidebarMouseInside = false;
+
+export { getOnboardingLevel };
+export type { OnboardingStatus };
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -39,13 +71,20 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(_sidebarMouseInside);
   const sidebarRef = useRef<HTMLElement>(null);
+  const { toast } = useToast();
   const { data: currentUser } = useQuery<{ id: number; name: string; email: string; role: string; impersonating?: boolean; impersonatingUserName?: string; originalAdminId?: number } | null>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
+  const { data: onboardingStatus, isLoading: onboardingLoading } = useQuery<OnboardingStatus>({
+    queryKey: ["/api/onboarding-status"],
+    enabled: !!currentUser,
+  });
   const userName = currentUser?.name || "Usuario";
   const isAdmin = currentUser?.role === "admin";
   const isImpersonating = !!currentUser?.impersonating;
+
+  const onboardingLevel = onboardingLoading ? 99 : getOnboardingLevel(onboardingStatus);
 
   const stopImpersonateMutation = useMutation({
     mutationFn: async () => {
@@ -60,7 +99,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const navItems = [
     ...NAV_ITEMS,
-    ...(isAdmin && !isImpersonating ? [{ icon: Shield, label: "Usuarios", href: "/admin/users" }] : []),
+    ...(isAdmin && !isImpersonating ? [{ icon: Shield, label: "Usuarios", href: "/admin/users", requiresLevel: 0 }] : []),
   ];
 
   useEffect(() => {
@@ -88,6 +127,65 @@ export function Layout({ children }: { children: ReactNode }) {
     });
   }
 
+  function handleLockedClick(item: typeof navItems[0]) {
+    toast({
+      title: "Sección bloqueada",
+      description: getLockedMessage(item.requiresLevel, onboardingLevel),
+      variant: "destructive",
+    });
+  }
+
+  function renderNavItem(item: typeof navItems[0], isMobile: boolean) {
+    const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+    const Icon = item.icon;
+    const isLocked = item.requiresLevel > onboardingLevel;
+
+    if (isLocked) {
+      return (
+        <button
+          key={item.href}
+          data-testid={`nav-${isMobile ? "mobile-" : ""}${item.href.replace(/\//g, "") || "home"}`}
+          onClick={() => handleLockedClick(item)}
+          className={`
+            flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden w-full
+            ${isMobile ? "px-4" : sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
+            text-white/30 cursor-not-allowed
+          `}
+        >
+          <div className="relative flex-shrink-0">
+            <Icon className="w-5 h-5 opacity-40" />
+            <Lock className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 text-white/50" />
+          </div>
+          {(isMobile || sidebarExpanded) && (
+            <span className="opacity-40">{item.label}</span>
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        data-testid={`nav-${isMobile ? "mobile-" : ""}${item.href.replace(/\//g, "") || "home"}`}
+        onClick={isMobile ? () => setMobileOpen(false) : undefined}
+        className={`
+          flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden
+          ${isMobile ? "px-4" : sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
+          ${isActive
+            ? "bg-white/20 text-white"
+            : "text-white/70 hover:bg-white/10 hover:text-white"
+          }
+        `}
+      >
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {(isMobile || sidebarExpanded) && (
+          <span>{item.label}</span>
+        )}
+      </Link>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       <aside
@@ -110,30 +208,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
-          {navItems.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                data-testid={`nav-${item.href.replace(/\//g, "") || "home"}`}
-                className={`
-                  flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden
-                  ${sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
-                  ${isActive
-                    ? "bg-white/20 text-white"
-                    : "text-white/70 hover:bg-white/10 hover:text-white"
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {sidebarExpanded && (
-                  <span>{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
+          {navItems.map((item) => renderNavItem(item, false))}
         </nav>
 
         <div className="p-3 border-t border-white/10 space-y-2 overflow-hidden">
@@ -188,28 +263,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                data-testid={`nav-mobile-${item.href.replace(/\//g, "") || "home"}`}
-                onClick={() => setMobileOpen(false)}
-                className={`
-                  flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                  ${isActive
-                    ? "bg-white/20 text-white"
-                    : "text-white/70 hover:bg-white/10 hover:text-white"
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {item.label}
-              </Link>
-            );
-          })}
+          {navItems.map((item) => renderNavItem(item, true))}
         </nav>
 
         <div className="p-3 border-t border-white/10 space-y-2">

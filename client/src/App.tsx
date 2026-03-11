@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TutorialProvider } from "@/contexts/TutorialContext";
@@ -16,10 +16,44 @@ import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
 import AdminUsers from "@/pages/AdminUsers";
 import Dashboard from "@/pages/Dashboard";
+import { getOnboardingLevel, type OnboardingStatus } from "@/components/Layout";
+
+const ROUTE_LEVELS: Record<string, number> = {
+  "/": 0,
+  "/brand": 0,
+  "/templates": 1,
+  "/contacts": 2,
+  "/calendar": 3,
+  "/emails": 3,
+  "/dashboard": 3,
+  "/campaigns": 3,
+  "/admin/users": 0,
+  "/admin": 0,
+};
+
+function getRequiredLevel(path: string): number {
+  if (ROUTE_LEVELS[path] !== undefined) return ROUTE_LEVELS[path];
+  if (path.startsWith("/campaigns/")) return 3;
+  if (path.startsWith("/admin")) return 0;
+  return 0;
+}
+
+function getRedirectForLevel(level: number): string {
+  if (level < 1) return "/brand";
+  if (level < 2) return "/templates";
+  if (level < 3) return "/contacts";
+  return "/";
+}
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
+  const [location] = useLocation();
   const [status, setStatus] = useState<"loading" | "ok" | "denied" | "forbidden">("loading");
+
+  const { data: onboardingStatus, isLoading: onboardingLoading } = useQuery<OnboardingStatus>({
+    queryKey: ["/api/onboarding-status"],
+    enabled: status === "ok",
+  });
 
   useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -56,6 +90,15 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
   if (status === "forbidden") {
     return <Redirect to="/" />;
   }
+
+  if (onboardingStatus && !onboardingLoading) {
+    const currentLevel = getOnboardingLevel(onboardingStatus);
+    const requiredLevel = getRequiredLevel(location);
+    if (requiredLevel > currentLevel) {
+      return <Redirect to={getRedirectForLevel(currentLevel)} />;
+    }
+  }
+
   return <Component />;
 }
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   ChevronDown,
   Loader2,
   X,
+  ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -148,6 +150,7 @@ function isFieldEmpty(brand: typeof DEFAULT_BRAND, fieldId: string): boolean {
 }
 
 export default function BrandIdentity() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [saved, setSaved] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
@@ -249,6 +252,7 @@ export default function BrandIdentity() {
     onSuccess: () => {
       setSaved(true);
       queryClient.invalidateQueries({ queryKey: ["/api/brand-identity"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       toast({
         title: "Identidad guardada",
         description: "Los datos de su marca han sido guardados correctamente.",
@@ -704,6 +708,21 @@ export default function BrandIdentity() {
           </Collapsible>
         </div>
       </div>
+      {saved && brand.companyName?.trim() && brand.industry?.trim() && (
+        <div className="flex justify-end mt-6">
+          <Button
+            data-testid="button-next-to-templates"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
+              setLocation("/templates");
+            }}
+            className="rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white px-6"
+          >
+            Siguiente: Plantillas
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
       <TutorialTip />
     </Layout>
   );

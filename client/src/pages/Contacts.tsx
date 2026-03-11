@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
-import { Plus, Search, ChevronDown, ChevronUp, Database, Trash2, Pencil, FileUp, FileWarning, Check, X, Loader2, UserPlus, AlertCircle } from "lucide-react";
+import { Plus, Search, ChevronDown, ChevronUp, Database, Trash2, Pencil, FileUp, FileWarning, Check, X, Loader2, UserPlus, AlertCircle, ArrowRight } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -537,6 +538,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
 }
 
 export default function Contacts() {
+  const [, setLocation] = useLocation();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newDbName, setNewDbName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -558,6 +560,7 @@ export default function Contacts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setNewDbName("");
       setDialogOpen(false);
       toast({ title: "Base de datos creada", description: "La base de datos ha sido creada correctamente." });
@@ -573,6 +576,7 @@ export default function Contacts() {
     },
     onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       if (expandedId === deletedId) setExpandedId(null);
       if (editModeDbId === deletedId) setEditModeDbId(null);
       toast({ title: "Base de datos eliminada", description: "La base de datos ha sido eliminada correctamente." });
@@ -737,6 +741,28 @@ export default function Contacts() {
         </TutorialHighlight>
 
         {tutorialActive && <TutorialTip />}
+
+        <div data-testid="disclaimer-csv-format" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-700 font-medium">
+            Tu archivo debe contener al menos las columnas <strong>"nombre"</strong> y <strong>"correo"</strong>. Los demás campos serán ignorados.
+          </p>
+        </div>
+
+        {databases.length > 0 && (
+          <div className="flex justify-end mt-6">
+            <Button
+              data-testid="button-next-to-calendar"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
+                setLocation("/calendar");
+              }}
+              className="rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white px-6"
+            >
+              Ir a Calendario
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </Layout>
   );

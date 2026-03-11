@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, RefreshCw } from "lucide-react";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, RefreshCw, ArrowRight } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -31,6 +32,7 @@ function checkPlaceholders(html: string) {
 }
 
 export default function Templates() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { setCurrentSection, tutorialActive } = useTutorial();
   const [showDialog, setShowDialog] = useState(false);
@@ -109,6 +111,7 @@ export default function Templates() {
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowDialog(false);
       setNewName("");
       setNewHtml("");
@@ -127,6 +130,7 @@ export default function Templates() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowAiDialog(false);
       if (data.variants && data.variants.length === 2) {
         setVariantTemplates(data.variants);
@@ -158,6 +162,7 @@ export default function Templates() {
         setVariantRegenerationsLeft(prev => prev - 1);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -176,6 +181,7 @@ export default function Templates() {
         setSelectedVariantId(newTemplate.id);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setVariantRegenerationsLeft(prev => prev - 1);
       toast({ title: "Plantilla regenerada", description: `"${newTemplate.name}" ha reemplazado la versión anterior.` });
     },
@@ -191,6 +197,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowEditAiDialog(false);
       setEditAiInstructions("");
       setEditingTemplateId(null);
@@ -208,6 +215,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowManualEditDialog(false);
       setManualHtml("");
       setEditingTemplateId(null);
@@ -222,6 +230,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
     },
   });
 
@@ -231,6 +240,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       toast({ title: "Plantilla eliminada" });
     },
   });
@@ -242,6 +252,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setRenamingId(null);
       setRenameValue("");
       toast({ title: "Nombre actualizado" });
@@ -258,6 +269,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowVersionsDialog(false);
       setVersionsParentId(null);
       toast({ title: "Plantilla confirmada", description: "Las otras versiones han sido eliminadas." });
@@ -274,6 +286,7 @@ export default function Templates() {
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       if (result.missingPlaceholders && result.missingPlaceholders.length > 0) {
         toast({ title: "Análisis parcial", description: `Aún faltan ${result.missingPlaceholders.length} placeholder(s).` });
       } else {
@@ -665,6 +678,22 @@ export default function Templates() {
         </TutorialHighlight>
 
         {tutorialActive && <TutorialTip />}
+
+        {templates.length > 0 && (
+          <div className="flex justify-end mt-6">
+            <Button
+              data-testid="button-next-to-contacts"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
+                setLocation("/contacts");
+              }}
+              className="rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white px-6"
+            >
+              Siguiente: Base de Datos
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -1002,6 +1031,7 @@ export default function Templates() {
             apiRequest("DELETE", `/api/templates/${v.id}`).catch(() => {});
           }
           queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
           setShowVariantPicker(false);
           setVariantTemplates([]);
         }
@@ -1049,6 +1079,7 @@ export default function Templates() {
                       setVariantTemplates([]);
                       setShowVariantPicker(false);
                       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
                       toast({ title: "Plantilla seleccionada", description: `"${v.name}" ha sido conservada. Puede regenerarla ${variantRegenerationsLeft} veces más.` });
                     }}
                     className="w-full rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"

@@ -949,6 +949,17 @@ export async function registerRoutes(
     res.status(201).json({ imported: created.length, duplicates: duplicatesInCsv + duplicatesInDb, errors });
   });
 
+  app.get("/api/onboarding-status", requireAuth, async (req, res) => {
+    const userId = req.session.userId!;
+    const brand = await storage.getBrandIdentity(userId);
+    const hasBrand = !!(brand && brand.companyName && brand.industry);
+    const templates = await storage.getTemplates(userId);
+    const hasTemplates = templates.length > 0;
+    const contactDbs = await storage.getContactDatabases(userId);
+    const hasContactDatabases = contactDbs.length > 0;
+    res.json({ hasBrand, hasTemplates, hasContactDatabases });
+  });
+
   app.get("/api/brand-identity", requireAuth, async (req, res) => {
     const brand = await storage.getBrandIdentity(req.session.userId!);
     res.json(brand || null);
