@@ -1310,7 +1310,7 @@ export async function registerRoutes(
         return { success: false, error: `Error al enviar al webhook: ${webhookRes.status}` };
       }
 
-      await storage.updateCampaign(campaignId, { status: "sent" });
+      // No cambiar a "sent" aquí — solo el callback de Make.com debe hacerlo
       return { success: true };
     } catch (err: any) {
       console.error("Error sending campaign to webhook:", err.message);
@@ -1328,16 +1328,7 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    if (campaign.status === "sent") {
-      return res.status(400).json({ message: "Esta campaña ya fue enviada." });
-    }
-    if (campaign.status === "sending") {
-      return res.status(400).json({ message: "Esta campaña se está enviando." });
-    }
-    if (campaign.status === "cancelled") {
-      return res.status(400).json({ message: "Esta campaña fue cancelada." });
-    }
-
+    // Modo pruebas: sin bloqueos por estado — se puede re-enviar libremente
     const result = await sendCampaignToWebhook(id, req.session.userId!);
     if (!result.success) {
       return res.status(400).json({ message: result.error });

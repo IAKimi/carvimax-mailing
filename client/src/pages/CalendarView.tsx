@@ -769,14 +769,9 @@ export default function CalendarView() {
                   data-testid="button-publish-now"
                   onClick={handlePublishNow}
                   className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  disabled={sendCampaignMutation.isPending || updateCampaignMutation.isPending}
                 >
-                  {sendCampaignMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  {sendCampaignMutation.isPending ? "Enviando..." : "Publicar Ahora"}
+                  <Send className="w-4 h-4" />
+                  Publicar Ahora
                 </Button>
               )}
             </div>
