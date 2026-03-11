@@ -91,6 +91,7 @@ const updateBrandIdentitySchema = z.object({
   headingFont: z.string().max(100).nullable().optional(),
   bodyFont: z.string().max(100).nullable().optional(),
   logoUrl: z.string().max(3000000).nullable().optional(),
+  visualStyle: z.string().max(50).nullable().optional(),
 });
 
 const updateVersionSchema = z.object({
@@ -1011,7 +1012,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/templates/generate", requireAuth, aiLimiter, async (req, res) => {
-    const { prompt } = req.body || {};
+    const { prompt, variants } = req.body || {};
     if (!prompt || typeof prompt !== "string") {
       return res.status(400).json({ message: "Debe proporcionar un prompt para la plantilla." });
     }
@@ -1023,28 +1024,42 @@ export async function registerRoutes(
         return res.status(400).json({ message: "OpenAI no está configurado." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
-      const result = await generateTemplateHtml(prompt, brandData || null);
-      const sanitizedHtml = sanitizeHtml(result.html);
-      const validation = validateTemplatePlaceholders(sanitizedHtml);
-      if (validation.missing.length > 0) {
-        console.warn("AI template missing placeholders:", validation.missing);
+      const variantCount = variants === 2 ? 2 : 1;
+
+      const results = await Promise.all(
+        Array.from({ length: variantCount }, () => generateTemplateHtml(prompt, brandData || null))
+      );
+
+      const savedTemplates = [];
+      for (const result of results) {
+        const sanitizedHtml = sanitizeHtml(result.html);
+        const validation = validateTemplatePlaceholders(sanitizedHtml);
+        if (validation.missing.length > 0) {
+          console.warn("AI template missing placeholders:", validation.missing);
+        }
+        const tpl = await storage.createTemplate({
+          userId: req.session.userId!,
+          name: result.name,
+          html: sanitizedHtml,
+          favorite: false,
+          isAiGenerated: true,
+          aiEditCount: 0,
+          originalHtml: sanitizedHtml,
+          hasAllPlaceholders: validation.valid,
+          isConfirmed: false,
+          versionNumber: 1,
+        });
+        const confirmed = await storage.updateTemplate(tpl.id, {
+          parentTemplateId: tpl.id,
+        });
+        savedTemplates.push(confirmed);
       }
-      const tpl = await storage.createTemplate({
-        userId: req.session.userId!,
-        name: result.name,
-        html: sanitizedHtml,
-        favorite: false,
-        isAiGenerated: true,
-        aiEditCount: 0,
-        originalHtml: sanitizedHtml,
-        hasAllPlaceholders: validation.valid,
-        isConfirmed: false,
-        versionNumber: 1,
-      });
-      const confirmed = await storage.updateTemplate(tpl.id, {
-        parentTemplateId: tpl.id,
-      });
-      res.status(201).json(confirmed);
+
+      if (variantCount === 1) {
+        res.status(201).json(savedTemplates[0]);
+      } else {
+        res.status(201).json({ variants: savedTemplates });
+      }
     } catch (err: any) {
       console.error("Error generando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error generando plantilla." });

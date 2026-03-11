@@ -1,0 +1,15 @@
+Lo otro, revisemos todo el tema de la metodología de bombillo que habíamos dicho. Por ejemplo, yo ahí estoy viendo que, de que yo presiono tutorial en algunas partes y no me muestra nada.  
+  
+Y lo otro, quisiera que me hagas un recap de cada parámetro de la identidad de marca, para que se ocupe referencia a la hora de mandar prompts adicionales a donde estamos mandando esto, como contexto, sólo para tenerlo claro y para saber exactamente si todo lo que está en identidad de marca se utiliza como información fidedigna para todo el tema de generación de contenidos, generación de plantillas, la generación de la previsualización de los correos.  
+  
+O sea, si las plantillas que yo genero con inteligencia artificial están utilizando los tres colores de marca que yo estoy poniendo en identidad visual, si las tipografías también se respetan, el logo, etc.  
+  
+Yo cuando creo una plantilla nueva, yo no veo ningún contenedor de logo. El logo debería aparecer en la esquina superior izquierda, en el centro o en la esquina superior derecha, dependiendo de lo que quiere el usuario, pero eso sí, tu logo tiene que estar en todas tus plantillas de correo.  
+  
+Si no, de nada sirve que yo pueda subir el logo de la empresa. Sólo está como un adorno ahí.  
+  
+También quisiera ver la forma en la que podamos mejorar la metodología de cómo se le mandan los prompts a la inteligencia artificial para que me generen las plantillas, porque si bien ahorita está generándome las plantillas adecuadamente, como por ejemplo, un titular que tiene un back-end de color, después la imagen, después el cuerpo del correo, después un botón y después un cierre, eso está perfecto.  
+  
+Pero, ¿habrá alguna otra forma de poderle inyectar otros parámetros a la IA sin que el usuario lo tenga que hacer? Por ejemplo, si un usuario te dice "necesito que tenga un recuadro con relieve" o algo así, la herramienta sepa que tiene que ocuparse eso de darle un estilo al correo.  
+  
+O sea, quisiera explorar formas no que lo implementemos, sino que tú me digas si se podemos explorar formas de mandarle las peticiones a la API de ChatTPT para que él pueda generar propuestas de plantilla de correo que, de alguna forma, se vean más bonitas y no tan genéricas, aunque el resultado que tenemos ahorita

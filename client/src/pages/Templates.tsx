@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield } from "lucide-react";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, RefreshCw } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -49,6 +49,10 @@ export default function Templates() {
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [showVersionsDialog, setShowVersionsDialog] = useState(false);
   const [versionsParentId, setVersionsParentId] = useState<number | null>(null);
+  const [showVariantPicker, setShowVariantPicker] = useState(false);
+  const [variantTemplates, setVariantTemplates] = useState<Template[]>([]);
+  const [variantRegenerationsLeft, setVariantRegenerationsLeft] = useState(2);
+  const [variantPrompt, setVariantPrompt] = useState("");
 
   useEffect(() => {
     setCurrentSection("templates");
@@ -117,14 +121,42 @@ export default function Templates() {
 
   const generateAiMutation = useMutation({
     mutationFn: async (prompt: string) => {
-      const res = await apiRequest("POST", "/api/templates/generate", { prompt });
+      const res = await apiRequest("POST", "/api/templates/generate", { prompt, variants: 2 });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       setShowAiDialog(false);
+      if (data.variants && data.variants.length === 2) {
+        setVariantTemplates(data.variants);
+        setVariantPrompt(aiPrompt);
+        setVariantRegenerationsLeft(2);
+        setShowVariantPicker(true);
+      } else {
+        toast({ title: "Plantilla generada", description: "Su plantilla ha sido creada con IA." });
+      }
       setAiPrompt("");
-      toast({ title: "Plantilla generada", description: "Su plantilla ha sido creada con IA." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const regenerateVariantMutation = useMutation({
+    mutationFn: async ({ prompt, oldVariantIds }: { prompt: string; oldVariantIds: number[] }) => {
+      const res = await apiRequest("POST", "/api/templates/generate", { prompt, variants: 2 });
+      const data = await res.json();
+      return { data, oldVariantIds };
+    },
+    onSuccess: ({ data, oldVariantIds }: { data: any; oldVariantIds: number[] }) => {
+      if (data.variants && data.variants.length === 2) {
+        for (const id of oldVariantIds) {
+          apiRequest("DELETE", `/api/templates/${id}`).catch(() => {});
+        }
+        setVariantTemplates(data.variants);
+        setVariantRegenerationsLeft(prev => prev - 1);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -916,6 +948,101 @@ export default function Templates() {
               </div>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showVariantPicker} onOpenChange={(open) => {
+        if (!open) {
+          for (const v of variantTemplates) {
+            apiRequest("DELETE", `/api/templates/${v.id}`).catch(() => {});
+          }
+          queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+          setShowVariantPicker(false);
+          setVariantTemplates([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-4xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-emerald-600" />
+              Seleccione una Propuesta
+            </DialogTitle>
+            <DialogDescription>
+              La IA generó 2 propuestas de diseño. Escoja la que prefiera. La otra será descartada.
+              {variantRegenerationsLeft > 0 && (
+                <span className="ml-1 font-medium">({variantRegenerationsLeft} regeneraciones restantes)</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            {variantTemplates.map((v, idx) => (
+              <div key={v.id} data-testid={`variant-card-${idx}`} className="border border-border rounded-xl overflow-hidden">
+                <div className="h-64 bg-white overflow-hidden">
+                  <iframe
+                    srcDoc={v.html}
+                    sandbox=""
+                    className="w-full h-full pointer-events-none"
+                    style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "286%", height: "286%" }}
+                    title={`Propuesta ${idx + 1}`}
+                  />
+                </div>
+                <div className="p-3 space-y-2 border-t border-border">
+                  <span className="text-sm font-semibold">Propuesta {idx + 1}</span>
+                  <p className="text-xs text-muted-foreground truncate">{v.name}</p>
+                  <Button
+                    data-testid={`button-select-variant-${idx}`}
+                    onClick={async () => {
+                      const discardId = variantTemplates.find((_, i) => i !== idx)?.id;
+                      if (discardId) {
+                        try {
+                          await apiRequest("DELETE", `/api/templates/${discardId}`);
+                        } catch (e) {
+                          console.error("Error discarding variant:", e);
+                        }
+                      }
+                      setVariantTemplates([]);
+                      setShowVariantPicker(false);
+                      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+                      toast({ title: "Plantilla seleccionada", description: `"${v.name}" ha sido conservada.` });
+                    }}
+                    className="w-full rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    size="sm"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Seleccionar esta
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {variantRegenerationsLeft > 0 && (
+            <div className="flex justify-center mt-2">
+              <Button
+                data-testid="button-regenerate-variants"
+                variant="outline"
+                className="rounded-xl gap-2"
+                disabled={regenerateVariantMutation.isPending}
+                onClick={() => {
+                  regenerateVariantMutation.mutate({
+                    prompt: variantPrompt,
+                    oldVariantIds: variantTemplates.map(v => v.id),
+                  });
+                }}
+              >
+                {regenerateVariantMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Regenerando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Regenerar ambas ({variantRegenerationsLeft})
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </Layout>

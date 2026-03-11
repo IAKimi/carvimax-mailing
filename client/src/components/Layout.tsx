@@ -142,21 +142,23 @@ export function Layout({ children }: { children: ReactNode }) {
               {userName}
             </div>
           )}
-          <button
-            data-testid="button-tutorial-toggle"
-            onClick={toggleTutorial}
-            title="Modo Tutorial"
-            className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full whitespace-nowrap overflow-hidden ${sidebarExpanded ? "justify-start px-4" : "justify-center px-0"} ${
-              tutorialActive
-                ? "text-yellow-400 bg-yellow-400/15 hover:bg-yellow-400/25"
-                : "text-white/60 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <Lightbulb className={`w-5 h-5 flex-shrink-0 transition-all ${tutorialActive ? "drop-shadow-[0_0_6px_rgba(250,204,21,0.8)]" : ""}`} />
-            {sidebarExpanded && (
-              <span>Tutorial</span>
-            )}
-          </button>
+          {location !== "/" && (
+            <button
+              data-testid="button-tutorial-toggle"
+              onClick={toggleTutorial}
+              title="Modo Tutorial"
+              className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full whitespace-nowrap overflow-hidden ${sidebarExpanded ? "justify-start px-4" : "justify-center px-0"} ${
+                tutorialActive
+                  ? "text-yellow-400 bg-yellow-400/15 hover:bg-yellow-400/25"
+                  : "text-white/60 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Lightbulb className={`w-5 h-5 flex-shrink-0 transition-all ${tutorialActive ? "drop-shadow-[0_0_6px_rgba(250,204,21,0.8)]" : ""}`} />
+              {sidebarExpanded && (
+                <span>Tutorial</span>
+              )}
+            </button>
+          )}
           <button
             data-testid="button-logout"
             onClick={handleLogout}
@@ -214,18 +216,20 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="px-4 py-2 text-sm text-white/60 truncate">
             {userName}
           </div>
-          <button
-            data-testid="button-tutorial-toggle-mobile"
-            onClick={toggleTutorial}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full ${
-              tutorialActive
-                ? "text-yellow-400 bg-yellow-400/15 hover:bg-yellow-400/25"
-                : "text-white/60 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <Lightbulb className={`w-5 h-5 flex-shrink-0 ${tutorialActive ? "drop-shadow-[0_0_6px_rgba(250,204,21,0.8)]" : ""}`} />
-            Tutorial
-          </button>
+          {location !== "/" && (
+            <button
+              data-testid="button-tutorial-toggle-mobile"
+              onClick={toggleTutorial}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full ${
+                tutorialActive
+                  ? "text-yellow-400 bg-yellow-400/15 hover:bg-yellow-400/25"
+                  : "text-white/60 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Lightbulb className={`w-5 h-5 flex-shrink-0 ${tutorialActive ? "drop-shadow-[0_0_6px_rgba(250,204,21,0.8)]" : ""}`} />
+              Tutorial
+            </button>
+          )}
           <button
             data-testid="button-logout-mobile"
             onClick={handleLogout}

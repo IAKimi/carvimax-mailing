@@ -38,6 +38,8 @@ interface BrandIdentityData {
   accentColor?: string | null;
   headingFont?: string | null;
   bodyFont?: string | null;
+  logoUrl?: string | null;
+  visualStyle?: string | null;
 }
 
 function buildInstructions(brand: BrandIdentityData | null): string {
@@ -296,27 +298,116 @@ const editTemplateSchema = {
   strict: true,
 };
 
+const VISUAL_STYLE_PROMPTS: Record<string, string> = {
+  minimalista: `ESTILO VISUAL — MINIMALISTA:
+- Espacios en blanco generosos entre secciones (padding 40-60px)
+- Máximo 2 colores (primario + blanco/gris claro)
+- Sin sombras, sin gradientes, sin bordes decorativos
+- Tipografía limpia y legible con tamaños grandes
+- Separadores finos (1px) en color gris claro
+- Botón CTA con diseño flat, sin sombras, bordes redondeados sutiles (4px)
+- Imágenes sin bordes ni marcos`,
+
+  corporativo: `ESTILO VISUAL — CORPORATIVO:
+- Diseño estructurado y simétrico con líneas rectas
+- Header con fondo del color primario de marca
+- Secciones claramente delimitadas con bordes sutiles (1px solid)
+- Tipografía serif o sans-serif profesional
+- Paleta de colores sobria: primario + secundario + gris oscuro
+- Botón CTA sólido, rectangular con esquinas apenas redondeadas (3px)
+- Footer formal con datos de contacto bien organizados`,
+
+  moderno: `ESTILO VISUAL — MODERNO:
+- Bordes redondeados generosos (12-16px) en tarjetas y contenedores
+- Sombras sutiles (box-shadow ligero) para dar profundidad
+- Gradientes suaves en el header o el botón CTA
+- Espaciado amplio y limpio entre elementos
+- Uso estratégico del color de acento para destacar elementos
+- Botón CTA con gradiente o sombra, bordes redondeados (8-12px)
+- Transiciones visuales suaves entre secciones`,
+
+  creativo: `ESTILO VISUAL — CREATIVO:
+- Formas y layouts asimétricos cuando sea posible
+- Uso audaz de los 3 colores de marca (primario, secundario, acento)
+- Fondos con colores vibrantes en secciones alternas
+- Tipografía expresiva con tamaños variados
+- Elementos decorativos: íconos, separadores temáticos, badges
+- Botón CTA grande y llamativo con color de acento
+- Bordes redondeados grandes (16-24px)`,
+
+  elegante: `ESTILO VISUAL — ELEGANTE:
+- Paleta oscura o con tonos profundos del color primario
+- Tipografía serif refinada para títulos, sans-serif para cuerpo
+- Espaciado generoso, diseño aireado y sofisticado
+- Líneas decorativas finas doradas o del color de acento
+- Sombras muy sutiles, casi imperceptibles
+- Botón CTA con borde fino y fondo transparente o sólido elegante
+- Footer minimalista con separador fino`,
+};
+
 function buildTemplateInstructions(brand: BrandIdentityData | null): string {
+  const primaryColor = brand?.primaryColor || "#002073";
+  const secondaryColor = brand?.secondaryColor || "#e3001b";
+  const accentColor = brand?.accentColor || "#f59e0b";
+  const headingFont = brand?.headingFont || "Arial, sans-serif";
+  const bodyFont = brand?.bodyFont || "Arial, sans-serif";
+  const visualStyle = brand?.visualStyle || "moderno";
+
+  const logoUrl = brand?.logoUrl && !brand.logoUrl.startsWith("data:") ? brand.logoUrl : null;
+  const logoSection = logoUrl
+    ? `- Logo de la empresa (URL): ${logoUrl}
+- INSTRUCCIÓN DE LOGO: Incluir el logo como imagen en la ESQUINA SUPERIOR IZQUIERDA del header, debajo del titular y sobre el fondo de color del header. Usar <img src="${logoUrl}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />. El logo debe ser visible y estar alineado a la izquierda dentro de la tabla del header.`
+    : brand?.logoUrl?.startsWith("data:")
+      ? `- INSTRUCCIÓN DE LOGO: El usuario tiene un logo cargado. Incluir un placeholder {{LOGO_URL}} en la ESQUINA SUPERIOR IZQUIERDA del header como <img src="{{LOGO_URL}}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />. El logo debe estar alineado a la izquierda dentro de la tabla del header.`
+      : "- Logo: No configurado. Usar solo el nombre de la empresa como texto en el header.";
+
+  const footerContactSection = (() => {
+    const parts: string[] = [];
+    if (brand?.website) parts.push(`Sitio web: ${brand.website} (incluir como enlace clickeable)`);
+    if (brand?.whatsapp) parts.push(`WhatsApp: ${brand.whatsapp} (incluir como texto visible)`);
+    if (parts.length > 0) {
+      return `\n- FOOTER CON DATOS DE CONTACTO: El footer DEBE incluir, además del enlace de cancelación de suscripción, una sección de contacto con: ${parts.join(" y ")}. Formatear de manera elegante con un texto como "Para más información:" o "Contáctanos:".`;
+    }
+    return "\n- FOOTER: Si no hay datos de contacto, la IA debe proponer una frase profesional de cierre coherente con el tono de la marca, además del enlace de cancelación de suscripción.";
+  })();
+
   const brandContext = brand
     ? `
 IDENTIDAD DE MARCA Y VISUAL:
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
-- Productos/Servicios: ${brand.products || "No especificados"}
+- Misión: ${brand.mission || "No especificada"}
+- Visión: ${brand.vision || "No especificada"}
+- Historia: ${brand.history || "No especificada"}
 - Audiencia objetivo: ${brand.targetAudience || "No especificada"}
-- Guía de estilo: ${brand.styleGuide || "No especificada"}
-- Color primario: ${brand.primaryColor || "#002073"}
-- Color secundario: ${brand.secondaryColor || "#e3001b"}
-- Color de acento: ${brand.accentColor || "#f59e0b"}
-- Fuente de títulos: ${brand.headingFont || "Arial, sans-serif"}
-- Fuente de cuerpo: ${brand.bodyFont || "Arial, sans-serif"}
 - Tono de comunicación: ${brand.tone || "Profesional"}
+- Color primario: ${primaryColor}
+- Color secundario: ${secondaryColor}
+- Color de acento: ${accentColor}
+- Fuente de títulos: ${headingFont}
+- Fuente de cuerpo: ${bodyFont}
+${logoSection}
+- Sitio web: ${brand.website || "No configurado"}
+- WhatsApp: ${brand.whatsapp || "No configurado"}
 `
     : "IDENTIDAD DE MARCA: No configurada. Usa colores corporativos genéricos profesionales con fuentes Arial/Helvetica.";
+
+  const stylePrompt = VISUAL_STYLE_PROMPTS[visualStyle] || VISUAL_STYLE_PROMPTS["moderno"];
 
   return `Eres un diseñador senior experto en plantillas HTML de email marketing con 15 años de experiencia en compatibilidad cross-client (Gmail, Outlook, Apple Mail, Yahoo).
 
 ${brandContext}
+
+${stylePrompt}
+
+CALIDAD DE DISEÑO BASE (aplicar SIEMPRE además del estilo visual):
+- Padding interno consistente en todas las celdas (mínimo 20px)
+- Jerarquía visual clara: título > subtítulo > cuerpo > CTA
+- Contraste adecuado entre texto y fondo (ratio mínimo 4.5:1)
+- Imágenes con bordes redondeados cuando el estilo lo permita
+- Separación visual clara entre secciones (espaciado o separadores)
+- El botón CTA debe ser el elemento más prominente después de la imagen
+- Colores de fondo alternos entre secciones para dar ritmo visual
 
 SISTEMA DE PLACEHOLDERS OBLIGATORIOS (6 de 6 — TODOS son requeridos):
 Tu plantilla DEBE incluir EXACTAMENTE estos 6 placeholders. Si falta CUALQUIERA de ellos, la plantilla será rechazada por el sistema. Son marcadores dinámicos que serán reemplazados programáticamente. NUNCA uses texto real en su lugar — deben aparecer literalmente como se muestran aquí:
@@ -333,11 +424,11 @@ Tu plantilla DEBE incluir EXACTAMENTE estos 6 placeholders. Si falta CUALQUIERA 
 ESTRUCTURA VISUAL OBLIGATORIA (de arriba a abajo, en este orden EXACTO):
 1. <head> con <title>{{ASUNTO}}</title>
 2. <body> → preheader oculto con {{PREHEADER}}
-3. Header/Logo de la empresa (tabla superior)
+3. Header con fondo del color primario: ${brand?.logoUrl ? "logo de la empresa en esquina superior izquierda" : "nombre de la empresa como texto"}
 4. IMAGEN HERO/BANNER con {{IMAGEN_URL}} — SIEMPRE debe ir ANTES del contenido de texto
 5. CONTENIDO principal con {{CONTENIDO}} — SIEMPRE DESPUÉS de la imagen
 6. BOTÓN CTA con {{CTA_TEXTO}} y {{CTA_URL}} — DESPUÉS del contenido
-7. Footer con enlace de cancelación de suscripción
+7. Footer con datos de contacto (WhatsApp/sitio web si están disponibles) y enlace de cancelación de suscripción${footerContactSection}
 
 ⚠️ REGLA CRÍTICA: La imagen ({{IMAGEN_URL}}) NUNCA debe aparecer después del contenido ({{CONTENIDO}}) ni después del CTA. La imagen SIEMPRE va ARRIBA, como banner/hero, ANTES de cualquier texto del cuerpo del correo.
 

@@ -21,6 +21,7 @@ const BRAND_STEPS: TutorialStep[] = [
   { fieldId: "colors", label: "Colores Corporativos", description: "Seleccione los colores corporativos de su marca para que las plantillas los reflejen." },
   { fieldId: "fonts", label: "Tipografías", description: "Escoja las fuentes tipográficas que representan la identidad visual de su marca." },
   { fieldId: "logo", label: "Logotipo", description: "Suba el logotipo oficial de su empresa en formato PNG, JPG, SVG o WebP." },
+  { fieldId: "visualStyle", label: "Estilo Visual", description: "Seleccione el estilo de diseño que la IA aplicará al generar sus plantillas de email: Minimalista, Corporativo, Moderno, Creativo o Elegante." },
 ];
 
 const CALENDAR_STEPS: TutorialStep[] = [

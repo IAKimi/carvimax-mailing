@@ -936,7 +936,7 @@ export default function CalendarView() {
                       data-testid="img-email-preview"
                       src={selectedImageUrl}
                       alt="Vista previa de imagen"
-                      className="w-full h-48 object-cover"
+                      className="w-full object-contain max-h-[400px]"
                     />
                     {(regenerateImageMutation.isPending || editImageMutation.isPending) && (
                       <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">

@@ -49,6 +49,7 @@ const BRAND_FIELDS: { key: string; default: string }[] = [
   { key: "headingFont", default: "Inter" },
   { key: "bodyFont", default: "Inter" },
   { key: "logoUrl", default: "" },
+  { key: "visualStyle", default: "moderno" },
 ];
 
 const DEFAULT_BRAND = {
@@ -69,6 +70,7 @@ const DEFAULT_BRAND = {
   headingFont: "Inter",
   bodyFont: "Inter",
   logoUrl: "",
+  visualStyle: "moderno",
 };
 
 function getProgressColor(pct: number): string {
@@ -112,7 +114,7 @@ function SectionDivider({ label }: { label: string }) {
 }
 
 const LEFT_SECTION_FIELDS = new Set(["companyName", "industry", "website", "whatsapp", "mission", "vision", "products", "history"]);
-const RIGHT_SECTION_FIELDS = new Set(["styleGuide", "targetAudience", "tone", "colors", "fonts", "logo"]);
+const RIGHT_SECTION_FIELDS = new Set(["styleGuide", "targetAudience", "tone", "colors", "fonts", "logo", "visualStyle"]);
 
 function getFieldValue(brand: typeof DEFAULT_BRAND, fieldId: string): string {
   const map: Record<string, string> = {
@@ -130,12 +132,13 @@ function getFieldValue(brand: typeof DEFAULT_BRAND, fieldId: string): string {
     colors: brand.primaryColor,
     fonts: brand.headingFont,
     logo: brand.logoUrl,
+    visualStyle: brand.visualStyle,
   };
   return map[fieldId] || "";
 }
 
 function isFieldEmpty(brand: typeof DEFAULT_BRAND, fieldId: string): boolean {
-  if (fieldId === "tone" || fieldId === "colors" || fieldId === "fonts") return false;
+  if (fieldId === "tone" || fieldId === "colors" || fieldId === "fonts" || fieldId === "visualStyle") return false;
   const val = getFieldValue(brand, fieldId);
   return val.trim() === "";
 }
@@ -224,6 +227,7 @@ export default function BrandIdentity() {
         headingFont: brandData.headingFont || "Inter",
         bodyFont: brandData.bodyFont || "Inter",
         logoUrl: brandData.logoUrl || "",
+        visualStyle: brandData.visualStyle || "moderno",
       });
       setInitialized(true);
     } else if (brandData === null && !initialized) {
@@ -631,6 +635,37 @@ export default function BrandIdentity() {
                           <p className="text-xs text-muted-foreground mt-1">PNG, JPG o SVG (máx. 2MB)</p>
                         </div>
                       )}
+                      </div>
+                    </TutorialHighlight>
+
+                    <TutorialHighlight fieldId="visualStyle">
+                      <div>
+                        <Label className="mb-3 block">Estilo Visual de Plantillas</Label>
+                        <p className="text-xs text-muted-foreground mb-3">Define el estilo de diseño que la IA aplicará al generar plantillas de email.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {[
+                            { value: "minimalista", label: "Minimalista", desc: "Limpio, espacioso, pocos colores" },
+                            { value: "corporativo", label: "Corporativo", desc: "Formal, estructurado, profesional" },
+                            { value: "moderno", label: "Moderno", desc: "Bordes redondeados, sombras, gradientes" },
+                            { value: "creativo", label: "Creativo", desc: "Audaz, colorido, expresivo" },
+                            { value: "elegante", label: "Elegante", desc: "Sofisticado, refinado, oscuro" },
+                          ].map(style => (
+                            <button
+                              key={style.value}
+                              data-testid={`button-style-${style.value}`}
+                              type="button"
+                              onClick={() => setBrand(b => ({ ...b, visualStyle: style.value }))}
+                              className={`p-3 rounded-xl border-2 text-left transition-all ${
+                                brand.visualStyle === style.value
+                                  ? "border-[#002073] bg-[#002073]/5 ring-1 ring-[#002073]/20"
+                                  : "border-border hover:border-[#002073]/30"
+                              }`}
+                            >
+                              <span className="text-sm font-medium block">{style.label}</span>
+                              <span className="text-xs text-muted-foreground">{style.desc}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </TutorialHighlight>
                   </div>
