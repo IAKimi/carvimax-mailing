@@ -1,0 +1,19 @@
+Un problema en la plataforma es que cuando yo quiero programar para mi mismo día en una hora próxima, no me deja. Solo me deja programar para días futuros 
+
+Cuando le doy click a "Regenerar imagen" en el editor de imagen, me muestra el texto del prompt antiguo, ya listo para que yo lo edite en la caja de texto donde debería poder escribir. Pero no me deja escribir sobre él; sino que, obligatoriamente, tengo que borrarlo todo y escribir un prompt nuevo desde cero.
+
+Eso no debería ser. Debería de funcionar exactamente como está funcionando ahorita, de que me pone el mismo prompt que yo ya tenía en la caja de texto. Es por si yo solo le quiero hacer micro cambios al prompt; no tendría que obligarme a tener que escribirlo todo de nuevo. 
+
+Problema: intenté poner un prompt así de largo en la regeneración de imagen y no me dejó.
+
+"Un grupo de emprendedores en una sesión de workshop o de ayuda de ideas, en donde hay algunos trabajando en una pizarra con varios post-its, poniendo sus ideas, y hay otros que, visiblemente en la composición de la imagen, están enviando campañas de correo electrónico.    
+Deben verse unas pantallas donde aparece la interfaz de un correo electrónico enviándose y debe verse otra pantalla de otro laptop en donde aparece un icono de widget que dice "Mail Sent".  
+El grupo de personas debe estar compuesto por 5 personas y ellas tienen que tener una camisa blanca que tenga la frase "PostIAlo es mi aliado estratégico". Adicionalmente necesito de que este workshop que estén haciendo las personas se vea al aire libre"
+
+A un error 400, el POM de la imagen no puede exceder 500 caracteres. Debemos subir eso por lo menos a 1000 o 1200. 
+
+Un punto super importante que definitivamente no se tomó en cuenta es de que, cuando yo le doy clic a "Regenerar", estoy teniendo varios bugs. Me aparece el prompt actual pero yo lo tengo que borrar todo por completo para que me deje escribir. Hay un límite de caracteres entonces eso habría que revisarlo por favor. 
+
+En todos los campos de edición de imagen, el límite debe ser de 1200 caracteres, ya sea que esté usando función de nano banana o ya sea que esté regenerando completa la imagen. 1200.
+
+Lo otro si manda el payload de información hacia el webhook de make, eso sí funciona pero hay un problema: yo te comparto un ejemplo de lo que se manda a MAKE. 
