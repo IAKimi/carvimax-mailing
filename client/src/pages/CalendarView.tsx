@@ -24,12 +24,126 @@ import type { Campaign, CampaignVersion, Template, ContactDatabase } from "@shar
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
+import { useCampaignProgress, type CampaignProgress } from "@/hooks/use-campaign-progress";
+import { Progress } from "@/components/ui/progress";
+
+function SendProgressBar({ campaignId, campaign }: { campaignId: number; campaign: Campaign }) {
+  const { getProgress } = useCampaignProgress();
+  const wsProgress = getProgress(campaignId);
+
+  const { data: sendStats } = useQuery<{
+    total: number; sent: number; failed: number; pending: number;
+    totalExpectedSends: number; sentCount: number; failedCount: number; status: string;
+  }>({
+    queryKey: ['/api/campaigns', campaignId, 'send-stats'],
+    refetchInterval: campaign.status === "sending" ? 5000 : false,
+  });
+
+  const total = wsProgress?.totalExpectedSends || sendStats?.totalExpectedSends || campaign.totalExpectedSends || 0;
+  const sent = wsProgress?.sentCount ?? sendStats?.sentCount ?? campaign.sentCount ?? 0;
+  const failed = wsProgress?.failedCount ?? sendStats?.failedCount ?? campaign.failedCount ?? 0;
+  const completed = sent + failed;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const isComplete = total > 0 && completed >= total;
+
+  const { data: sends } = useQuery<Array<{
+    id: number; campaignId: number; contactEmail: string; contactName: string | null;
+    status: string; messageId: string | null; errorMessage: string | null;
+  }>>({
+    queryKey: ['/api/campaigns', campaignId, 'sends'],
+    refetchInterval: campaign.status === "sending" ? 5000 : false,
+  });
+
+  const [showLog, setShowLog] = useState(false);
+
+  return (
+    <div data-testid="send-progress-container" className="bg-card rounded-2xl border border-border p-4 shadow-sm space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Send className="w-4 h-4" />
+          Progreso de Envío
+        </h3>
+        <span className="text-xs text-muted-foreground">
+          {completed} / {total} contactos
+        </span>
+      </div>
+
+      <Progress value={percent} className="h-2" />
+
+      <div className="flex items-center gap-4 text-xs">
+        <span className="flex items-center gap-1.5 text-emerald-600">
+          <CheckCircle2 className="w-3.5 h-3.5" /> {sent} enviados
+        </span>
+        {failed > 0 && (
+          <span className="flex items-center gap-1.5 text-red-600">
+            <XCircle className="w-3.5 h-3.5" /> {failed} fallidos
+          </span>
+        )}
+        {total - completed > 0 && !isComplete && (
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> {total - completed} pendientes
+          </span>
+        )}
+        {isComplete && (
+          <span className="font-semibold text-emerald-600">
+            {failed === 0 ? "¡Envío completado!" : "Envío finalizado con errores"}
+          </span>
+        )}
+      </div>
+
+      {sends && sends.length > 0 && (
+        <>
+          <Button
+            data-testid="button-toggle-send-log"
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => setShowLog(!showLog)}
+          >
+            {showLog ? "Ocultar detalle" : "Ver detalle por contacto"}
+          </Button>
+          {showLog && (
+            <div className="max-h-48 overflow-y-auto border rounded-lg divide-y text-xs">
+              {sends.map((s) => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      s.status === "sent" ? "bg-emerald-500" : s.status === "failed" ? "bg-red-500" : "bg-gray-300"
+                    }`} />
+                    <span className="truncate">{s.contactName || s.contactEmail}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {s.messageId && (
+                      <span className="text-muted-foreground truncate max-w-[120px]" title={s.messageId}>
+                        ID: {s.messageId}
+                      </span>
+                    )}
+                    {s.errorMessage && (
+                      <span className="text-red-500 truncate max-w-[150px]" title={s.errorMessage}>
+                        {s.errorMessage}
+                      </span>
+                    )}
+                    <span className={`font-medium ${
+                      s.status === "sent" ? "text-emerald-600" : s.status === "failed" ? "text-red-600" : "text-gray-400"
+                    }`}>
+                      {s.status === "sent" ? "Enviado" : s.status === "failed" ? "Fallido" : "Pendiente"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-const STATUS_MAP: Record<string, string> = { draft: "borrador", scheduled: "programado", sent: "enviado", cancelled: "cancelado" };
-const STATUS_REVERSE: Record<string, string> = { borrador: "draft", programado: "scheduled", enviado: "sent", cancelado: "cancelled" };
+const STATUS_MAP: Record<string, string> = { draft: "borrador", scheduled: "programado", sending: "enviando", sent: "enviado", partial: "parcial", failed: "fallido", cancelled: "cancelado" };
+const STATUS_REVERSE: Record<string, string> = { borrador: "draft", programado: "scheduled", enviando: "sending", enviado: "sent", parcial: "partial", fallido: "failed", cancelado: "cancelled" };
 
 function campaignToDateStr(c: Campaign): string {
   if (!c.scheduledAt) return "";
@@ -702,7 +816,8 @@ export default function CalendarView() {
 
   if (editingCampaign) {
     const isCancelled = editingCampaign.status === "cancelled";
-    const isSent = editingCampaign.status === "sent";
+    const isSent = editingCampaign.status === "sent" || editingCampaign.status === "partial";
+    const isSending = editingCampaign.status === "sending";
     const isGenerated = versions.length > 0;
     const isReady = imageApproved && textApproved;
 
@@ -710,9 +825,12 @@ export default function CalendarView() {
     if (isCancelled) {
       statusTags.push({ label: "Cancelado", className: "bg-red-100 text-red-700" });
     } else {
-      if (isSent) statusTags.push({ label: "Enviado", className: "bg-emerald-100 text-emerald-700" });
-      if (isReady && !isSent) statusTags.push({ label: "Listo", className: "bg-green-100 text-green-700" });
-      if (isGenerated && !isSent) statusTags.push({ label: "Generado", className: "bg-indigo-100 text-indigo-700" });
+      if (isSending) statusTags.push({ label: "Enviando...", className: "bg-amber-100 text-amber-700 animate-pulse" });
+      if (editingCampaign.status === "sent") statusTags.push({ label: "Enviado", className: "bg-emerald-100 text-emerald-700" });
+      if (editingCampaign.status === "partial") statusTags.push({ label: "Envío Parcial", className: "bg-orange-100 text-orange-700" });
+      if (editingCampaign.status === "failed") statusTags.push({ label: "Fallido", className: "bg-red-100 text-red-700" });
+      if (isReady && !isSent && !isSending) statusTags.push({ label: "Listo", className: "bg-green-100 text-green-700" });
+      if (isGenerated && !isSent && !isSending) statusTags.push({ label: "Generado", className: "bg-indigo-100 text-indigo-700" });
       if (editingCampaign.status === "scheduled") statusTags.push({ label: "Programado", className: "bg-blue-100 text-blue-700" });
       if (editingCampaign.status === "draft") statusTags.push({ label: "Borrador", className: "bg-gray-100 text-gray-600" });
     }
@@ -798,6 +916,10 @@ export default function CalendarView() {
               <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <p className="text-sm font-medium text-red-700">Este correo ha sido cancelado. No se puede editar ni enviar.</p>
             </div>
+          )}
+
+          {(isSending || isSent) && (editingCampaign.totalExpectedSends ?? 0) > 0 && (
+            <SendProgressBar campaignId={editingCampaign.id} campaign={editingCampaign} />
           )}
 
           {progressPercent >= 0 && (

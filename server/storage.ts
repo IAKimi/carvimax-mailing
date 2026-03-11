@@ -1,14 +1,15 @@
 import { eq, and, ne, gte, lt, isNull, or, sql, inArray, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates,
+  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends,
   type User, type InsertUser,
   type Campaign, type InsertCampaign,
   type CampaignVersion, type InsertCampaignVersion,
   type Contact, type InsertContact,
   type ContactDatabase, type InsertContactDatabase,
   type BrandIdentity, type InsertBrandIdentity,
-  type Template, type InsertTemplate
+  type Template, type InsertTemplate,
+  type CampaignSend, type InsertCampaignSend
 } from "@shared/schema";
 
 type CampaignListItem = Omit<Campaign, "selectedImageUrl">;
@@ -59,6 +60,14 @@ export interface IStorage {
   deleteTemplatesByParent(parentTemplateId: number, excludeId: number): Promise<void>;
   confirmTemplate(id: number, parentId: number): Promise<Template>;
 
+  createCampaignSends(sends: InsertCampaignSend[]): Promise<CampaignSend[]>;
+  getCampaignSendByEmail(campaignId: number, contactEmail: string): Promise<CampaignSend | undefined>;
+  updateCampaignSend(campaignId: number, contactEmail: string, updates: Partial<InsertCampaignSend>): Promise<CampaignSend | undefined>;
+  getCampaignSends(campaignId: number): Promise<CampaignSend[]>;
+  getCampaignSendStats(campaignId: number): Promise<{ total: number; sent: number; failed: number; pending: number }>;
+  incrementCampaignSendCount(campaignId: number, field: "sentCount" | "failedCount"): Promise<Campaign | undefined>;
+  deleteCampaignSends(campaignId: number): Promise<void>;
+
   getAllUsers(): Promise<User[]>;
   updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string; isActive: boolean }>): Promise<User | undefined>;
   updateUserPassword(id: number, hashedPassword: string): Promise<void>;
@@ -99,6 +108,9 @@ export class DatabaseStorage implements IStorage {
       targetAudience: campaigns.targetAudience,
       templateId: campaigns.templateId,
       scheduledAt: campaigns.scheduledAt,
+      totalExpectedSends: campaigns.totalExpectedSends,
+      sentCount: campaigns.sentCount,
+      failedCount: campaigns.failedCount,
       createdAt: campaigns.createdAt,
     };
 
@@ -479,6 +491,57 @@ export class DatabaseStorage implements IStorage {
       contacts: contactCount.c,
       databases: dbCount.c,
     };
+  }
+
+  async createCampaignSends(sends: InsertCampaignSend[]): Promise<CampaignSend[]> {
+    if (sends.length === 0) return [];
+    return await db.insert(campaignSends).values(sends).returning();
+  }
+
+  async getCampaignSendByEmail(campaignId: number, contactEmail: string): Promise<CampaignSend | undefined> {
+    const [result] = await db.select().from(campaignSends)
+      .where(and(eq(campaignSends.campaignId, campaignId), eq(campaignSends.contactEmail, contactEmail)));
+    return result;
+  }
+
+  async updateCampaignSend(campaignId: number, contactEmail: string, updates: Partial<InsertCampaignSend>): Promise<CampaignSend | undefined> {
+    const [result] = await db
+      .update(campaignSends)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(campaignSends.campaignId, campaignId), eq(campaignSends.contactEmail, contactEmail)))
+      .returning();
+    return result;
+  }
+
+  async getCampaignSends(campaignId: number): Promise<CampaignSend[]> {
+    return await db.select().from(campaignSends).where(eq(campaignSends.campaignId, campaignId)).orderBy(campaignSends.id);
+  }
+
+  async getCampaignSendStats(campaignId: number): Promise<{ total: number; sent: number; failed: number; pending: number }> {
+    const rows = await db.select({ status: campaignSends.status, c: count() }).from(campaignSends).where(eq(campaignSends.campaignId, campaignId)).groupBy(campaignSends.status);
+    const stats = { total: 0, sent: 0, failed: 0, pending: 0 };
+    for (const r of rows) {
+      const n = Number(r.c);
+      stats.total += n;
+      if (r.status === "sent") stats.sent = n;
+      else if (r.status === "failed") stats.failed = n;
+      else stats.pending += n;
+    }
+    return stats;
+  }
+
+  async incrementCampaignSendCount(campaignId: number, field: "sentCount" | "failedCount"): Promise<Campaign | undefined> {
+    const col = field === "sentCount" ? campaigns.sentCount : campaigns.failedCount;
+    const [result] = await db
+      .update(campaigns)
+      .set({ [field]: sql`COALESCE(${col}, 0) + 1` })
+      .where(eq(campaigns.id, campaignId))
+      .returning();
+    return result;
+  }
+
+  async deleteCampaignSends(campaignId: number): Promise<void> {
+    await db.delete(campaignSends).where(eq(campaignSends.campaignId, campaignId));
   }
 
   async getRecentActivity(): Promise<Array<{ campaignId: number; campaignName: string; status: string; createdAt: Date | null; userId: number; userName: string; userEmail: string }>> {

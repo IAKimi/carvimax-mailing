@@ -4,12 +4,28 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, renderTemplateWithContent } from "./templates";
+import { campaigns as campaignsTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+
+let wss: WebSocketServer | null = null;
+
+function broadcastWs(type: string, data: any) {
+  if (!wss) return;
+  const msg = JSON.stringify({ type, data });
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -220,6 +236,18 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  wss = new WebSocketServer({ noServer: true });
+  wss.on("connection", (ws) => {
+    ws.on("error", () => {});
+  });
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (req.url === "/ws") {
+      wss!.handleUpgrade(req, socket, head, (ws) => {
+        wss!.emit("connection", ws, req);
+      });
+    }
+  });
 
   app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
@@ -1318,6 +1346,7 @@ export async function registerRoutes(
   });
 
   async function sendCampaignToWebhook(campaignId: number, userId: number): Promise<{ success: boolean; error?: string }> {
+    let previousStatus = "draft";
     try {
       const campaign = await storage.getCampaign(campaignId);
       if (!campaign || campaign.userId !== userId) {
@@ -1370,11 +1399,14 @@ export async function registerRoutes(
       const contentJson = selected.contentJson as Record<string, unknown> | null;
       const subject = (contentJson?.asunto as string) || campaign.name || "Sin asunto";
 
+      const senderName = brandData?.senderName || brandData?.companyName || "PostIAlo Mailing";
+      const senderEmail = brandData?.senderEmail || "noreply@postialo.com";
+
       const payload = {
         subject,
         html_content: cleanHtmlForEmail(renderedHtml),
-        sender_name: brandData?.senderName || brandData?.companyName || "PostIAlo Mailing",
-        sender_email: brandData?.senderEmail || "noreply@postialo.com",
+        sender_name: senderName,
+        sender_email: senderEmail,
         campaign_id: String(campaignId),
         contacts: contactsList.map(c => ({
           name: c.name || "",
@@ -1382,8 +1414,32 @@ export async function registerRoutes(
         })),
       };
 
-      const previousStatus = campaign.status || "draft";
-      await storage.updateCampaign(campaignId, { status: "sending" });
+      await storage.deleteCampaignSends(campaignId);
+      const sendRecords = contactsList.map(c => ({
+        campaignId,
+        contactEmail: c.email,
+        contactName: c.name || null,
+        status: "pending" as const,
+      }));
+      await storage.createCampaignSends(sendRecords);
+
+      previousStatus = campaign.status || "draft";
+      await storage.updateCampaign(campaignId, {
+        status: "sending",
+      } as any);
+      await db.update(campaignsTable).set({
+        totalExpectedSends: contactsList.length,
+        sentCount: 0,
+        failedCount: 0,
+      }).where(eq(campaignsTable.id, campaignId));
+
+      broadcastWs("campaign-progress", {
+        campaignId,
+        totalExpectedSends: contactsList.length,
+        sentCount: 0,
+        failedCount: 0,
+        status: "sending",
+      });
 
       const webhookRes = await fetch(MAKE_WEBHOOK_URL, {
         method: "POST",
@@ -1416,7 +1472,9 @@ export async function registerRoutes(
     if (!campaign || campaign.userId !== req.session.userId) {
       return res.status(404).json({ message: "Campaña no encontrada." });
     }
-    // Modo pruebas: sin bloqueos por estado — se puede re-enviar libremente
+    if (campaign.status === "sending") {
+      return res.status(400).json({ message: "La campaña ya se está enviando. Espere a que termine." });
+    }
     const result = await sendCampaignToWebhook(id, req.session.userId!);
     if (!result.success) {
       return res.status(400).json({ message: result.error });
@@ -1426,7 +1484,7 @@ export async function registerRoutes(
 
   const webhookCallbackLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
-    max: 200,
+    max: 2000,
     message: { message: "Demasiadas solicitudes." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -1434,7 +1492,7 @@ export async function registerRoutes(
 
   app.post("/api/webhooks/make-callback", webhookCallbackLimiter, async (req, res) => {
     try {
-      const { campaign_id, status, message_id } = req.body || {};
+      const { campaign_id, status, message_id, contact_email, error_message } = req.body || {};
       if (!campaign_id) {
         return res.status(400).json({ message: "campaign_id es requerido." });
       }
@@ -1446,15 +1504,96 @@ export async function registerRoutes(
       if (!campaign) {
         return res.status(404).json({ message: "Campaña no encontrada." });
       }
-      if (status === "success" || status === "sent") {
-        await storage.updateCampaign(campaignId, { status: "sent" });
+
+      const sendStatus = (status === "success" || status === "sent") ? "sent" : (status === "error" || status === "failed") ? "failed" : "sent";
+
+      if (contact_email) {
+        const existingSend = await storage.getCampaignSendByEmail(campaignId, contact_email);
+        if (!existingSend) {
+          console.log(`Make callback: unknown contact ${contact_email} for campaign ${campaignId}, ignoring`);
+          return res.json({ received: true, ignored: true });
+        }
+
+        if (existingSend.status !== "pending") {
+          console.log(`Make callback: duplicate for ${contact_email} campaign ${campaignId} (already ${existingSend.status}), ignoring`);
+          return res.json({ received: true, duplicate: true });
+        }
+
+        await storage.updateCampaignSend(campaignId, contact_email, {
+          status: sendStatus,
+          messageId: message_id || null,
+          errorMessage: error_message || null,
+        });
+
+        const field = sendStatus === "sent" ? "sentCount" : "failedCount";
+        const updatedCampaign = await storage.incrementCampaignSendCount(campaignId, field);
+
+        if (updatedCampaign) {
+          const sent = updatedCampaign.sentCount || 0;
+          const failed = updatedCampaign.failedCount || 0;
+          const total = updatedCampaign.totalExpectedSends || 0;
+
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: total,
+            sentCount: sent,
+            failedCount: failed,
+            status: updatedCampaign.status,
+          });
+
+          if (total > 0 && (sent + failed) >= total) {
+            const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
+            await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+            broadcastWs("campaign-progress", {
+              campaignId,
+              totalExpectedSends: total,
+              sentCount: sent,
+              failedCount: failed,
+              status: finalStatus,
+              completed: true,
+            });
+          }
+        }
+      } else {
+        if (sendStatus === "sent") {
+          await storage.updateCampaign(campaignId, { status: "sent" } as any);
+        }
       }
-      console.log(`Make callback: campaign=${campaign_id} status=${status} messageId=${message_id || "N/A"}`);
+
+      console.log(`Make callback: campaign=${campaign_id} contact=${contact_email || "N/A"} status=${status} messageId=${message_id || "N/A"}`);
       res.json({ received: true });
     } catch (err: any) {
       console.error("Error processing Make callback:", err.message);
       return res.status(500).json({ message: "Error procesando callback." });
     }
+  });
+
+  app.get("/api/campaigns/:id/sends", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(id);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    const sends = await storage.getCampaignSends(id);
+    res.json(sends);
+  });
+
+  app.get("/api/campaigns/:id/send-stats", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(id);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    const stats = await storage.getCampaignSendStats(id);
+    res.json({
+      ...stats,
+      totalExpectedSends: campaign.totalExpectedSends || 0,
+      sentCount: campaign.sentCount || 0,
+      failedCount: campaign.failedCount || 0,
+      status: campaign.status,
+    });
   });
 
   async function requireAdmin(req: Request, res: Response, next: NextFunction) {

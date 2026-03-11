@@ -28,6 +28,9 @@ export const campaigns = pgTable("campaigns", {
   targetAudience: text("target_audience"),
   templateId: integer("template_id"),
   scheduledAt: timestamp("scheduled_at"),
+  totalExpectedSends: integer("total_expected_sends").default(0),
+  sentCount: integer("sent_count").default(0),
+  failedCount: integer("failed_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -101,6 +104,18 @@ export const templates = pgTable("templates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const campaignSends = pgTable("campaign_sends", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull(),
+  contactEmail: text("contact_email").notNull(),
+  contactName: text("contact_name"),
+  status: text("status").notNull().default("pending"),
+  messageId: text("message_id"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const TEMPLATE_PLACEHOLDERS = {
   ASUNTO: { key: "{{ASUNTO}}", field: "asunto", label: "Asunto del correo", description: "Línea de asunto que aparece en la bandeja de entrada" },
   PREHEADER: { key: "{{PREHEADER}}", field: "preheader", label: "Vista previa (Preheader)", description: "Texto que aparece después del asunto en la bandeja" },
@@ -113,12 +128,13 @@ export const TEMPLATE_PLACEHOLDERS = {
 export const ALL_PLACEHOLDER_KEYS = Object.values(TEMPLATE_PLACEHOLDERS).map(p => p.key);
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, role: true, isActive: true, createdAt: true });
-export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true });
+export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true, totalExpectedSends: true, sentCount: true, failedCount: true });
 export const insertCampaignVersionSchema = createInsertSchema(campaignVersions).omit({ id: true, createdAt: true });
 export const insertContactDatabaseSchema = createInsertSchema(contactDatabases).omit({ id: true, createdAt: true });
 export const insertContactSchema = createInsertSchema(contacts).omit({ id: true, createdAt: true });
 export const insertBrandIdentitySchema = createInsertSchema(brandIdentity).omit({ id: true, updatedAt: true });
 export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
+export const insertCampaignSendSchema = createInsertSchema(campaignSends).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -140,3 +156,6 @@ export type InsertBrandIdentity = z.infer<typeof insertBrandIdentitySchema>;
 
 export type Template = typeof templates.$inferSelect;
 export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
+
+export type CampaignSend = typeof campaignSends.$inferSelect;
+export type InsertCampaignSend = z.infer<typeof insertCampaignSendSchema>;
