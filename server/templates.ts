@@ -26,6 +26,19 @@ export function validateTemplatePlaceholders(html: string): PlaceholderValidatio
   };
 }
 
+function fixGradientsForEmail(html: string): string {
+  return html.replace(
+    /background(?:-image)?:\s*(?:linear|radial)-gradient\([^)]+\)/gi,
+    (match) => {
+      const hexMatch = match.match(/#[0-9a-fA-F]{3,8}/);
+      if (hexMatch) return `background-color:${hexMatch[0]}`;
+      const rgbMatch = match.match(/rgb\([^)]+\)/);
+      if (rgbMatch) return `background-color:${rgbMatch[0]}`;
+      return `background-color:#e3001b`;
+    }
+  );
+}
+
 export interface RenderResult {
   html: string;
   missingFields: string[];
@@ -59,6 +72,8 @@ export function renderTemplateWithContent(
   html = html.replace(/\{\{CTA_TEXTO\}\}/g, ctaTexto);
   html = html.replace(/\{\{CTA_URL\}\}/g, ctaUrl);
   html = html.replace(/\{\{IMAGEN_URL\}\}/g, imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen");
+
+  html = fixGradientsForEmail(html);
 
   if (brandData?.logoUrl && html.includes("{{LOGO_URL}}")) {
     html = html.replace(/\{\{LOGO_URL\}\}/g, brandData.logoUrl);

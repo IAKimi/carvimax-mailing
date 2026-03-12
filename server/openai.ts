@@ -313,10 +313,10 @@ const VISUAL_STYLE_PROMPTS: Record<string, string> = {
   moderno: `ESTILO VISUAL — MODERNO:
 - Bordes redondeados generosos (12-16px) en tarjetas y contenedores
 - Sombras sutiles (box-shadow ligero) para dar profundidad
-- Gradientes suaves en el header o el botón CTA
+- Colores sólidos vibrantes en el header (NUNCA gradientes — no son soportados en email)
 - Espaciado amplio y limpio entre elementos
 - Uso estratégico del color de acento para destacar elementos
-- Botón CTA con gradiente o sombra, bordes redondeados (8-12px)
+- Botón CTA con color sólido de fondo (NUNCA gradiente), bordes redondeados (8-12px)
 - Transiciones visuales suaves entre secciones`,
 
   creativo: `ESTILO VISUAL — CREATIVO:
@@ -436,7 +436,12 @@ REGLAS TÉCNICAS DE HTML PARA EMAIL:
 12. Todo texto auxiliar o decorativo debe estar en español.
 13. El nombre de la plantilla debe ser descriptivo y corto (máx 100 chars), en español.
 14. NUNCA incluyas texto de ejemplo dentro de los placeholders. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} para ser reemplazados por el sistema.
-15. NO uses JavaScript ni event handlers (onclick, onmouseover, etc.).`;
+15. NO uses JavaScript ni event handlers (onclick, onmouseover, etc.).
+16. NUNCA uses linear-gradient, radial-gradient ni ningún gradiente CSS — NO son soportados por Gmail, Yahoo Mail ni la mayoría de clientes de correo. Usa SIEMPRE background-color con un color sólido.
+17. El botón CTA DEBE seguir el patrón "bulletproof button": un <td> con bgcolor="" que contiene un <a> con background-color sólido (NO gradiente), color del texto, padding, y text-decoration:none. Ejemplo:
+    <td align="center" bgcolor="#e3001b" style="border-radius:8px;">
+      <a href="{{CTA_URL}}" target="_blank" style="background-color:#e3001b;border-radius:8px;color:#ffffff;display:inline-block;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;line-height:48px;text-align:center;text-decoration:none;width:240px;-webkit-text-size-adjust:none;">{{CTA_TEXTO}}</a>
+    </td>`;
 }
 
 const VARIANT_INSTRUCTIONS = [
