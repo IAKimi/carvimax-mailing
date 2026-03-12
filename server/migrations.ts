@@ -40,8 +40,8 @@ export async function runMigrations(): Promise<void> {
       )
     `);
 
-    const applied = await client.query(`SELECT name FROM _migrations`);
-    const appliedSet = new Set(applied.rows.map((r: any) => r.name));
+    const applied = await client.query<{ name: string }>(`SELECT name FROM _migrations`);
+    const appliedSet = new Set(applied.rows.map((r) => r.name));
 
     for (const migration of migrations) {
       if (appliedSet.has(migration.name)) continue;
@@ -64,8 +64,6 @@ export async function runMigrations(): Promise<void> {
     }
 
     console.log("[migrations] All migrations up to date.");
-  } catch (err) {
-    console.error("[migrations] Migration runner error:", err);
   } finally {
     client.release();
   }
