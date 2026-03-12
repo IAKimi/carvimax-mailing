@@ -227,7 +227,8 @@ export class DatabaseStorage implements IStorage {
     for (const c of recent) {
       const versions = await this.getCampaignVersions(c.id);
       const selected = versions.find(v => v.isSelected) || versions[0];
-      const subject = selected ? (selected.contentJson as any)?.subject || c.name : c.name;
+      const cj = selected?.contentJson as any;
+      const subject = cj?.asunto || cj?.subject || c.name;
       recentWithSubject.push({ ...c, subject });
     }
 
@@ -605,7 +606,8 @@ export class DatabaseStorage implements IStorage {
     for (const row of rows) {
       const versions = await this.getCampaignVersions(row.campaignId);
       const selected = versions.find(v => v.isSelected) || versions[0];
-      const subject = selected ? (selected.contentJson as any)?.subject : null;
+      const cj = selected?.contentJson as any;
+      const subject = cj?.asunto || cj?.subject || null;
       result.push({ ...row, campaignName: subject || row.campaignName });
     }
     return result;

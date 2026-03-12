@@ -8,7 +8,7 @@ import { TutorialTip } from "@/components/TutorialTip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { TipTapEditor } from "@/components/TipTapEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link, useLocation } from "wouter";
@@ -263,7 +263,7 @@ export default function MyEmails() {
               const StatusIcon = config.icon;
               const isExpanded = expandedId === campaign.id;
               const version = versionsByCampaign.get(campaign.id);
-              const subject = version?.contentJson?.subject || campaign.name;
+              const subject = version?.contentJson?.asunto || version?.contentJson?.subject || campaign.name;
               const scheduledDate = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
               const displayDate = scheduledDate
                 ? `${scheduledDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${scheduledDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
@@ -437,13 +437,13 @@ export default function MyEmails() {
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">Contenido</Label>
-                  <Textarea
-                    data-testid="input-resend-body"
-                    value={resendBody}
-                    onChange={(e) => setResendBody(e.target.value)}
-                    rows={4}
-                    className="rounded-xl"
-                  />
+                  <div data-testid="input-resend-body" className="border border-border rounded-xl overflow-hidden">
+                    <TipTapEditor
+                      key={resendCampaign?.id}
+                      content={resendBody}
+                      onChange={(html) => setResendBody(html)}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
