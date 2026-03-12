@@ -31,6 +31,8 @@ export const campaigns = pgTable("campaigns", {
   totalExpectedSends: integer("total_expected_sends").default(0),
   sentCount: integer("sent_count").default(0),
   failedCount: integer("failed_count").default(0),
+  imageRegenCount: integer("image_regen_count").default(0),
+  textRegenCount: integer("text_regen_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -41,6 +43,7 @@ export const campaignVersions = pgTable("campaign_versions", {
   contentJson: jsonb("content_json").notNull(),
   imageUrl: text("image_url"),
   isSelected: boolean("is_selected").default(false),
+  type: text("type").notNull().default("initial"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -128,7 +131,7 @@ export const TEMPLATE_PLACEHOLDERS = {
 export const ALL_PLACEHOLDER_KEYS = Object.values(TEMPLATE_PLACEHOLDERS).map(p => p.key);
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, role: true, isActive: true, createdAt: true });
-export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true, totalExpectedSends: true, sentCount: true, failedCount: true });
+export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true, totalExpectedSends: true, sentCount: true, failedCount: true, imageRegenCount: true, textRegenCount: true });
 export const insertCampaignVersionSchema = createInsertSchema(campaignVersions).omit({ id: true, createdAt: true });
 export const insertContactDatabaseSchema = createInsertSchema(contactDatabases).omit({ id: true, createdAt: true });
 export const insertContactSchema = createInsertSchema(contacts).omit({ id: true, createdAt: true });

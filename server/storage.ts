@@ -31,6 +31,8 @@ export interface IStorage {
   createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion>;
   updateCampaignVersion(id: number, updates: Partial<InsertCampaignVersion>): Promise<CampaignVersion | undefined>;
   deselectAllVersions(campaignId: number): Promise<void>;
+  deselectVersionsByType(campaignId: number, types: string[]): Promise<void>;
+  incrementRegenCount(campaignId: number, field: "imageRegenCount" | "textRegenCount"): Promise<void>;
 
   getCampaignThumbnails(campaignIds: number[]): Promise<Array<{ campaignId: number; imageUrl: string | null }>>;
   getDashboardStats(userId: number): Promise<any>;
@@ -195,6 +197,23 @@ export class DatabaseStorage implements IStorage {
 
   async deselectAllVersions(campaignId: number): Promise<void> {
     await db.update(campaignVersions).set({ isSelected: false }).where(eq(campaignVersions.campaignId, campaignId));
+  }
+
+  async deselectVersionsByType(campaignId: number, types: string[]): Promise<void> {
+    await db.update(campaignVersions)
+      .set({ isSelected: false })
+      .where(
+        and(
+          eq(campaignVersions.campaignId, campaignId),
+          inArray(campaignVersions.type, types)
+        )
+      );
+  }
+
+  async incrementRegenCount(campaignId: number, field: "imageRegenCount" | "textRegenCount"): Promise<void> {
+    await db.update(campaigns)
+      .set({ [field]: sql`COALESCE(${field === "imageRegenCount" ? campaigns.imageRegenCount : campaigns.textRegenCount}, 0) + 1` })
+      .where(eq(campaigns.id, campaignId));
   }
 
   async getDashboardStats(userId: number): Promise<any> {

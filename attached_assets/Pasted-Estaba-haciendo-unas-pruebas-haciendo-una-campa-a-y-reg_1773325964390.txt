@@ -1,0 +1,49 @@
+Estaba haciendo unas pruebas, haciendo una campaña y regenere una imagen utilizando la función de nano banana. Con "Agregar" hay una función que no está tan intuitiva. La plataforma me va señalando que versiones de imágenes son las que he ido generando pero me las ponen en desorden. Normalmente las personas leemos de izquierda a derecha y me aparece primero la versión 2 y al final la versión 1. Debería ser al revés: debería ir de versión 1 a versión 3 por ejemplo.
+
+Otro punto es que cuando yo regenere la imagen en los textos, solo me deja regenerarlo una vez más. Quiero decir, como gasté una regeneración en imágenes, el sistema identifica que ya gasté una regeneración global y no debería de ser así. Yo puedo regenerar hasta tres veces en el editor de imagen y puedo regenerar hasta tres veces en el editor de texto. Ambas cosas están regenerando conjuntamente. Por ejemplo, yo regenere la imagen con un prompt, se regenero bien y en textos me generó una segunda versión de textos identica a la anterior y no debería de ser así. Debería de mantenerse solo en una 
+
+
+Después hice el proceso de regenerar el texto con la única versión que me quedaba y pasó lo mismo: me generó otra imagen supuestamente pero solo era un duplicado de la imagen 1 que se había generado cuando generé el correo. No debería de funcionar así. 
+
+Punto: que encontramos también es que le dimos clic al botón de "Enviar ahora" y perfecto, eso envió la petición a Make y se enviaron los correos satisfactoriamente. Me cayeron los correos a mi bandeja de entrada porque yo era una de las personas que estaba en la base de datos que escogimos. Todo funciona perfectamente pero ahora cuando yo veo el portal y veo el progreso de envío, se ha quedado pegado en "Enviando" y me sale que todas las personas de la base de datos están pendientes y no es así porque los correos ya todos cayeron.
+
+Necesito que revisemos en los logs si vos percibiste un HTTP de callback en donde recibimos la respuesta de que se hicieron los correos y si sí pues no lo está actualizando directamente en la plataforma. 
+
+Otro punto importante es que cuando yo le doy clic al botón de la previsualización del correo, cuando no he aprobado ni la imagen ni los textos, me corta la imagen. Pero cuando ya está publicado el correo y cuando ya me cae el correo a mí en mi inbox, si me muestra todo perfecto, la imagen no está cortada y todo el correo se ve muy bien. Entonces hay que revisar si en la previsualización no se está poniendo la dimensión completa de la imagen porque parece ser como que se estuviera cortada pero al final no. 
+
+Lo otro creo que en el correo que yo acabo de enviar, mi plantilla traía un botón que decía "Conozca PostIAlo Mail". En el editor de textos a mí se me olvidó ponerle un enlace al botón pero cuando yo veo el correo directamente en mi inbox, me llega toda la plantilla como debe de ser. No aparece el botón sino que solo aparece el texto en seco, sin ningún backing, que dice "Conozca PostIAlo Mail". Ni siquiera me aparece el botón entonces eso es otro error. 
+
+
+Algo que agregar: 
+
+Discutiendo un punto bien importante es: ¿qué pasa si yo quiero enviar nuevamente un correo exactamente igual, con la misma plantilla y la misma imagen que uno que generé anteriormente? Porque el resultado fue bueno o por cualquier motivo.
+Hablando acerca de esto pensamos en que sería bueno implementar que en la sección de historial, a donde yo puedo ver el historial de la configuración que yo le hice a ese correo, en donde puedo ver:
+- la idea
+- el objetivo
+- el tono
+- el público objetivo
+- el layout
+- el prompt
+- la base de datos
+En ese historial de cada uno ahorita solo está el nombre de la fecha, o sea el correo enviado el 13 de marzo de 2026 y aparece un tag de enviado.
+Aquí adentro tiene que haber un botón que diga "reenviar" o un botón que diga "enviar de nuevo" y que si yo le doy clic a ese botón me despliegue un preview completo de como se veía el correo cuando lo envie en la vez en la que lo envie. Ya yo acá tendría que poder ver el preview de mi correo original y poder hacer dos cosas:
+1. Yo puedo tener que darle clic a un botón que diga "editar textos" para que así yo pueda mantener la integridad y la estructura completa del correo pero pueda editar los textos a nivel de comunicación de qué es lo que dice ese correo. Porque digamos, si a mí me gusta toda la plantilla pero de repente lo quiero mandar de nuevo con otro mensaje, ya yo debería de poder editarlo, ese texto.
+2. Entonces debe de existir esa función y debe de existir otra función que me muestre la base de datos. Yo podría tener que elegir a qué base de datos lo quiero enviar, si a la misma o poner una nueva.
+Adicionalmente debajo de esos debería de aparecerme la fecha y hora en donde lo quiero programar. Ya aquí cuando yo le dé "programar" me debería de enviar nuevamente al calendario pero directamente a ese día. Ahí ya no me debería de habilitar la opción de editar imagen y editar texto porque como este viene de uno de historial y como yo solo estoy editando los textos y lo mismo hardcodeado que ya venía de un correo anterior, casi que solo debería de mostrarme la previsualización que hay en el calendario cuando yo ya aprove todo que aparece como programado y ya listo para publicarse en esa fecha.
+Lo único que debería de aparecerme a mí es el botón de "publicar ahora" si yo lo quiero hacer. Hasta ese paso se debería de saltar si venimos por este workflow. No sé si me doy a entender.
+
+Una validación importante es que en este ejercicio que yo hice, envié el correo sin una URL en el botón de call to action, y eso no debería de ser.
+
+El sistema debería de poder ser inteligente para reconocer cuáles de todos los placeholders que se van a llenar dinámicamente me hacen falta. Si a mí me hace falta uno de estos campos como el asunto, el pre-header, el contenido, el call to action text o el call to action URL, o la URL de la imagen, no me debería de dejar pasar. Debería de tirarme una alerta y debería decirme, por ejemplo: "Mira, te hace falta esta parte. Por favor, llénalo, porque si no, va a pasar lo mismo que me pasó a mí: que yo lo mandé todo el correo, se ve bien, pero ve el botón vacío y no debería de ser.
+
+
+
+Otra cosa importante es que, por ejemplo en la página de inicio, a donde me aparece mi producto y cómo funciona, hay un botón abajo que dice "Listo para empezar" y que dice "Ir a identidad de marca". Ese botón es irrelevante si yo ya tengo mi identidad de marca completa porque se sobreentiende de que si yo ya tengo mi identidad de marca completa es porque ya pase por ese paso y no lo tengo que volver a hacer. Entonces si yo tengo mi identidad de marca al 100%, ese botón del inicio de "Ir a identidad de marca" y esa sección de "Listo para empezar" debería de ocultarse; no sirve.
+
+Y lo otro es que mi producto y el "¿Cómo funciona?" de la página de home, bien ahora aparecen no colapsados pero no deberían de ser un collapsible. Solo deberían de aparecer quemados ahí en la parte de home. No debería yo de poder ocultarlos.
+
+Y lo otro, necesito que me propongas una forma diferente de diagramarlo porque ponerlos en apilados, mi producto y "¿Cómo funciona?", uno en cada parte de la pantalla, lo veo medio extraño. Quisiera ver qué me sugerís tú para ver cómo lo podemos ajustar para siempre mantener la misma información pero que se vea a nivel de estructura y visualmente más atractivo para el usuario. 
+
+Yo no sé por qué también ahí aparece que tengo una base de datos que se llama 12 o que tengo una base de datos que contiene 13 correos. No es así. Yo solo tengo una base de datos que se llama IAkimi BD y solo tiene 5 correos pero cuando yo veo la previsualización en otros lados me aparece que son 13. Revisar si estas haciendo bien el conteo de eso también. 
+
+En la sección de Dashboard, necesito que me agregue un parámetro de filtro por fecha. 

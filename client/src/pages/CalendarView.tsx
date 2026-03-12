@@ -555,9 +555,10 @@ export default function CalendarView() {
   }
 
   function handleRegenerateText() {
-    if (!editingCampaignId) return;
-    if (versions.length >= 3) {
-      toast({ title: "Límite alcanzado", description: "Máximo 3 generaciones.", variant: "destructive" });
+    if (!editingCampaignId || !editingCampaign) return;
+    const textRegenCount = (editingCampaign as any).textRegenCount || 0;
+    if (textRegenCount >= 3) {
+      toast({ title: "Límite alcanzado", description: "Máximo 3 regeneraciones de texto.", variant: "destructive" });
       return;
     }
     setRegenTextCorrections("");
@@ -565,9 +566,10 @@ export default function CalendarView() {
   }
 
   function handleRegenerateImage() {
-    if (!editingCampaignId) return;
-    if (versions.length >= 3) {
-      toast({ title: "Límite alcanzado", description: "Máximo 3 generaciones.", variant: "destructive" });
+    if (!editingCampaignId || !editingCampaign) return;
+    const imageRegenCount = (editingCampaign as any).imageRegenCount || 0;
+    if (imageRegenCount >= 3) {
+      toast({ title: "Límite alcanzado", description: "Máximo 3 regeneraciones de imagen.", variant: "destructive" });
       return;
     }
     setRegenImagePrompt(editingCampaign?.imagePrompt || "");
@@ -575,9 +577,10 @@ export default function CalendarView() {
   }
 
   function handleEditWithNanoBanana() {
-    if (!editingCampaignId) return;
-    if (versions.length >= 3) {
-      toast({ title: "Límite alcanzado", description: "Máximo 3 generaciones.", variant: "destructive" });
+    if (!editingCampaignId || !editingCampaign) return;
+    const imageRegenCount = (editingCampaign as any).imageRegenCount || 0;
+    if (imageRegenCount >= 3) {
+      toast({ title: "Límite alcanzado", description: "Máximo 3 regeneraciones de imagen.", variant: "destructive" });
       return;
     }
     setEditImagePrompt("");
@@ -643,6 +646,30 @@ export default function CalendarView() {
       }
     });
   }, [versions]);
+
+  const textVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "text");
+  const imageVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "image");
+
+  function handleSelectTextVersion(versionId: number) {
+    setLocalSelectedVersionId(versionId);
+    setTextApproved(false);
+    textVersions.forEach(v => {
+      if (v.isSelected && v.id !== versionId) {
+        updateVersionMutation.mutate({ id: v.id, updates: { isSelected: false } });
+      }
+    });
+    updateVersionMutation.mutate({ id: versionId, updates: { isSelected: true } });
+  }
+
+  function handleSelectImageVersion(versionId: number) {
+    setImageApproved(false);
+    imageVersions.forEach(v => {
+      if (v.isSelected && v.id !== versionId) {
+        updateVersionMutation.mutate({ id: v.id, updates: { isSelected: false } });
+      }
+    });
+    updateVersionMutation.mutate({ id: versionId, updates: { isSelected: true } });
+  }
 
   function handleSelectVersion(versionId: number) {
     setLocalSelectedVersionId(versionId);
@@ -725,8 +752,10 @@ export default function CalendarView() {
     });
   }, [userTemplates]);
 
-  const selectedVersion = (localSelectedVersionId ? versions.find(v => v.id === localSelectedVersionId) : null) || versions.find(v => v.isSelected) || versions[0];
-  const contentData = selectedVersion?.contentJson as any;
+  const selectedTextVersion = (localSelectedVersionId ? textVersions.find(v => v.id === localSelectedVersionId) : null) || textVersions.find(v => v.isSelected) || textVersions[0];
+  const selectedImageVersion = imageVersions.find(v => v.isSelected) || imageVersions[0];
+  const selectedVersion = selectedTextVersion;
+  const contentData = selectedTextVersion?.contentJson as any;
   const selectedAsunto = contentData?.asunto || contentData?.title || "";
   const selectedPreheader = contentData?.preheader || "";
   const selectedCtaText = contentData?.cta_text || contentData?.cta || "Ver más";
@@ -739,7 +768,7 @@ export default function CalendarView() {
           ? `<p>${contentData.body}</p>`
           : ""
     : "";
-  const selectedImageUrl = editorLocalImageUrl || selectedVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
+  const selectedImageUrl = editorLocalImageUrl || selectedImageVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
 
   useEffect(() => {
     if (selectedVersion) {
@@ -1198,10 +1227,10 @@ export default function CalendarView() {
                       size="sm"
                       className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={handleRegenerateImage}
-                      disabled={isCancelled || isSent || versions.length >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                      disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
                     >
                       {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      Regenerar ({Math.max(0, 3 - versions.length)})
+                      Regenerar ({Math.max(0, 3 - ((editingCampaign as any)?.imageRegenCount || 0))})
                     </Button>
                     <Button
                       data-testid="button-upload-image"
@@ -1235,14 +1264,14 @@ export default function CalendarView() {
                       size="sm"
                       className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                       onClick={handleEditWithNanoBanana}
-                      disabled={isCancelled || isSent || versions.length >= 3 || editImageMutation.isPending || !selectedVersion?.imageUrl || !!editorLocalImageUrl}
+                      disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
                     >
                       {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                       Nano Banana
                     </Button>
                   </div>
 
-                  {versions.length > 1 && (
+                  {imageVersions.length > 1 && (
                     <Button
                       data-testid="button-image-history"
                       variant={showImageHistory ? "default" : "secondary"}
@@ -1251,7 +1280,7 @@ export default function CalendarView() {
                       onClick={() => setShowImageHistory(!showImageHistory)}
                     >
                       <History className="w-3.5 h-3.5" />
-                      Imágenes ({versions.length})
+                      Imágenes ({imageVersions.length})
                     </Button>
                   )}
 
@@ -1264,13 +1293,13 @@ export default function CalendarView() {
                         className="overflow-hidden"
                       >
                         <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
-                          {versions.map(v => (
+                          {imageVersions.map(v => (
                             <button
                               key={v.id}
                               data-testid={`button-select-image-${v.versionNumber}`}
-                              onClick={() => !isLocked && handleSelectVersion(v.id)}
+                              onClick={() => !isLocked && handleSelectImageVersion(v.id)}
                               disabled={isLocked}
-                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedImageVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                             >
                               <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
                               <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
@@ -1432,12 +1461,12 @@ export default function CalendarView() {
                       size="sm"
                       className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={handleRegenerateText}
-                      disabled={isCancelled || isSent || versions.length >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
+                      disabled={isCancelled || isSent || ((editingCampaign as any)?.textRegenCount || 0) >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                     >
                       {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      Regenerar Texto ({Math.max(0, 3 - versions.length)})
+                      Regenerar Texto ({Math.max(0, 3 - ((editingCampaign as any)?.textRegenCount || 0))})
                     </Button>
-                    {versions.length > 1 && (
+                    {textVersions.length > 1 && (
                       <Button
                         data-testid="button-text-history"
                         variant={showTextHistory ? "default" : "secondary"}
@@ -1446,7 +1475,7 @@ export default function CalendarView() {
                         onClick={() => setShowTextHistory(!showTextHistory)}
                       >
                         <History className="w-3.5 h-3.5" />
-                        Seleccionar Textos ({versions.length})
+                        Seleccionar Textos ({textVersions.length})
                       </Button>
                     )}
                   </div>
@@ -1460,7 +1489,7 @@ export default function CalendarView() {
                         className="overflow-hidden"
                       >
                         <div className="space-y-2 pt-2 border-t border-border">
-                          {versions.map(v => {
+                          {textVersions.map(v => {
                             const vContent = v.contentJson as any;
                             const html = vContent?.cuerpo_html
                               || vContent?.html
@@ -1470,13 +1499,13 @@ export default function CalendarView() {
                               <button
                                 key={v.id}
                                 data-testid={`button-select-text-${v.versionNumber}`}
-                                onClick={() => !isLocked && handleSelectVersion(v.id)}
+                                onClick={() => !isLocked && handleSelectTextVersion(v.id)}
                                 disabled={isLocked}
-                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedTextVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
-                                  {selectedVersion?.id === v.id && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
+                                  {selectedTextVersion?.id === v.id && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
                                 </div>
                                 <div className="text-xs text-muted-foreground line-clamp-2" dangerouslySetInnerHTML={{ __html: html.replace(/<[^>]*>/g, " ").substring(0, 120) }} />
                               </button>

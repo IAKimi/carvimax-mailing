@@ -577,10 +577,9 @@ export async function registerRoutes(
     if (campaign.status === "cancelled" || campaign.status === "sent") {
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
-    const versions = await storage.getCampaignVersions(campaignId);
-    const versionNumber = versions.length + 1;
-    if (versionNumber > 3) {
-      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    const textRegenCount = campaign.textRegenCount || 0;
+    if (textRegenCount >= 3) {
+      return res.status(400).json({ message: "Máximo 3 regeneraciones de texto alcanzado." });
     }
 
     const { corrections } = req.body || {};
@@ -591,12 +590,14 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Las correcciones no pueden exceder 1000 caracteres." });
     }
 
-    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
-    if (!selectedVersion) {
+    const versions = await storage.getCampaignVersions(campaignId);
+    const textVersions = versions.filter(v => v.type === "initial" || v.type === "text");
+    const selectedTextVersion = textVersions.find(v => v.isSelected) || textVersions[textVersions.length - 1];
+    if (!selectedTextVersion) {
       return res.status(400).json({ message: "No hay versión previa para regenerar." });
     }
 
-    const previousContent = selectedVersion.contentJson as any;
+    const previousContent = selectedTextVersion.contentJson as any;
     const previousEmail = {
       asunto: previousContent?.asunto || "",
       preheader: previousContent?.preheader || "",
@@ -629,14 +630,17 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error regenerando texto." });
     }
 
-    await storage.deselectAllVersions(campaignId);
+    const textVersionNumber = textVersions.length + 1;
+    await storage.deselectVersionsByType(campaignId, ["initial", "text"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
-      versionNumber,
+      versionNumber: textVersionNumber,
       contentJson,
-      imageUrl: selectedVersion.imageUrl,
+      imageUrl: null,
       isSelected: true,
+      type: "text",
     });
+    await storage.incrementRegenCount(campaignId, "textRegenCount");
     res.status(201).json(newVersion);
   });
 
@@ -650,10 +654,9 @@ export async function registerRoutes(
     if (campaign.status === "cancelled" || campaign.status === "sent") {
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
-    const versions = await storage.getCampaignVersions(campaignId);
-    const versionNumber = versions.length + 1;
-    if (versionNumber > 3) {
-      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    const imageRegenCount = campaign.imageRegenCount || 0;
+    if (imageRegenCount >= 3) {
+      return res.status(400).json({ message: "Máximo 3 regeneraciones de imagen alcanzado." });
     }
 
     const { imagePrompt } = req.body || {};
@@ -663,8 +666,6 @@ export async function registerRoutes(
     if (imagePrompt.length > 1200) {
       return res.status(400).json({ message: "El prompt de imagen no puede exceder 1200 caracteres." });
     }
-
-    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
 
     let rawImageUrl: string;
     try {
@@ -679,15 +680,21 @@ export async function registerRoutes(
 
     const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
 
-    await storage.deselectAllVersions(campaignId);
+    const versions = await storage.getCampaignVersions(campaignId);
+    const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
+    const imageVersionNumber = imageVersions.length + 1;
+
+    await storage.deselectVersionsByType(campaignId, ["initial", "image"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
-      versionNumber,
-      contentJson: selectedVersion?.contentJson || { asunto: "", preheader: "", cuerpo_html: "", cta_text: "Ver más" },
+      versionNumber: imageVersionNumber,
+      contentJson: {},
       imageUrl,
       isSelected: true,
+      type: "image",
     });
     await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    await storage.incrementRegenCount(campaignId, "imageRegenCount");
     res.status(201).json(newVersion);
   });
 
@@ -701,10 +708,9 @@ export async function registerRoutes(
     if (campaign.status === "cancelled" || campaign.status === "sent") {
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
-    const versions = await storage.getCampaignVersions(campaignId);
-    const versionNumber = versions.length + 1;
-    if (versionNumber > 3) {
-      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    const imageRegenCount = campaign.imageRegenCount || 0;
+    if (imageRegenCount >= 3) {
+      return res.status(400).json({ message: "Máximo 3 regeneraciones de imagen alcanzado." });
     }
 
     const { editPrompt } = req.body || {};
@@ -715,12 +721,14 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Las instrucciones de edición no pueden exceder 1200 caracteres." });
     }
 
-    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
-    if (!selectedVersion?.imageUrl) {
+    const versions = await storage.getCampaignVersions(campaignId);
+    const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
+    const selectedImageVersion = imageVersions.find(v => v.isSelected) || imageVersions[imageVersions.length - 1];
+    if (!selectedImageVersion?.imageUrl) {
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
 
-    const currentImageBase64 = loadImageAsBase64(selectedVersion.imageUrl);
+    const currentImageBase64 = loadImageAsBase64(selectedImageVersion.imageUrl);
 
     let rawImageUrl: string;
     try {
@@ -734,16 +742,19 @@ export async function registerRoutes(
     }
 
     const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const imageVersionNumber = imageVersions.length + 1;
 
-    await storage.deselectAllVersions(campaignId);
+    await storage.deselectVersionsByType(campaignId, ["initial", "image"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
-      versionNumber,
-      contentJson: selectedVersion.contentJson as Record<string, unknown>,
+      versionNumber: imageVersionNumber,
+      contentJson: {},
       imageUrl,
       isSelected: true,
+      type: "image",
     });
     await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    await storage.incrementRegenCount(campaignId, "imageRegenCount");
     res.status(201).json(newVersion);
   });
 
@@ -759,10 +770,9 @@ export async function registerRoutes(
     if (campaign.status === "cancelled" || campaign.status === "sent") {
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
-    const versions = await storage.getCampaignVersions(campaignId);
-    const versionNumber = versions.length + 1;
-    if (versionNumber > 3) {
-      return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
+    const imageRegenCount = campaign.imageRegenCount || 0;
+    if (imageRegenCount >= 3) {
+      return res.status(400).json({ message: "Máximo 3 regeneraciones de imagen alcanzado." });
     }
 
     const { editPrompt, selectedAction, referenceImages } = req.body || {};
@@ -799,12 +809,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Formato de imagen de referencia no válido." });
       }
     }
-    const selectedVersion = versions.find(v => v.isSelected) || versions[versions.length - 1];
-    if (!selectedVersion?.imageUrl) {
+    const versions = await storage.getCampaignVersions(campaignId);
+    const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
+    const selectedImageVersion = imageVersions.find(v => v.isSelected) || imageVersions[imageVersions.length - 1];
+    if (!selectedImageVersion?.imageUrl) {
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
 
-    const currentImageBase64 = loadImageAsBase64(selectedVersion.imageUrl);
+    const currentImageBase64 = loadImageAsBase64(selectedImageVersion.imageUrl);
 
     let rawImageUrl: string;
     try {
@@ -825,16 +837,19 @@ export async function registerRoutes(
     }
 
     const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const imageVersionNumber = imageVersions.length + 1;
 
-    await storage.deselectAllVersions(campaignId);
+    await storage.deselectVersionsByType(campaignId, ["initial", "image"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
-      versionNumber,
-      contentJson: selectedVersion.contentJson as Record<string, unknown>,
+      versionNumber: imageVersionNumber,
+      contentJson: {},
       imageUrl,
       isSelected: true,
+      type: "image",
     });
     await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    await storage.incrementRegenCount(campaignId, "imageRegenCount");
     res.status(201).json(newVersion);
   });
 
