@@ -72,7 +72,8 @@ export default function AdminUsers() {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const isSuperAdmin = currentUser?.role === "superadmin";
 
   const { data: stats } = useQuery<AdminStats>({ queryKey: ["/api/admin/stats"], enabled: isAdmin === true });
   const { data: allUsers = [], isLoading } = useQuery<UserWithStats[]>({ queryKey: ["/api/admin/users"], enabled: isAdmin === true });
@@ -250,7 +251,7 @@ export default function AdminUsers() {
       u.name,
       u.email,
       u.company || "",
-      u.role === "admin" ? "Administrador" : "Usuario",
+      u.role === "superadmin" ? "Superadministrador" : u.role === "admin" ? "Administrador" : "Usuario",
       u.isActive ? "Activo" : "Inactivo",
       String(u.stats.campaigns),
       String(u.stats.templates),
@@ -427,7 +428,9 @@ export default function AdminUsers() {
                       <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
                       <td className="px-4 py-3 text-muted-foreground">{user.company || <span className="italic text-muted-foreground/60">&mdash;</span>}</td>
                       <td className="px-4 py-3">
-                        {user.role === "admin" ? (
+                        {user.role === "superadmin" ? (
+                          <Badge className="bg-[#e3001b] text-white text-xs"><Shield className="w-3 h-3 mr-1" />Superadmin</Badge>
+                        ) : user.role === "admin" ? (
                           <Badge className="bg-[#002073] text-white text-xs"><Shield className="w-3 h-3 mr-1" />Admin</Badge>
                         ) : (
                           <Badge variant="secondary" className="text-xs">Usuario</Badge>
@@ -469,18 +472,20 @@ export default function AdminUsers() {
                           >
                             <KeyRound className="w-3.5 h-3.5" />
                           </Button>
-                          <Button
-                            data-testid={`button-change-role-${user.id}`}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => { setChangeRoleUser(user); setSelectedRole(user.role); }}
-                            title="Cambiar rol"
-                            disabled={user.id === currentUser?.id}
-                          >
-                            <ArrowUpDown className="w-3.5 h-3.5" />
-                          </Button>
-                          {user.id !== currentUser?.id && (
+                          {user.role !== "superadmin" && (
+                            <Button
+                              data-testid={`button-change-role-${user.id}`}
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => { setChangeRoleUser(user); setSelectedRole(user.role); }}
+                              title="Cambiar rol"
+                              disabled={user.id === currentUser?.id || (!isSuperAdmin && user.role === "admin")}
+                            >
+                              <ArrowUpDown className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                          {user.id !== currentUser?.id && user.role !== "superadmin" && (
                             <Button
                               data-testid={`button-toggle-active-${user.id}`}
                               variant="ghost"
@@ -493,7 +498,7 @@ export default function AdminUsers() {
                               <Power className="w-3.5 h-3.5" />
                             </Button>
                           )}
-                          {user.role !== "admin" && (
+                          {user.id !== currentUser?.id && user.role !== "superadmin" && (user.role !== "admin" || isSuperAdmin) && (
                             <>
                               <Button
                                 data-testid={`button-impersonate-${user.id}`}

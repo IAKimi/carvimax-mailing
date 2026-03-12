@@ -81,7 +81,7 @@ export function Layout({ children }: { children: ReactNode }) {
     enabled: !!currentUser,
   });
   const userName = currentUser?.name || "Usuario";
-  const isAdmin = currentUser?.role === "admin";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
   const isImpersonating = !!currentUser?.impersonating;
 
   const onboardingLevel = onboardingLoading ? 99 : getOnboardingLevel(onboardingStatus);

@@ -1704,7 +1704,7 @@ export async function registerRoutes(
       return res.status(401).json({ message: "No autenticado." });
     }
     const user = await storage.getUserById(req.session.userId);
-    if (!user || user.role !== "admin") {
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
       return res.status(403).json({ message: "Acceso denegado. Se requieren permisos de administrador." });
     }
     next();
@@ -1799,7 +1799,11 @@ export async function registerRoutes(
     }
     const user = await storage.getUserById(id);
     if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
-    if (user.role === "admin") {
+    if (user.role === "superadmin") {
+      return res.status(400).json({ message: "No puede eliminar al superadministrador." });
+    }
+    const currentUser = await storage.getUserById(req.session.userId!);
+    if (user.role === "admin" && currentUser?.role !== "superadmin") {
       return res.status(400).json({ message: "No puede eliminar a otro administrador." });
     }
     await storage.deleteUser(id);
@@ -1814,7 +1818,8 @@ export async function registerRoutes(
     }
     const targetUser = await storage.getUserById(id);
     if (!targetUser) return res.status(404).json({ message: "Usuario no encontrado." });
-    if (targetUser.role === "admin") {
+    const currentUser = await storage.getUserById(req.session.userId!);
+    if ((targetUser.role === "admin" || targetUser.role === "superadmin") && currentUser?.role !== "superadmin") {
       return res.status(400).json({ message: "No puede impersonar a otro administrador." });
     }
     req.session.originalAdminId = req.session.userId;
@@ -1866,6 +1871,9 @@ export async function registerRoutes(
     }
     const user = await storage.getUserById(id);
     if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    if (user.role === "superadmin") {
+      return res.status(400).json({ message: "No puede desactivar al superadministrador." });
+    }
     const updated = await storage.updateUser(id, { isActive: !user.isActive } as any);
     if (!updated) return res.status(500).json({ message: "Error actualizando usuario." });
     const { password, ...safe } = updated;
@@ -1884,6 +1892,13 @@ export async function registerRoutes(
     }
     const user = await storage.getUserById(id);
     if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+    if (user.role === "superadmin") {
+      return res.status(400).json({ message: "No puede cambiar el rol del superadministrador." });
+    }
+    const currentUser = await storage.getUserById(req.session.userId!);
+    if (user.role === "admin" && currentUser?.role !== "superadmin") {
+      return res.status(400).json({ message: "No puede cambiar el rol de otro administrador." });
+    }
     try {
       const input = adminChangeRoleSchema.parse(req.body);
       const updated = await storage.updateUser(id, { role: input.role });
