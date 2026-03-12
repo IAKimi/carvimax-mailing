@@ -51,7 +51,7 @@ export async function runMigrations(): Promise<void> {
       try {
         await migration.up(client);
         await client.query(
-          `INSERT INTO _migrations (name) VALUES ($1)`,
+          `INSERT INTO _migrations (name) VALUES ($1) ON CONFLICT DO NOTHING`,
           [migration.name]
         );
         await client.query("COMMIT");
