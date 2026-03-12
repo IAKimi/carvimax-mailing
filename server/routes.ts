@@ -1570,8 +1570,35 @@ export async function registerRoutes(
           }
         }
       } else {
-        if (sendStatus === "sent") {
-          await storage.updateCampaign(campaignId, { status: "sent" } as any);
+        const allSends = await storage.getCampaignSends(campaignId);
+        const pendingSends = allSends.filter(s => s.status === "pending");
+
+        for (const send of pendingSends) {
+          await storage.updateCampaignSend(campaignId, send.contactEmail, {
+            status: sendStatus,
+            messageId: message_id || null,
+            errorMessage: error_message || null,
+          });
+          const field = sendStatus === "sent" ? "sentCount" : "failedCount";
+          await storage.incrementCampaignSendCount(campaignId, field);
+        }
+
+        const updatedCampaign = await storage.getCampaign(campaignId);
+        if (updatedCampaign) {
+          const sent = updatedCampaign.sentCount || 0;
+          const failed = updatedCampaign.failedCount || 0;
+          const total = updatedCampaign.totalExpectedSends || 0;
+          const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
+
+          await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: total,
+            sentCount: sent,
+            failedCount: failed,
+            status: finalStatus,
+            completed: true,
+          });
         }
       }
 
