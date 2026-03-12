@@ -6,6 +6,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { pool } from "./db";
+import { seedProductionDatabase } from "./seed";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -114,6 +115,8 @@ app.use((req, res, next) => {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  await seedProductionDatabase();
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(

@@ -60,6 +60,15 @@ The application is built with a modern web stack, featuring a React frontend and
 - **Ownership Checks**: Target database ownership is verified before sending to prevent cross-tenant data leakage.
 - **Progressive Onboarding**: Sidebar sections unlock progressively as the user completes steps. `GET /api/onboarding-status` returns `{hasBrand, hasTemplates, hasContactDatabases}`. Locked sidebar items show a lock icon and toast on click. Route protection redirects users who try to access locked sections via URL. "Siguiente" navigation buttons guide users through the flow: Brand → Templates → Contacts → Calendar.
 
+### Deployment & Production
+- **Deployment Target**: VM (always-running) for WebSocket and campaign scheduler support.
+- **Build**: `npm run build` → esbuild bundles server to `dist/index.cjs`, Vite builds frontend to `dist/public/`.
+- **Production Run**: `node ./dist/index.cjs` serves both API and static frontend.
+- **Database Seed**: `server/seed.ts` auto-seeds production DB on first boot if empty. Reads from `server/seed-data.json` (copied to `dist/server/` during build). Exports all tables with sequence resets.
+- **Uploads**: Campaign images and logos stored in `uploads/` directory, served via `express.static`.
+- **Admin User**: `admin@postialo.com` (role: admin).
+- **Session Security**: Secure cookies in production, `trust proxy` enabled for Replit's reverse proxy.
+
 ## External Dependencies
 - **PostgreSQL**: Primary database.
 - **OpenAI API**: For AI text generation, regeneration, and template analysis.
