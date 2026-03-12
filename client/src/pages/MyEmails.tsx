@@ -139,8 +139,9 @@ export default function MyEmails() {
               const config = statusConfig[campaign.status] || statusConfig.draft;
               const StatusIcon = config.icon;
               const isExpanded = expandedId === campaign.id;
-              const displayDate = campaign.scheduledAt
-                ? new Date(campaign.scheduledAt).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })
+              const scheduledDate = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
+              const displayDate = scheduledDate
+                ? `${scheduledDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${scheduledDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
                 : "Sin fecha";
               const title = campaign.status === "sent"
                 ? `Correo enviado el ${displayDate}`

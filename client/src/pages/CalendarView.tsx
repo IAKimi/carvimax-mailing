@@ -163,6 +163,7 @@ export default function CalendarView() {
   const [showTextHistory, setShowTextHistory] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [sentPreviewHeight, setSentPreviewHeight] = useState(0);
+  const [previewHeight, setPreviewHeight] = useState(0);
   const [textApproved, setTextApproved] = useState(false);
   const [imageApproved, setImageApproved] = useState(false);
   const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "" });
@@ -202,6 +203,9 @@ export default function CalendarView() {
     function handlePreviewMessage(e: MessageEvent) {
       if (e.data?.type === "sent-preview-height" && typeof e.data.height === "number") {
         setSentPreviewHeight(e.data.height);
+      }
+      if (e.data?.type === "preview-height" && typeof e.data.height === "number") {
+        setPreviewHeight(e.data.height);
       }
     }
     window.addEventListener("message", handlePreviewMessage);
@@ -516,6 +520,23 @@ export default function CalendarView() {
     }
     if (!editingCampaign?.targetDatabase) {
       toast({ title: "Base de datos requerida", description: "Debe seleccionar una base de datos de contactos antes de enviar.", variant: "destructive" });
+      return;
+    }
+    if (!textApproved) {
+      toast({ title: "Texto no aprobado", description: "Debe aprobar el texto del correo antes de enviar.", variant: "destructive" });
+      return;
+    }
+    if (!imageApproved) {
+      toast({ title: "Imagen no aprobada", description: "Debe aprobar la imagen del correo antes de enviar.", variant: "destructive" });
+      return;
+    }
+    const strippedBody = (selectedHtml || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    if (!strippedBody) {
+      toast({ title: "Contenido vacío", description: "El cuerpo del correo está vacío. Genere o escriba contenido antes de enviar.", variant: "destructive" });
+      return;
+    }
+    if (!(localAsunto || selectedAsunto)?.trim()) {
+      toast({ title: "Asunto vacío", description: "El correo debe tener un asunto antes de enviarse.", variant: "destructive" });
       return;
     }
     sendCampaignMutation.mutate(editingCampaignId);
@@ -1550,18 +1571,25 @@ export default function CalendarView() {
                 <div className="border border-border rounded-xl overflow-hidden bg-white">
                   <iframe
                     data-testid="iframe-email-preview"
-                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif">
+                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                       <div style="max-width:600px;margin:0 auto">
                         ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
-                        <img src="${selectedImageUrl}" style="width:100%;height:200px;object-fit:cover" />
+                        <img src="${selectedImageUrl}" style="width:100%;height:auto;display:block" />
                         <div style="padding:24px">${selectedHtml}</div>
                         ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${localCta || selectedCtaText}</a></div>` : ""}
                         <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">&copy; 2026 Mi Empresa. Todos los derechos reservados.</div>
                       </div>
+                      <script>
+                        function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
+                        window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                        new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                        var imgs=document.querySelectorAll('img');
+                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                      </script>
                     </body></html>`}
-                    className="w-full h-[500px]"
+                    className="w-full border-0"
+                    style={{ minHeight: "400px", height: previewHeight > 0 ? previewHeight + "px" : "600px" }}
                     title="Vista previa completa"
-                    sandbox=""
                   />
                 </div>
               </div>
