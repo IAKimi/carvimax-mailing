@@ -134,19 +134,15 @@ const migrations: Migration[] = [
       }
 
       if (data.campaign_sends?.length) {
-        const campaignIds = new Set((data.campaigns || []).map((c) => c.id as number));
-        const validSends = data.campaign_sends.filter((cs) => campaignIds.has(cs.campaign_id as number));
-        for (const cs of validSends) {
+        for (const cs of data.campaign_sends) {
           await client.query(
             `INSERT INTO campaign_sends (id, campaign_id, contact_email, contact_name, status, message_id, error_message, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
             [cs.id, cs.campaign_id, cs.contact_email, cs.contact_name, cs.status, cs.message_id, cs.error_message, cs.created_at, cs.updated_at]
           );
         }
-        if (validSends.length > 0) {
-          const maxId = Math.max(...validSends.map((cs) => cs.id as number));
-          await client.query(`SELECT setval('campaign_sends_id_seq', GREATEST((SELECT MAX(id) FROM campaign_sends), $1), true)`, [maxId]);
-        }
-        console.log(`[migrations] Synced campaign_sends: ${validSends.length} rows (${data.campaign_sends.length - validSends.length} orphans skipped)`);
+        const maxId = Math.max(...data.campaign_sends.map((cs) => cs.id as number));
+        await client.query(`SELECT setval('campaign_sends_id_seq', GREATEST((SELECT MAX(id) FROM campaign_sends), $1), true)`, [maxId]);
+        console.log(`[migrations] Synced campaign_sends: ${data.campaign_sends.length} rows`);
       }
 
       console.log("[migrations] All seed data synced to database.");
