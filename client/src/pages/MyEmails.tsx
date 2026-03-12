@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X } from "lucide-react";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Campaign } from "@shared/schema";
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
@@ -24,6 +26,23 @@ export default function MyEmails() {
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const { setCurrentSection, tutorialActive } = useTutorial();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const resendMutation = useMutation({
+    mutationFn: async (campaignId: number) => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/resend`);
+      return res.json();
+    },
+    onSuccess: (newCampaign: Campaign) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({ title: "Campaña duplicada", description: "Se creó una copia como borrador. Redirigiendo al calendario..." });
+      setTimeout(() => setLocation("/calendar"), 500);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al reenviar", description: err.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     setCurrentSection("emails");
@@ -203,6 +222,27 @@ export default function MyEmails() {
                               <DetailField icon={Database} label="Base de datos destino" value={campaign.targetDatabase} />
                             )}
                           </div>
+                          {campaign.status === "sent" && (
+                            <div className="pt-3 mt-3 border-t border-border">
+                              <Button
+                                data-testid={`button-resend-${campaign.id}`}
+                                size="sm"
+                                className="rounded-xl gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  resendMutation.mutate(campaign.id);
+                                }}
+                                disabled={resendMutation.isPending}
+                              >
+                                {resendMutation.isPending ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                )}
+                                Reenviar Campaña
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </motion.div>
                     )}

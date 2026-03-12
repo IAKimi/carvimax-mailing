@@ -858,6 +858,47 @@ export async function registerRoutes(
     res.json({ message: "Historial eliminado." });
   });
 
+  app.post("/api/campaigns/:id/resend", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const original = await storage.getCampaign(id);
+    if (!original || original.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+
+    const newCampaign = await storage.createCampaign({
+      userId: req.session.userId!,
+      name: `${original.name} (reenvío)`,
+      idea: original.idea,
+      objective: original.objective,
+      tone: original.tone,
+      layoutPreference: original.layoutPreference,
+      imagePrompt: original.imagePrompt || null,
+      targetDatabase: original.targetDatabase || null,
+      selectedImageUrl: original.selectedImageUrl || null,
+      targetAudience: original.targetAudience || null,
+      templateId: original.templateId || null,
+      scheduledAt: null,
+    });
+
+    const originalVersions = await storage.getCampaignVersions(id);
+    for (const v of originalVersions) {
+      if (v.isSelected || (v as any).type === "initial") {
+        await storage.createCampaignVersion({
+          campaignId: newCampaign.id,
+          versionNumber: 1,
+          contentJson: v.contentJson as Record<string, unknown>,
+          imageUrl: v.imageUrl || null,
+          isSelected: true,
+          type: "initial",
+        });
+        break;
+      }
+    }
+
+    res.status(201).json(newCampaign);
+  });
+
   app.patch("/api/versions/:id", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });
