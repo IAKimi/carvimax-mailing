@@ -1,15 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialTip } from "@/components/TutorialTip";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import {
   BarChart as RechartsBarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
-import { Mail, Users, Database, Layers, TrendingUp, Clock, BarChart3 } from "lucide-react";
+import { Mail, Users, Database, Layers, TrendingUp, Clock, BarChart3, Filter, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface DashboardMetrics {
   totalCampaigns: Record<string, number>;
@@ -58,25 +60,101 @@ function formatFullDate(dateStr: string | null) {
 
 export default function Dashboard() {
   const { setCurrentSection, tutorialActive } = useTutorial();
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     setCurrentSection("dashboard");
   }, [setCurrentSection]);
 
+  const queryParams = new URLSearchParams();
+  if (dateFrom) queryParams.set("dateFrom", dateFrom);
+  if (dateTo) queryParams.set("dateTo", dateTo);
+  const qs = queryParams.toString();
+  const metricsUrl = `/api/dashboard/metrics${qs ? `?${qs}` : ""}`;
+
   const { data: metrics, isLoading, isError, refetch } = useQuery<DashboardMetrics>({
-    queryKey: ["/api/dashboard/metrics"],
-    queryFn: getQueryFn({ on401: "throw" }),
+    queryKey: ["/api/dashboard/metrics", dateFrom, dateTo],
+    queryFn: async () => {
+      const res = await fetch(metricsUrl, { credentials: "include" });
+      if (!res.ok) throw new Error("Error al cargar métricas");
+      return res.json();
+    },
   });
 
   const totalAll = metrics ? Object.values(metrics.totalCampaigns).reduce((s, n) => s + n, 0) : 0;
+  const hasFilters = dateFrom || dateTo;
 
   return (
     <Layout>
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="text-dashboard-title">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Resumen de su actividad de email marketing</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground" data-testid="text-dashboard-title">Dashboard</h1>
+            <p className="text-sm text-muted-foreground mt-1">Resumen de su actividad de email marketing</p>
+          </div>
+          <Button
+            data-testid="button-toggle-filters"
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            className="gap-2 rounded-xl"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="w-4 h-4" />
+            Filtrar por Fecha
+            {hasFilters && <span className="w-2 h-2 rounded-full bg-[#e3001b]" />}
+          </Button>
         </div>
+
+        {showFilters && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="dateFrom" className="text-xs font-medium">Desde</Label>
+                  <Input
+                    id="dateFrom"
+                    data-testid="input-date-from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-44 h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dateTo" className="text-xs font-medium">Hasta</Label>
+                  <Input
+                    id="dateTo"
+                    data-testid="input-date-to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-44 h-9 text-sm"
+                  />
+                </div>
+                {hasFilters && (
+                  <Button
+                    data-testid="button-clear-filters"
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Limpiar
+                  </Button>
+                )}
+              </div>
+              {hasFilters && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Mostrando métricas {dateFrom ? `desde ${dateFrom}` : ""}{dateFrom && dateTo ? " " : ""}{dateTo ? `hasta ${dateTo}` : ""}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
 
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

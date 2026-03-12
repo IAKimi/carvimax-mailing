@@ -331,7 +331,9 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/metrics", requireAuth, async (req, res) => {
     try {
-      const metrics = await storage.getDashboardMetrics(req.session.userId!);
+      const dateFrom = typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
+      const dateTo = typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
+      const metrics = await storage.getDashboardMetrics(req.session.userId!, dateFrom, dateTo);
       res.json(metrics);
     } catch (error) {
       console.error("Error fetching dashboard metrics:", error);

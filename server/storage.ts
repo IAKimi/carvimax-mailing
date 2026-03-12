@@ -36,7 +36,7 @@ export interface IStorage {
 
   getCampaignThumbnails(campaignIds: number[]): Promise<Array<{ campaignId: number; imageUrl: string | null }>>;
   getDashboardStats(userId: number): Promise<any>;
-  getDashboardMetrics(userId: number): Promise<any>;
+  getDashboardMetrics(userId: number, dateFrom?: string, dateTo?: string): Promise<any>;
 
   getContactDatabases(userId: number): Promise<ContactDatabase[]>;
   createContactDatabase(data: InsertContactDatabase): Promise<ContactDatabase>;
@@ -228,8 +228,20 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getDashboardMetrics(userId: number): Promise<any> {
-    const userCampaigns = await db.select().from(campaigns).where(eq(campaigns.userId, userId));
+  async getDashboardMetrics(userId: number, dateFrom?: string, dateTo?: string): Promise<any> {
+    let userCampaigns = await db.select().from(campaigns).where(eq(campaigns.userId, userId));
+
+    if (dateFrom || dateTo) {
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
+      userCampaigns = userCampaigns.filter(c => {
+        const d = c.scheduledAt || c.createdAt;
+        if (!d) return false;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      });
+    }
 
     const statusCounts: Record<string, number> = { draft: 0, scheduled: 0, sent: 0, cancelled: 0 };
     for (const c of userCampaigns) {
