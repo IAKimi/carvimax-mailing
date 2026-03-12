@@ -214,6 +214,10 @@ export default function BrandIdentity() {
     queryKey: ["/api/brand-identity"],
   });
 
+  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
+    queryKey: ["/api/onboarding-status"],
+  });
+
   useEffect(() => {
     if (brandData && !initialized) {
       setBrand({
@@ -708,7 +712,7 @@ export default function BrandIdentity() {
           </Collapsible>
         </div>
       </div>
-      {saved && brand.companyName?.trim() && brand.industry?.trim() && (
+      {saved && brand.companyName?.trim() && brand.industry?.trim() && !onboardingStatus?.hasTemplates && (
         <div className="flex justify-end mt-6">
           <Button
             data-testid="button-next-to-templates"

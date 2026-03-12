@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarCell } from "@/components/CalendarCell";
+import { useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -154,11 +155,14 @@ function campaignToDateStr(c: Campaign): string {
 export default function CalendarView() {
   const { toast } = useToast();
   const tutorial = useTutorial();
+  const searchString = useSearch();
+  const [, setLoc] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showChoiceDialog, setShowChoiceDialog] = useState(false);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
+  const [isResend, setIsResend] = useState(false);
   const [showImageHistory, setShowImageHistory] = useState(false);
   const [showTextHistory, setShowTextHistory] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -198,6 +202,21 @@ export default function CalendarView() {
   useEffect(() => {
     tutorial.setCurrentSection("calendar");
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const editId = params.get("edit");
+    if (editId) {
+      const id = parseInt(editId, 10);
+      if (!isNaN(id) && id !== editingCampaignId) {
+        setEditingCampaignId(id);
+        setTextApproved(true);
+        setImageApproved(true);
+        setIsResend(true);
+        setLoc("/calendar", { replace: true });
+      }
+    }
+  }, [searchString]);
 
   useEffect(() => {
     function handlePreviewMessage(e: MessageEvent) {
@@ -240,7 +259,7 @@ export default function CalendarView() {
   const startDayOfWeek = (firstDay.getDay() + 6) % 7;
   const totalDays = lastDay.getDate();
 
-  const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<Campaign[]>({
+  const { data: monthCampaigns = [], isLoading: campaignsLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns", { year, month }],
     queryFn: async () => {
       const res = await fetch(`/api/campaigns?year=${year}&month=${month}`, { credentials: "include" });
@@ -248,6 +267,23 @@ export default function CalendarView() {
       return res.json();
     },
   });
+
+  const { data: editCampaignData } = useQuery<Campaign>({
+    queryKey: ["/api/campaigns", editingCampaignId, "detail"],
+    queryFn: async () => {
+      const res = await fetch(`/api/campaigns/${editingCampaignId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Error cargando campaña");
+      return res.json();
+    },
+    enabled: !!editingCampaignId && !monthCampaigns.some(c => c.id === editingCampaignId),
+  });
+
+  const campaigns = useMemo(() => {
+    if (editCampaignData && !monthCampaigns.some(c => c.id === editCampaignData.id)) {
+      return [...monthCampaigns, editCampaignData];
+    }
+    return monthCampaigns;
+  }, [monthCampaigns, editCampaignData]);
 
   const campaignIds = useMemo(() => campaigns.map(c => c.id), [campaigns]);
   const { data: thumbnails = {} } = useQuery<Record<number, string | null>>({
@@ -455,6 +491,7 @@ export default function CalendarView() {
 
   function handleBackToCalendar() {
     setEditingCampaignId(null);
+    setIsResend(false);
     setShowImageHistory(false);
     setShowTextHistory(false);
     setShowPreview(false);
@@ -883,6 +920,9 @@ export default function CalendarView() {
     const isReady = imageApproved && textApproved;
 
     const statusTags: Array<{ label: string; className: string }> = [];
+    if (isResend) {
+      statusTags.push({ label: "Reenvío", className: "bg-violet-100 text-violet-700" });
+    }
     if (isCancelled) {
       statusTags.push({ label: "Cancelado", className: "bg-red-100 text-red-700" });
     } else {

@@ -62,6 +62,10 @@ export default function Templates() {
     queryKey: ["/api/templates"],
   });
 
+  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
+    queryKey: ["/api/onboarding-status"],
+  });
+
   const displayTemplates = useMemo(() => {
     const parentGroups = new Map<number, Template[]>();
     for (const t of templates) {
@@ -673,7 +677,7 @@ export default function Templates() {
 
         {tutorialActive && <TutorialTip />}
 
-        {templates.length > 0 && (
+        {templates.length > 0 && !onboardingStatus?.hasContactDatabases && (
           <div className="flex justify-end mt-6">
             <Button
               data-testid="button-next-to-contacts"

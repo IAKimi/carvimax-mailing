@@ -219,12 +219,22 @@ export class DatabaseStorage implements IStorage {
   async getDashboardStats(userId: number): Promise<any> {
     const userCampaigns = await this.getCampaigns(userId);
     const sentCampaigns = userCampaigns.filter(c => c.status === "sent");
+    const recent = userCampaigns
+      .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+      .slice(0, 5);
+
+    const recentWithSubject = [];
+    for (const c of recent) {
+      const versions = await this.getCampaignVersions(c.id);
+      const selected = versions.find(v => v.isSelected) || versions[0];
+      const subject = selected ? (selected.contentJson as any)?.subject || c.name : c.name;
+      recentWithSubject.push({ ...c, subject });
+    }
+
     return {
       totalSent: sentCampaigns.length,
       byCountry: {},
-      recentCampaigns: userCampaigns
-        .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
-        .slice(0, 5),
+      recentCampaigns: recentWithSubject,
     };
   }
 
@@ -590,7 +600,15 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(campaigns.userId, users.id))
       .orderBy(sql`${campaigns.createdAt} DESC NULLS LAST`)
       .limit(20);
-    return rows;
+
+    const result = [];
+    for (const row of rows) {
+      const versions = await this.getCampaignVersions(row.campaignId);
+      const selected = versions.find(v => v.isSelected) || versions[0];
+      const subject = selected ? (selected.contentJson as any)?.subject : null;
+      result.push({ ...row, campaignName: subject || row.campaignName });
+    }
+    return result;
   }
 }
 

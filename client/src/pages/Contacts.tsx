@@ -554,6 +554,10 @@ export default function Contacts() {
     queryKey: ["/api/contact-databases"],
   });
 
+  const { data: existingCampaigns = [] } = useQuery<any[]>({
+    queryKey: ["/api/campaigns"],
+  });
+
   const createDbMutation = useMutation({
     mutationFn: async (name: string) => {
       await apiRequest("POST", "/api/contact-databases", { name });
@@ -748,7 +752,7 @@ export default function Contacts() {
           </p>
         </div>
 
-        {databases.length > 0 && (
+        {databases.length > 0 && existingCampaigns.length === 0 && (
           <div className="flex justify-end mt-6">
             <Button
               data-testid="button-next-to-calendar"

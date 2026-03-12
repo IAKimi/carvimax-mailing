@@ -1,18 +1,37 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw } from "lucide-react";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw, Eye } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Campaign } from "@shared/schema";
+
+interface CampaignVersion {
+  id: number;
+  campaignId: number;
+  versionNumber: number;
+  contentJson: any;
+  imageUrl: string | null;
+  isSelected: boolean;
+  type: string;
+}
+
+interface ContactDatabaseType {
+  id: number;
+  name: string;
+  userId: number;
+}
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   scheduled: { label: "Programado", color: "bg-blue-100 text-blue-700", icon: CalendarDays },
@@ -29,15 +48,26 @@ export default function MyEmails() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const [resendCampaign, setResendCampaign] = useState<Campaign | null>(null);
+  const [resendSubject, setResendSubject] = useState("");
+  const [resendPreheader, setResendPreheader] = useState("");
+  const [resendBody, setResendBody] = useState("");
+  const [resendCta, setResendCta] = useState("");
+  const [resendCtaUrl, setResendCtaUrl] = useState("");
+  const [resendDatabase, setResendDatabase] = useState("");
+  const [resendDate, setResendDate] = useState("");
+  const [resendTime, setResendTime] = useState("");
+
   const resendMutation = useMutation({
-    mutationFn: async (campaignId: number) => {
-      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/resend`);
+    mutationFn: async (data: { campaignId: number; subject: string; preheader: string; body: string; cta: string; ctaUrl: string; targetDatabase: string; scheduledAt: string }) => {
+      const res = await apiRequest("POST", `/api/campaigns/${data.campaignId}/resend`, data);
       return res.json();
     },
     onSuccess: (newCampaign: Campaign) => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-      toast({ title: "Campaña duplicada", description: "Se creó una copia como borrador. Redirigiendo al calendario..." });
-      setTimeout(() => setLocation("/calendar"), 500);
+      setResendCampaign(null);
+      toast({ title: "Campaña programada", description: "Se agregó al calendario como reenvío." });
+      setTimeout(() => setLocation(`/calendar?edit=${newCampaign.id}`), 300);
     },
     onError: (err: Error) => {
       toast({ title: "Error al reenviar", description: err.message, variant: "destructive" });
@@ -51,6 +81,47 @@ export default function MyEmails() {
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
+
+  const { data: databases = [] } = useQuery<ContactDatabaseType[]>({
+    queryKey: ["/api/contact-databases"],
+  });
+
+  const campaignIds = useMemo(() => campaigns.filter(c => c.status === "sent" || c.status === "scheduled").map(c => c.id), [campaigns]);
+
+  const { data: allVersions = [] } = useQuery<CampaignVersion[]>({
+    queryKey: ["/api/campaigns/versions-bulk", campaignIds.join(",")],
+    queryFn: async () => {
+      if (campaignIds.length === 0) return [];
+      const results: CampaignVersion[] = [];
+      for (const id of campaignIds) {
+        const res = await fetch(`/api/campaigns/${id}/versions`, { credentials: "include" });
+        if (res.ok) {
+          const vs = await res.json();
+          results.push(...vs);
+        }
+      }
+      return results;
+    },
+    enabled: campaignIds.length > 0,
+  });
+
+  const versionsByCampaign = useMemo(() => {
+    const map = new Map<number, CampaignVersion>();
+    for (const v of allVersions) {
+      if (v.isSelected || !map.has(v.campaignId)) {
+        map.set(v.campaignId, v);
+      }
+    }
+    return map;
+  }, [allVersions]);
+
+  const dbNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const db of databases) {
+      map.set(String(db.id), db.name);
+    }
+    return map;
+  }, [databases]);
 
   const hasActiveFilter = dateFrom || dateTo;
 
@@ -69,6 +140,39 @@ export default function MyEmails() {
       const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
       return dateB - dateA;
     });
+
+  function openResendPopup(campaign: Campaign) {
+    const version = versionsByCampaign.get(campaign.id);
+    const content = version?.contentJson || {};
+    setResendCampaign(campaign);
+    setResendSubject(content.asunto || content.subject || "");
+    setResendPreheader(content.preheader || "");
+    setResendBody(content.cuerpo_html || content.body || "");
+    setResendCta(content.cta_text || content.cta || "");
+    setResendCtaUrl(content.cta_url || content.ctaUrl || "");
+    setResendDatabase(campaign.targetDatabase || "");
+    setResendDate("");
+    setResendTime("");
+  }
+
+  function handleResendSubmit() {
+    if (!resendCampaign) return;
+    if (!resendDate || !resendTime) {
+      toast({ title: "Fecha requerida", description: "Seleccione fecha y hora para programar el reenvío.", variant: "destructive" });
+      return;
+    }
+    const scheduledAt = `${resendDate}T${resendTime}:00`;
+    resendMutation.mutate({
+      campaignId: resendCampaign.id,
+      subject: resendSubject,
+      preheader: resendPreheader,
+      body: resendBody,
+      cta: resendCta,
+      ctaUrl: resendCtaUrl,
+      targetDatabase: resendDatabase,
+      scheduledAt,
+    });
+  }
 
   return (
     <Layout>
@@ -158,13 +262,13 @@ export default function MyEmails() {
               const config = statusConfig[campaign.status] || statusConfig.draft;
               const StatusIcon = config.icon;
               const isExpanded = expandedId === campaign.id;
+              const version = versionsByCampaign.get(campaign.id);
+              const subject = version?.contentJson?.subject || campaign.name;
               const scheduledDate = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
               const displayDate = scheduledDate
                 ? `${scheduledDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${scheduledDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
                 : "Sin fecha";
-              const title = campaign.status === "sent"
-                ? `Correo enviado el ${displayDate}`
-                : `Correo programado para el ${displayDate}`;
+              const dbName = campaign.targetDatabase ? (dbNameMap.get(campaign.targetDatabase) || campaign.targetDatabase) : null;
 
               return (
                 <motion.div
@@ -188,7 +292,8 @@ export default function MyEmails() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold truncate">{title}</h3>
+                      <h3 className="font-bold truncate" data-testid={`text-campaign-subject-${campaign.id}`}>{subject}</h3>
+                      <p className="text-xs text-muted-foreground">{displayDate}</p>
                     </div>
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 flex-shrink-0 ${config.color}`}>
                       <StatusIcon className="w-3 h-3" />
@@ -218,8 +323,8 @@ export default function MyEmails() {
                             {campaign.imagePrompt && (
                               <DetailField icon={Image} label="Prompt de imagen" value={campaign.imagePrompt} />
                             )}
-                            {campaign.targetDatabase && (
-                              <DetailField icon={Database} label="Base de datos destino" value={campaign.targetDatabase} />
+                            {dbName && (
+                              <DetailField icon={Database} label="Base de datos destino" value={dbName} />
                             )}
                           </div>
                           {campaign.status === "sent" && (
@@ -230,15 +335,10 @@ export default function MyEmails() {
                                 className="rounded-xl gap-2"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  resendMutation.mutate(campaign.id);
+                                  openResendPopup(campaign);
                                 }}
-                                disabled={resendMutation.isPending}
                               >
-                                {resendMutation.isPending ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="w-3.5 h-3.5" />
-                                )}
+                                <RefreshCw className="w-3.5 h-3.5" />
                                 Reenviar Campaña
                               </Button>
                             </div>
@@ -284,6 +384,146 @@ export default function MyEmails() {
         </TutorialHighlight>
         {tutorialActive && <TutorialTip />}
       </div>
+
+      <Dialog open={!!resendCampaign} onOpenChange={(open) => { if (!open) setResendCampaign(null); }}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-primary" />
+              Reenviar Campaña
+            </DialogTitle>
+          </DialogHeader>
+
+          {resendCampaign && (
+            <div className="space-y-5">
+              {versionsByCampaign.get(resendCampaign.id)?.imageUrl && (
+                <div className="rounded-xl overflow-hidden border border-border">
+                  <img
+                    src={(() => {
+                      const url = versionsByCampaign.get(resendCampaign.id)!.imageUrl!;
+                      return url.startsWith("http") ? url : `/uploads/campaigns/${url}`;
+                    })()}
+                    alt="Preview"
+                    className="w-full max-h-48 object-cover"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <h3 className="font-bold text-sm flex items-center gap-2 text-muted-foreground uppercase tracking-wide">
+                  <Eye className="w-4 h-4" />
+                  Editar textos del correo
+                </h3>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Asunto</Label>
+                  <Input
+                    data-testid="input-resend-subject"
+                    value={resendSubject}
+                    onChange={(e) => setResendSubject(e.target.value)}
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Preheader</Label>
+                  <Input
+                    data-testid="input-resend-preheader"
+                    value={resendPreheader}
+                    onChange={(e) => setResendPreheader(e.target.value)}
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Contenido</Label>
+                  <Textarea
+                    data-testid="input-resend-body"
+                    value={resendBody}
+                    onChange={(e) => setResendBody(e.target.value)}
+                    rows={4}
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Texto del botón (CTA)</Label>
+                    <Input
+                      data-testid="input-resend-cta"
+                      value={resendCta}
+                      onChange={(e) => setResendCta(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">URL del botón</Label>
+                    <Input
+                      data-testid="input-resend-cta-url"
+                      value={resendCtaUrl}
+                      onChange={(e) => setResendCtaUrl(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2 border-t border-border">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Base de datos</Label>
+                  <Select value={resendDatabase} onValueChange={setResendDatabase}>
+                    <SelectTrigger data-testid="select-resend-database" className="rounded-xl">
+                      <SelectValue placeholder="Seleccionar base de datos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {databases.map(db => (
+                        <SelectItem key={db.id} value={String(db.id)}>{db.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Fecha</Label>
+                    <Input
+                      data-testid="input-resend-date"
+                      type="date"
+                      value={resendDate}
+                      onChange={(e) => setResendDate(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Hora</Label>
+                    <Input
+                      data-testid="input-resend-time"
+                      type="time"
+                      value={resendTime}
+                      onChange={(e) => setResendTime(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                data-testid="button-resend-submit"
+                className="w-full rounded-xl gap-2"
+                onClick={handleResendSubmit}
+                disabled={resendMutation.isPending}
+              >
+                {resendMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CalendarDays className="w-4 h-4" />
+                )}
+                Agregar a Calendario
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
