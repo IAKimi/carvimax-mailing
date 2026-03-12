@@ -1282,57 +1282,59 @@ export default function CalendarView() {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      data-testid="button-regenerate-image"
-                      size="sm"
-                      className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={handleRegenerateImage}
-                      disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
-                    >
-                      {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      Regenerar ({Math.max(0, 3 - ((editingCampaign as any)?.imageRegenCount || 0))})
-                    </Button>
-                    <Button
-                      data-testid="button-upload-image"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
-                      disabled={isLocked}
-                      onClick={() => editorFileInputRef.current?.click()}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      Cargar Imagen
-                    </Button>
-                    <input
-                      ref={editorFileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const url = URL.createObjectURL(file);
-                          setEditorLocalImageUrl(url);
-                          setImageApproved(false);
-                          toast({ title: "Imagen cargada", description: "Vista previa actualizada." });
-                        }
-                        e.target.value = "";
-                      }}
-                    />
-                    <Button
-                      data-testid="button-nano-banana"
-                      size="sm"
-                      className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
-                      onClick={handleEditWithNanoBanana}
-                      disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
-                    >
-                      {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                      Nano Banana
-                    </Button>
-                  </div>
+                  {!isResend && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        data-testid="button-regenerate-image"
+                        size="sm"
+                        className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={handleRegenerateImage}
+                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                      >
+                        {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        Regenerar ({Math.max(0, 3 - ((editingCampaign as any)?.imageRegenCount || 0))})
+                      </Button>
+                      <Button
+                        data-testid="button-upload-image"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
+                        disabled={isLocked}
+                        onClick={() => editorFileInputRef.current?.click()}
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        Cargar Imagen
+                      </Button>
+                      <input
+                        ref={editorFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const url = URL.createObjectURL(file);
+                            setEditorLocalImageUrl(url);
+                            setImageApproved(false);
+                            toast({ title: "Imagen cargada", description: "Vista previa actualizada." });
+                          }
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button
+                        data-testid="button-nano-banana"
+                        size="sm"
+                        className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
+                        onClick={handleEditWithNanoBanana}
+                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
+                      >
+                        {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                        Nano Banana
+                      </Button>
+                    </div>
+                  )}
 
-                  {imageVersions.length > 1 && (
+                  {!isResend && imageVersions.length > 1 && (
                     <Button
                       data-testid="button-image-history"
                       variant={showImageHistory ? "default" : "secondary"}
@@ -1345,33 +1347,42 @@ export default function CalendarView() {
                     </Button>
                   )}
 
-                  <AnimatePresence>
-                    {showImageHistory && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
-                          {imageVersions.map(v => (
-                            <button
-                              key={v.id}
-                              data-testid={`button-select-image-${v.versionNumber}`}
-                              onClick={() => !isLocked && handleSelectImageVersion(v.id)}
-                              disabled={isLocked}
-                              className={`rounded-lg border-2 overflow-hidden transition-all ${selectedImageVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
-                            >
-                              <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
-                              <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {!isResend && (
+                    <AnimatePresence>
+                      {showImageHistory && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
+                            {imageVersions.map(v => (
+                              <button
+                                key={v.id}
+                                data-testid={`button-select-image-${v.versionNumber}`}
+                                onClick={() => !isLocked && handleSelectImageVersion(v.id)}
+                                disabled={isLocked}
+                                className={`rounded-lg border-2 overflow-hidden transition-all ${selectedImageVersion?.id === v.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                              >
+                                <img src={v.imageUrl || "https://placehold.co/600x300/002073/white?text=V" + v.versionNumber} alt={`Versión ${v.versionNumber}`} className="w-full h-16 object-cover" />
+                                <span className="text-[10px] font-medium block py-0.5 text-center">V{v.versionNumber}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  )}
 
-                  {!imageApproved && !isLocked && (
+                  {isResend && (
+                    <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium">
+                      <Check className="w-3.5 h-3.5" />
+                      Imagen del correo original (no editable)
+                    </div>
+                  )}
+
+                  {!imageApproved && !isLocked && !isResend && (
                     <Button
                       data-testid="button-approve-image"
                       onClick={handleApproveImage}
@@ -1396,7 +1407,7 @@ export default function CalendarView() {
                 </div>
 
                 <div className="space-y-4 relative">
-                  {regenerateTextMutation.isPending && (
+                  {!isResend && regenerateTextMutation.isPending && (
                     <div className="absolute inset-0 bg-card/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-2 rounded-xl">
                       <Loader2 className="w-8 h-8 animate-spin text-primary" />
                       <span className="text-sm font-medium text-primary">Regenerando texto con IA...</span>
@@ -1516,66 +1527,70 @@ export default function CalendarView() {
                     </motion.div>
                   )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      data-testid="button-regenerate-text"
-                      size="sm"
-                      className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={handleRegenerateText}
-                      disabled={isCancelled || isSent || ((editingCampaign as any)?.textRegenCount || 0) >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
-                    >
-                      {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      Regenerar Texto ({Math.max(0, 3 - ((editingCampaign as any)?.textRegenCount || 0))})
-                    </Button>
-                    {textVersions.length > 1 && (
+                  {!isResend && (
+                    <div className="flex flex-wrap gap-2">
                       <Button
-                        data-testid="button-text-history"
-                        variant={showTextHistory ? "default" : "secondary"}
+                        data-testid="button-regenerate-text"
                         size="sm"
-                        className="rounded-xl gap-1"
-                        onClick={() => setShowTextHistory(!showTextHistory)}
+                        className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={handleRegenerateText}
+                        disabled={isCancelled || isSent || ((editingCampaign as any)?.textRegenCount || 0) >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                       >
-                        <History className="w-3.5 h-3.5" />
-                        Seleccionar Textos ({textVersions.length})
+                        {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        Regenerar Texto ({Math.max(0, 3 - ((editingCampaign as any)?.textRegenCount || 0))})
                       </Button>
-                    )}
-                  </div>
+                      {textVersions.length > 1 && (
+                        <Button
+                          data-testid="button-text-history"
+                          variant={showTextHistory ? "default" : "secondary"}
+                          size="sm"
+                          className="rounded-xl gap-1"
+                          onClick={() => setShowTextHistory(!showTextHistory)}
+                        >
+                          <History className="w-3.5 h-3.5" />
+                          Seleccionar Textos ({textVersions.length})
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
-                  <AnimatePresence>
-                    {showTextHistory && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="space-y-2 pt-2 border-t border-border">
-                          {textVersions.map(v => {
-                            const vContent = v.contentJson as any;
-                            const html = vContent?.cuerpo_html
-                              || vContent?.html
-                              || vContent?.body
-                              || "";
-                            return (
-                              <button
-                                key={v.id}
-                                data-testid={`button-select-text-${v.versionNumber}`}
-                                onClick={() => !isLocked && handleSelectTextVersion(v.id)}
-                                disabled={isLocked}
-                                className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedTextVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
-                              >
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
-                                  {selectedTextVersion?.id === v.id && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
-                                </div>
-                                <div className="text-xs text-muted-foreground line-clamp-2" dangerouslySetInnerHTML={{ __html: html.replace(/<[^>]*>/g, " ").substring(0, 120) }} />
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {!isResend && (
+                    <AnimatePresence>
+                      {showTextHistory && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="space-y-2 pt-2 border-t border-border">
+                            {textVersions.map(v => {
+                              const vContent = v.contentJson as any;
+                              const html = vContent?.cuerpo_html
+                                || vContent?.html
+                                || vContent?.body
+                                || "";
+                              return (
+                                <button
+                                  key={v.id}
+                                  data-testid={`button-select-text-${v.versionNumber}`}
+                                  onClick={() => !isLocked && handleSelectTextVersion(v.id)}
+                                  disabled={isLocked}
+                                  className={`w-full p-3 rounded-xl text-left border-2 transition-all text-sm ${selectedTextVersion?.id === v.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"} ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-semibold text-xs">Versión {v.versionNumber}</span>
+                                    {selectedTextVersion?.id === v.id && <span className="text-[10px] font-semibold text-primary">Seleccionada</span>}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground line-clamp-2" dangerouslySetInnerHTML={{ __html: html.replace(/<[^>]*>/g, " ").substring(0, 120) }} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  )}
 
                   {!textApproved && !isLocked && (
                     <Button
