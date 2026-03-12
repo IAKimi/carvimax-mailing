@@ -7,6 +7,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { pool } from "./db";
 import { seedProductionDatabase } from "./seed";
+import { runMigrations } from "./migrations";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -117,6 +118,7 @@ app.use((req, res, next) => {
   }
 
   await seedProductionDatabase();
+  await runMigrations();
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
