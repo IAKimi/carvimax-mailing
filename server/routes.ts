@@ -249,6 +249,10 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
       const input = registerSchema.parse(req.body);

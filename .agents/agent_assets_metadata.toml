@@ -12,3 +12,9 @@ id = "yfYy5lzcrYh-dbO9t4uJK"
 uri = "file://SEGURIDAD_VPS.md"
 type = "text"
 title = "Seguridad y Configuración de Producción VPS — PostIAlo Mailing"
+
+[[outputs]]
+id = "roH89nkhAWBPB_vZNdTFY"
+uri = "file://DOCKER_COOLIFY.md"
+type = "text"
+title = "Guía Docker + Coolify — PostIAlo Mailing"
