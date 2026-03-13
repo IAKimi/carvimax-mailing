@@ -495,8 +495,7 @@ cd /home/tu_usuario/postialo-mailing
 
 # Iniciar con PM2
 pm2 start dist/index.cjs --name postialo-mailing \
-  --env production \
-  -- --max-old-space-size=1024
+  --node-args="--max-old-space-size=1024"
 
 # Ver logs en tiempo real
 pm2 logs postialo-mailing
