@@ -291,29 +291,9 @@ Al primer inicio, la aplicación ejecuta automáticamente:
 
 Las tablas de la base de datos no se crean solas. Tienes dos opciones:
 
-### Opción A: Usar Drizzle Kit (recomendado)
+### Opción A: Ejecutar SQL directo (recomendado)
 
-Después del primer despliegue, entra al contenedor y ejecuta:
-
-```bash
-# Buscar el ID del contenedor de PostIAlo
-docker ps | grep postialo
-
-# Entrar al contenedor
-docker exec -it CONTAINER_ID sh
-
-# Dentro del contenedor, crear las tablas
-npx drizzle-kit push
-
-# Salir del contenedor
-exit
-```
-
-> **Nota**: `drizzle-kit push` lee el esquema de tu app y crea todas las tablas automáticamente. Te preguntará confirmación — responde "Yes".
-
-### Opción B: SQL directo
-
-Si prefieres, puedes ejecutar el SQL directamente contra PostgreSQL. Entra al contenedor de la base de datos:
+Entra al contenedor de la base de datos y ejecuta el SQL de creación:
 
 ```bash
 # Buscar el ID del contenedor de PostgreSQL
@@ -323,7 +303,23 @@ docker ps | grep postgres
 docker exec -it CONTAINER_ID psql -U postialo -d postialo_mailing
 ```
 
-Y ejecuta el SQL completo de creación de tablas (está en el archivo `MANUAL_MIGRACION_VPS.md`, sección 8, Opción B).
+Dentro de psql, ejecuta el SQL completo de creación de tablas (está en el archivo `MANUAL_MIGRACION_VPS.md`, sección 8, Opción B). Copia y pega todo el bloque SQL que empieza con `CREATE TABLE IF NOT EXISTS users ...` y termina con los `GRANT`.
+
+### Opción B: Usar Drizzle Kit desde tu máquina local
+
+Si prefieres usar la herramienta automática de Drizzle, puedes ejecutarla **desde tu computadora** (no desde dentro del contenedor, porque el contenedor de producción no incluye herramientas de desarrollo):
+
+```bash
+# Desde tu PC o desde Replit, apuntando a la BD del VPS
+# Primero, expón temporalmente el puerto de PostgreSQL en Coolify
+# o usa un túnel SSH:
+ssh -L 5432:localhost:5432 tu_usuario@IP_VPS
+
+# En otra terminal, con el proyecto clonado localmente:
+DATABASE_URL=postgresql://postialo:PASSWORD@localhost:5432/postialo_mailing npx drizzle-kit push
+```
+
+> **Nota**: Después de crear las tablas, cierra el túnel SSH. No dejes el puerto de PostgreSQL expuesto.
 
 ### Importar datos existentes desde Replit (opcional)
 

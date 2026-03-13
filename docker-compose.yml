@@ -1,3 +1,7 @@
+# Este archivo es para referencia y uso local.
+# En Coolify, la configuración se hace desde el panel web.
+# Ver DOCKER_COOLIFY.md para instrucciones paso a paso.
+
 services:
   postialo-db:
     image: postgres:16-alpine
