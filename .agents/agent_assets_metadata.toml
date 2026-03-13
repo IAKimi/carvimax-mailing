@@ -6,3 +6,9 @@ id = "EXzMosxIXX2Q2J9Vnv5z7"
 uri = "file://MANUAL_MIGRACION_VPS.md"
 type = "text"
 title = "Manual de Migración VPS — PostIAlo Mailing"
+
+[[outputs]]
+id = "yfYy5lzcrYh-dbO9t4uJK"
+uri = "file://SEGURIDAD_VPS.md"
+type = "text"
+title = "Seguridad y Configuración de Producción VPS — PostIAlo Mailing"
