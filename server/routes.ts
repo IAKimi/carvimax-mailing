@@ -2076,11 +2076,26 @@ export async function registerRoutes(
             console.log(`Scheduler: firing campaign #${campaign.id} (scheduled for ${campaign.scheduledAt}, attempt ${retryCount + 1}/${MAX_SCHEDULER_RETRIES})`);
             const result = await sendCampaignToWebhook(campaign.id, campaign.userId);
             if (!result.success) {
-              console.error(`Scheduler: failed to send campaign #${campaign.id}: ${result.error}`);
-              await db.update(campaignsTable).set({
-                schedulerRetryCount: retryCount + 1,
-                schedulerLastError: result.error || "Error desconocido",
-              }).where(eq(campaignsTable.id, campaign.id));
+              const newRetryCount = retryCount + 1;
+              console.error(`Scheduler: failed to send campaign #${campaign.id}: ${result.error} (attempt ${newRetryCount}/${MAX_SCHEDULER_RETRIES})`);
+              if (newRetryCount >= MAX_SCHEDULER_RETRIES) {
+                console.error(`Scheduler: campaign #${campaign.id} reached ${MAX_SCHEDULER_RETRIES} failed attempts, marking as failed.`);
+                await storage.updateCampaign(campaign.id, { status: "failed" } as any);
+                await db.update(campaignsTable).set({
+                  schedulerRetryCount: newRetryCount,
+                  schedulerLastError: `Fallo después de ${MAX_SCHEDULER_RETRIES} intentos automáticos. Último error: ${result.error || "desconocido"}`,
+                }).where(eq(campaignsTable.id, campaign.id));
+                broadcastWs("campaign-progress", {
+                  campaignId: campaign.id,
+                  status: "failed",
+                  completed: true,
+                });
+              } else {
+                await db.update(campaignsTable).set({
+                  schedulerRetryCount: newRetryCount,
+                  schedulerLastError: result.error || "Error desconocido",
+                }).where(eq(campaignsTable.id, campaign.id));
+              }
             } else {
               console.log(`Scheduler: campaign #${campaign.id} sent successfully`);
               if (retryCount > 0) {

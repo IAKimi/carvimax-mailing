@@ -766,7 +766,11 @@ export default function CalendarView() {
     const updatedContent = existing.cuerpo_html !== undefined
       ? { ...existing, cuerpo_html: newHtml }
       : { ...existing, html: newHtml };
-    updateVersionMutation.mutate({ id: versionId, updates: { contentJson: updatedContent } });
+    setHasUnsavedChanges(true);
+    updateVersionMutation.mutate(
+      { id: versionId, updates: { contentJson: updatedContent } },
+      { onSuccess: () => setHasUnsavedChanges(false) }
+    );
     setTextApproved(false);
   }
 
