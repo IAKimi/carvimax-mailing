@@ -94,6 +94,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
   const [editingRows, setEditingRows] = useState<Record<number, EditingContact>>({});
   const [addingContact, setAddingContact] = useState(false);
   const [newContact, setNewContact] = useState<NewContactForm>(EMPTY_NEW_CONTACT);
+  const [deletingContactId, setDeletingContactId] = useState<number | null>(null);
   const csvAppendRef = useRef<HTMLInputElement>(null);
   const csvOverwriteRef = useRef<HTMLInputElement>(null);
 
@@ -127,6 +128,21 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo agregar el contacto.", variant: "destructive" });
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: number) => {
+      await apiRequest("DELETE", `/api/contacts/${contactId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contact-databases", db.id, "contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
+      setDeletingContactId(null);
+      toast({ title: "Contacto eliminado", description: "El contacto ha sido eliminado correctamente." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo eliminar el contacto.", variant: "destructive" });
     },
   });
 
@@ -508,19 +524,33 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-muted-foreground">
                         {isEditMode ? (
-                          <Button
-                            data-testid={`button-start-edit-${contact.id}`}
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditRow(contact);
-                            }}
-                          >
-                            <Pencil className="w-3 h-3" />
-                            Editar
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              data-testid={`button-start-edit-${contact.id}`}
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditRow(contact);
+                              }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                              Editar
+                            </Button>
+                            <Button
+                              data-testid={`button-delete-contact-${contact.id}`}
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingContactId(contact.id);
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
                         ) : (
                           contact.createdAt ? new Date(contact.createdAt).toLocaleDateString("es") : "-"
                         )}
@@ -533,6 +563,34 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           </table>
         </div>
       </div>
+
+      <AlertDialog open={deletingContactId !== null} onOpenChange={(open) => { if (!open) setDeletingContactId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar contacto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const c = contacts.find(ct => ct.id === deletingContactId);
+                return c ? `Se eliminará "${c.name || c.email}" de esta base de datos. Esta acción no se puede deshacer.` : "Esta acción no se puede deshacer.";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-contact">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete-contact"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deletingContactId) deleteContactMutation.mutate(deletingContactId);
+              }}
+              disabled={deleteContactMutation.isPending}
+            >
+              {deleteContactMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
