@@ -1305,7 +1305,21 @@ export default function CalendarView() {
                       <ImageIcon className="w-4 h-4 text-primary" />
                       Imagen
                     </h3>
-                    {imageApproved && (
+                    {imageApproved && !isLocked && !isResend && (
+                      <div className="flex items-center gap-2">
+                        <span data-testid="badge-image-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Aprobada
+                        </span>
+                        <button
+                          data-testid="button-unapprove-image"
+                          onClick={() => { setImageApproved(false); toast({ title: "Aprobación de imagen retirada" }); }}
+                          className="text-[10px] text-muted-foreground hover:text-destructive underline"
+                        >
+                          Desaprobar
+                        </button>
+                      </div>
+                    )}
+                    {imageApproved && (isLocked || isResend) && (
                       <span data-testid="badge-image-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
                         <Check className="w-3 h-3" /> Aprobada
                       </span>
@@ -1474,7 +1488,21 @@ export default function CalendarView() {
                       <Type className="w-4 h-4 text-primary" />
                       Texto
                     </h3>
-                    {textApproved && (
+                    {textApproved && !isLocked && !isResend && (
+                      <div className="flex items-center gap-2">
+                        <span data-testid="badge-text-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Aprobado
+                        </span>
+                        <button
+                          data-testid="button-unapprove-text"
+                          onClick={() => { setTextApproved(false); toast({ title: "Aprobación de texto retirada" }); }}
+                          className="text-[10px] text-muted-foreground hover:text-destructive underline"
+                        >
+                          Desaprobar
+                        </button>
+                      </div>
+                    )}
+                    {textApproved && (isLocked || isResend) && (
                       <span data-testid="badge-text-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
                         <Check className="w-3 h-3" /> Aprobado
                       </span>
