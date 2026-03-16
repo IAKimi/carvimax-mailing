@@ -196,6 +196,7 @@ export default function CalendarView() {
   const [localCtaUrl, setLocalCtaUrl] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [pendingVersionSwitch, setPendingVersionSwitch] = useState<{ fn: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -708,15 +709,24 @@ export default function CalendarView() {
   const textVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "text");
   const imageVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "image");
 
-  function handleSelectTextVersion(versionId: number) {
+  function doSelectTextVersion(versionId: number) {
     setLocalSelectedVersionId(versionId);
     setTextApproved(false);
+    setHasUnsavedChanges(false);
     textVersions.forEach(v => {
       if (v.isSelected && v.id !== versionId) {
         updateVersionMutation.mutate({ id: v.id, updates: { isSelected: false } });
       }
     });
     updateVersionMutation.mutate({ id: versionId, updates: { isSelected: true } });
+  }
+
+  function handleSelectTextVersion(versionId: number) {
+    if (hasUnsavedChanges) {
+      setPendingVersionSwitch({ fn: () => doSelectTextVersion(versionId) });
+      return;
+    }
+    doSelectTextVersion(versionId);
   }
 
   function handleSelectImageVersion(versionId: number) {
@@ -729,16 +739,25 @@ export default function CalendarView() {
     updateVersionMutation.mutate({ id: versionId, updates: { isSelected: true } });
   }
 
-  function handleSelectVersion(versionId: number) {
+  function doSelectVersion(versionId: number) {
     setLocalSelectedVersionId(versionId);
     setTextApproved(false);
     setImageApproved(false);
+    setHasUnsavedChanges(false);
     versions.forEach(v => {
       if (v.isSelected && v.id !== versionId) {
         updateVersionMutation.mutate({ id: v.id, updates: { isSelected: false } });
       }
     });
     updateVersionMutation.mutate({ id: versionId, updates: { isSelected: true } });
+  }
+
+  function handleSelectVersion(versionId: number) {
+    if (hasUnsavedChanges) {
+      setPendingVersionSwitch({ fn: () => doSelectVersion(versionId) });
+      return;
+    }
+    doSelectVersion(versionId);
   }
 
   function handleTextChange(versionId: number, newHtml: string) {
@@ -2390,6 +2409,27 @@ export default function CalendarView() {
         </DialogContent>
       </Dialog>
       <TutorialTip />
+      <AlertDialog open={!!pendingVersionSwitch} onOpenChange={(open) => { if (!open) setPendingVersionSwitch(null); }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cambios sin guardar</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tiene cambios de texto sin guardar. Si cambia de versión ahora, perderá estos cambios. ¿Desea continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingVersionSwitch(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingVersionSwitch) {
+                pendingVersionSwitch.fn();
+              }
+              setPendingVersionSwitch(null);
+            }}>
+              Cambiar de versión
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

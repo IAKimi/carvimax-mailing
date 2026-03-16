@@ -148,6 +148,16 @@ const migrations: Migration[] = [
       console.log("[migrations] All seed data synced to database.");
     },
   },
+  {
+    name: "003_add_scheduler_retry_columns",
+    up: async (client) => {
+      await client.query(`
+        ALTER TABLE campaigns
+        ADD COLUMN IF NOT EXISTS scheduler_retry_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS scheduler_last_error TEXT
+      `);
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

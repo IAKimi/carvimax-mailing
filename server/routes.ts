@@ -160,6 +160,57 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
 
 const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/zmq7ppo7dusjmowvqznkbc6etvqvonr4";
 
+function deleteUploadedFile(filePath: string): void {
+  try {
+    if (!filePath || filePath.startsWith("http")) return;
+    const safeName = path.basename(filePath);
+    if (!safeName || safeName === "." || safeName === "..") return;
+    const campaignsDir = path.resolve(process.cwd(), "uploads", "campaigns");
+    const fullPath = path.join(campaignsDir, safeName);
+    if (!fullPath.startsWith(campaignsDir + path.sep)) return;
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  } catch (err: any) {
+    console.error("Error deleting file:", filePath, err.message);
+  }
+}
+
+function deleteLogoFile(logoUrl: string): void {
+  try {
+    if (!logoUrl) return;
+    const match = logoUrl.match(/\/uploads\/logos\/([^/?]+)/);
+    if (!match) return;
+    const safeName = path.basename(match[1]);
+    if (!safeName || safeName === "." || safeName === "..") return;
+    const logosDir = path.resolve(process.cwd(), "uploads", "logos");
+    const fullPath = path.join(logosDir, safeName);
+    if (!fullPath.startsWith(logosDir + path.sep)) return;
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  } catch (err: any) {
+    console.error("Error deleting logo file:", err.message);
+  }
+}
+
+async function cleanupCampaignFiles(campaignId: number): Promise<void> {
+  try {
+    const versions = await storage.getCampaignVersions(campaignId);
+    for (const v of versions) {
+      if (v.imageUrl) {
+        deleteUploadedFile(v.imageUrl);
+      }
+    }
+    const campaign = await storage.getCampaign(campaignId);
+    if (campaign?.selectedImageUrl) {
+      deleteUploadedFile(campaign.selectedImageUrl);
+    }
+  } catch (err: any) {
+    console.error("Error cleaning up campaign files:", campaignId, err.message);
+  }
+}
+
 function saveBase64Image(base64DataUrl: string, prefix: string = "img"): string {
   const match = base64DataUrl.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/);
   if (!match) return base64DataUrl;
@@ -654,13 +705,14 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error regenerando texto." });
     }
 
+    const resolved = getResolvedCampaignContent(versions);
     const textVersionNumber = textVersions.length + 1;
     await storage.deselectVersionsByType(campaignId, ["initial", "text"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber: textVersionNumber,
       contentJson,
-      imageUrl: null,
+      imageUrl: resolved.imageUrl || null,
       isSelected: true,
       type: "text",
     });
@@ -881,6 +933,10 @@ export async function registerRoutes(
   });
 
   app.delete("/api/campaigns", requireAuth, async (req, res) => {
+    const userCampaigns = await storage.getCampaigns(req.session.userId!);
+    for (const c of userCampaigns) {
+      await cleanupCampaignFiles(c.id);
+    }
     await storage.deleteAllCampaigns(req.session.userId!);
     res.json({ message: "Historial eliminado." });
   });
@@ -1014,6 +1070,18 @@ export async function registerRoutes(
     if (!dbs.some(d => d.id === id)) {
       return res.status(404).json({ message: "Base de datos no encontrada." });
     }
+
+    const userCampaigns = await storage.getCampaigns(req.session.userId!);
+    const activeCampaignsUsingDb = userCampaigns.filter(
+      c => c.targetDatabase === String(id) && (c.status === "draft" || c.status === "scheduled")
+    );
+    if (activeCampaignsUsingDb.length > 0) {
+      const names = activeCampaignsUsingDb.map(c => c.name).join(", ");
+      return res.status(400).json({
+        message: `No se puede eliminar: esta base de datos está en uso por ${activeCampaignsUsingDb.length} campaña(s) activa(s): ${names}. Cambie la base de datos de esas campañas antes de eliminarla.`,
+      });
+    }
+
     await storage.deleteContactDatabase(id);
     res.json({ message: "Eliminada." });
   });
@@ -1208,6 +1276,11 @@ export async function registerRoutes(
       if (buffer.length > 2 * 1024 * 1024) {
         return res.status(400).json({ message: "La imagen no puede exceder 2MB." });
       }
+      const existingBrand = await storage.getBrandIdentity(req.session.userId!);
+      if (existingBrand?.logoUrl) {
+        deleteLogoFile(existingBrand.logoUrl);
+      }
+
       const filename = `${req.session.userId}_${crypto.randomBytes(8).toString("hex")}.${ext}`;
       const uploadsDir = path.resolve(process.cwd(), "uploads", "logos");
       if (!fs.existsSync(uploadsDir)) {
@@ -1276,6 +1349,18 @@ export async function registerRoutes(
     if (!id) return res.status(400).json({ message: "ID inválido." });
     const tpls = await storage.getTemplates(req.session.userId!);
     if (!tpls.some(t => t.id === id)) return res.status(404).json({ message: "Plantilla no encontrada." });
+
+    const userCampaigns = await storage.getCampaigns(req.session.userId!);
+    const activeCampaignsUsingTemplate = userCampaigns.filter(
+      c => c.templateId === id && (c.status === "draft" || c.status === "scheduled")
+    );
+    if (activeCampaignsUsingTemplate.length > 0) {
+      const names = activeCampaignsUsingTemplate.map(c => c.name).join(", ");
+      return res.status(400).json({
+        message: `No se puede eliminar: esta plantilla está en uso por ${activeCampaignsUsingTemplate.length} campaña(s) activa(s): ${names}. Cambie la plantilla de esas campañas antes de eliminarla.`,
+      });
+    }
+
     await storage.deleteTemplate(id);
     res.json({ message: "Eliminada." });
   });
@@ -1593,6 +1678,14 @@ export async function registerRoutes(
 
   app.post("/api/webhooks/make-callback", webhookCallbackLimiter, async (req, res) => {
     try {
+      const webhookSecret = process.env.MAKE_WEBHOOK_SECRET;
+      if (webhookSecret) {
+        const providedToken = (req.headers["x-webhook-secret"] as string) || (req.query.secret as string);
+        if (providedToken !== webhookSecret) {
+          return res.status(403).json({ message: "Token de webhook inválido." });
+        }
+      }
+
       const { campaign_id, status, message_id, contact_email, error_message } = req.body || {};
       if (!campaign_id) {
         return res.status(400).json({ message: "campaign_id es requerido." });
@@ -1952,6 +2045,8 @@ export async function registerRoutes(
     res.json({ message: "Has vuelto a tu cuenta de administrador." });
   });
 
+  const MAX_SCHEDULER_RETRIES = 3;
+
   function startCampaignScheduler() {
     console.log("Campaign scheduler started (checking every 60s)");
     setInterval(async () => {
@@ -1960,12 +2055,38 @@ export async function registerRoutes(
         const now = new Date();
         for (const campaign of allCampaigns) {
           if (campaign.status === "scheduled" && campaign.scheduledAt && new Date(campaign.scheduledAt) <= now) {
-            console.log(`Scheduler: firing campaign #${campaign.id} (scheduled for ${campaign.scheduledAt})`);
+            const retryCount = campaign.schedulerRetryCount || 0;
+            if (retryCount >= MAX_SCHEDULER_RETRIES) {
+              console.error(`Scheduler: campaign #${campaign.id} exceeded ${MAX_SCHEDULER_RETRIES} retries, marking as failed.`);
+              await storage.updateCampaign(campaign.id, {
+                status: "failed",
+              } as any);
+              await db.update(campaignsTable).set({
+                schedulerLastError: `Fallo después de ${MAX_SCHEDULER_RETRIES} intentos automáticos. Último error: ${campaign.schedulerLastError || "desconocido"}`,
+              }).where(eq(campaignsTable.id, campaign.id));
+              broadcastWs("campaign-progress", {
+                campaignId: campaign.id,
+                status: "failed",
+                completed: true,
+              });
+              continue;
+            }
+            console.log(`Scheduler: firing campaign #${campaign.id} (scheduled for ${campaign.scheduledAt}, attempt ${retryCount + 1}/${MAX_SCHEDULER_RETRIES})`);
             const result = await sendCampaignToWebhook(campaign.id, campaign.userId);
             if (!result.success) {
               console.error(`Scheduler: failed to send campaign #${campaign.id}: ${result.error}`);
+              await db.update(campaignsTable).set({
+                schedulerRetryCount: retryCount + 1,
+                schedulerLastError: result.error || "Error desconocido",
+              }).where(eq(campaignsTable.id, campaign.id));
             } else {
               console.log(`Scheduler: campaign #${campaign.id} sent successfully`);
+              if (retryCount > 0) {
+                await db.update(campaignsTable).set({
+                  schedulerRetryCount: 0,
+                  schedulerLastError: null,
+                }).where(eq(campaignsTable.id, campaign.id));
+              }
             }
           }
         }

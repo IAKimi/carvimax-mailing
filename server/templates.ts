@@ -75,8 +75,12 @@ export function renderTemplateWithContent(
 
   html = fixGradientsForEmail(html);
 
-  if (brandData?.logoUrl && html.includes("{{LOGO_URL}}")) {
-    html = html.replace(/\{\{LOGO_URL\}\}/g, brandData.logoUrl);
+  if (html.includes("{{LOGO_URL}}")) {
+    if (brandData?.logoUrl) {
+      html = html.replace(/\{\{LOGO_URL\}\}/g, brandData.logoUrl);
+    } else {
+      html = html.replace(/\{\{LOGO_URL\}\}/g, "");
+    }
   }
 
   return { html, missingFields };
