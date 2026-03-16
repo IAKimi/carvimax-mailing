@@ -720,6 +720,7 @@ export async function registerRoutes(
       type: "text",
     });
     await storage.incrementRegenCount(campaignId, "textRegenCount");
+    await storage.updateCampaign(campaignId, { textApproved: false } as any);
     res.status(201).json(newVersion);
   });
 
@@ -773,7 +774,7 @@ export async function registerRoutes(
       isSelected: true,
       type: "image",
     });
-    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
     await storage.incrementRegenCount(campaignId, "imageRegenCount");
     res.status(201).json(newVersion);
   });
@@ -834,7 +835,7 @@ export async function registerRoutes(
       isSelected: true,
       type: "image",
     });
-    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
     await storage.incrementRegenCount(campaignId, "imageRegenCount");
     res.status(201).json(newVersion);
   });
@@ -930,7 +931,7 @@ export async function registerRoutes(
       isSelected: true,
       type: "image",
     });
-    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl } as any);
+    await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
     await storage.incrementRegenCount(campaignId, "imageRegenCount");
     res.status(201).json(newVersion);
   });

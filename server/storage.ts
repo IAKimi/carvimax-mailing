@@ -113,6 +113,8 @@ export class DatabaseStorage implements IStorage {
       totalExpectedSends: campaigns.totalExpectedSends,
       sentCount: campaigns.sentCount,
       failedCount: campaigns.failedCount,
+      textApproved: campaigns.textApproved,
+      imageApproved: campaigns.imageApproved,
       createdAt: campaigns.createdAt,
     };
 
