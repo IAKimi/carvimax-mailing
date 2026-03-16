@@ -168,8 +168,8 @@ export default function CalendarView() {
   const [showPreview, setShowPreview] = useState(false);
   const [sentPreviewHeight, setSentPreviewHeight] = useState(0);
   const [previewHeight, setPreviewHeight] = useState(0);
-  const [textApproved, setTextApproved] = useState(false);
-  const [imageApproved, setImageApproved] = useState(false);
+  const [textApproved, setTextApprovedLocal] = useState(false);
+  const [imageApproved, setImageApprovedLocal] = useState(false);
   const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "" });
   const [showTargetAudience, setShowTargetAudience] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
@@ -211,8 +211,8 @@ export default function CalendarView() {
       const id = parseInt(editId, 10);
       if (!isNaN(id) && id !== editingCampaignId) {
         setEditingCampaignId(id);
-        setTextApproved(true);
-        setImageApproved(true);
+        setTextApprovedLocal(true);
+        setImageApprovedLocal(true);
         setIsResend(true);
         setLoc("/calendar", { replace: true });
       }
@@ -323,8 +323,8 @@ export default function CalendarView() {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setShowNewDialog(false);
       setEditingCampaignId(campaign.id);
-      setTextApproved(false);
-      setImageApproved(false);
+      setTextApprovedLocal(false);
+      setImageApprovedLocal(false);
       toast({ title: "Correo creado", description: "Generando contenido..." });
       generateVersionMutation.mutate(campaign.id);
     },
@@ -367,6 +367,20 @@ export default function CalendarView() {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
     },
   });
+
+  const setTextApproved = useCallback((value: boolean) => {
+    setTextApprovedLocal(value);
+    if (editingCampaignId) {
+      updateCampaignMutation.mutate({ id: editingCampaignId, updates: { textApproved: value } });
+    }
+  }, [editingCampaignId]);
+
+  const setImageApproved = useCallback((value: boolean) => {
+    setImageApprovedLocal(value);
+    if (editingCampaignId) {
+      updateCampaignMutation.mutate({ id: editingCampaignId, updates: { imageApproved: value } });
+    }
+  }, [editingCampaignId]);
 
   const deleteAllCampaignsMutation = useMutation({
     mutationFn: async () => {
@@ -489,8 +503,9 @@ export default function CalendarView() {
     setEditingCampaignId(campaignId);
     setShowImageHistory(false);
     setShowTextHistory(false);
-    setTextApproved(false);
-    setImageApproved(false);
+    const camp = campaigns.find(c => c.id === campaignId);
+    setTextApprovedLocal(camp?.textApproved ?? false);
+    setImageApprovedLocal(camp?.imageApproved ?? false);
     setHasUnsavedChanges(false);
   }
 
@@ -501,8 +516,8 @@ export default function CalendarView() {
     setShowTextHistory(false);
     setShowPreview(false);
     setShowFinalPreview(false);
-    setTextApproved(false);
-    setImageApproved(false);
+    setTextApprovedLocal(false);
+    setImageApprovedLocal(false);
     setEditorLocalImageUrl(null);
     setHasUnsavedChanges(false);
     setShowEditorTemplateSelector(false);
@@ -775,7 +790,7 @@ export default function CalendarView() {
       { id: versionId, updates: { contentJson: updatedContent } },
       { onSuccess: () => setHasUnsavedChanges(false) }
     );
-    setTextApproved(false);
+    setTextApprovedLocal(false);
   }
 
   function handleApproveText() {
@@ -1518,7 +1533,7 @@ export default function CalendarView() {
                       <Input
                         data-testid="input-edit-asunto"
                         value={localAsunto}
-                        onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
                         maxLength={60}
                         disabled={isLocked || textApproved}
                         placeholder="Asunto del correo"
@@ -1534,7 +1549,7 @@ export default function CalendarView() {
                       <Input
                         data-testid="input-edit-preheader"
                         value={localPreheader}
-                        onChange={(e) => { setLocalPreheader(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        onChange={(e) => { setLocalPreheader(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
                         maxLength={100}
                         disabled={isLocked || textApproved}
                         placeholder="Texto de vista previa"
@@ -1566,7 +1581,7 @@ export default function CalendarView() {
                       <Input
                         data-testid="input-edit-cta"
                         value={localCta}
-                        onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
                         maxLength={25}
                         disabled={isLocked || textApproved}
                         placeholder="Texto del botón CTA"
@@ -1579,7 +1594,7 @@ export default function CalendarView() {
                       <Input
                         data-testid="input-edit-cta-url"
                         value={localCtaUrl}
-                        onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
+                        onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
                         maxLength={500}
                         disabled={isLocked || textApproved}
                         placeholder="https://ejemplo.com/promo"

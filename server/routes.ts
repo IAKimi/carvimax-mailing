@@ -88,7 +88,10 @@ const createCampaignSchema = z.object({
   scheduledAt: z.string().nullable().optional(),
 });
 
-const updateCampaignSchema = createCampaignSchema.partial();
+const updateCampaignSchema = createCampaignSchema.partial().extend({
+  textApproved: z.boolean().optional(),
+  imageApproved: z.boolean().optional(),
+});
 
 const createContactSchema = z.object({
   email: z.string().email("Correo electrónico inválido").max(255, "El correo no puede exceder 255 caracteres"),

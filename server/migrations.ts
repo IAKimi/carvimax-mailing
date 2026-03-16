@@ -158,6 +158,16 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    name: "004_add_approval_columns",
+    up: async (client) => {
+      await client.query(`
+        ALTER TABLE campaigns
+        ADD COLUMN IF NOT EXISTS text_approved BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS image_approved BOOLEAN DEFAULT false
+      `);
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
