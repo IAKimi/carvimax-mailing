@@ -1679,11 +1679,13 @@ export async function registerRoutes(
   app.post("/api/webhooks/make-callback", webhookCallbackLimiter, async (req, res) => {
     try {
       const webhookSecret = process.env.MAKE_WEBHOOK_SECRET;
-      if (webhookSecret) {
-        const providedToken = (req.headers["x-webhook-secret"] as string) || (req.query.secret as string);
-        if (providedToken !== webhookSecret) {
-          return res.status(403).json({ message: "Token de webhook inválido." });
-        }
+      if (!webhookSecret) {
+        console.error("MAKE_WEBHOOK_SECRET no configurado. Rechazando callback.");
+        return res.status(503).json({ message: "Webhook no configurado." });
+      }
+      const providedToken = (req.headers["x-webhook-secret"] as string) || (req.query.secret as string);
+      if (providedToken !== webhookSecret) {
+        return res.status(403).json({ message: "Token de webhook inválido." });
       }
 
       const { campaign_id, status, message_id, contact_email, error_message } = req.body || {};

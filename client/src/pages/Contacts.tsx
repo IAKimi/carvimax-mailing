@@ -576,7 +576,8 @@ export default function Contacts() {
 
   const deleteDbMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/contact-databases/${id}`);
+      const res = await apiRequest("DELETE", `/api/contact-databases/${id}`);
+      return res;
     },
     onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
@@ -585,8 +586,15 @@ export default function Contacts() {
       if (editModeDbId === deletedId) setEditModeDbId(null);
       toast({ title: "Base de datos eliminada", description: "La base de datos ha sido eliminada correctamente." });
     },
-    onError: () => {
-      toast({ title: "Error", description: "No se pudo eliminar la base de datos.", variant: "destructive" });
+    onError: (err: any) => {
+      let msg = "No se pudo eliminar la base de datos.";
+      try {
+        const raw = err?.message || "";
+        const jsonPart = raw.substring(raw.indexOf("{"));
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.message) msg = parsed.message;
+      } catch {}
+      toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
 

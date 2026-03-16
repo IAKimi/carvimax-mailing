@@ -187,12 +187,23 @@ export default function Templates() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/templates/${id}`);
+      const res = await apiRequest("DELETE", `/api/templates/${id}`);
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       toast({ title: "Plantilla eliminada" });
+    },
+    onError: (err: any) => {
+      let msg = "No se pudo eliminar la plantilla.";
+      try {
+        const raw = err?.message || "";
+        const jsonPart = raw.substring(raw.indexOf("{"));
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.message) msg = parsed.message;
+      } catch {}
+      toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
 
