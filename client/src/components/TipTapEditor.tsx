@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -7,6 +8,7 @@ import { Bold, Italic, List, ListOrdered, Undo, Redo } from 'lucide-react'
 interface TipTapEditorProps {
   content: string;
   onChange: (content: string) => void;
+  editable?: boolean;
 }
 
 const MenuBar = ({ editor }: { editor: any }) => {
@@ -81,7 +83,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
   )
 }
 
-export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
+export function TipTapEditor({ content, onChange, editable = true }: TipTapEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -89,6 +91,7 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
       Color,
     ],
     content,
+    editable,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
@@ -99,8 +102,14 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
     },
   })
 
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(editable);
+    }
+  }, [editor, editable]);
+
   return (
-    <div className="flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm bg-card">
+    <div className={`flex flex-col border border-border rounded-2xl overflow-hidden shadow-sm bg-card ${!editable ? "opacity-60 pointer-events-none" : ""}`}>
       <MenuBar editor={editor} />
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} />

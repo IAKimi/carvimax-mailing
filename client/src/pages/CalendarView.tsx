@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TipTapEditor } from "@/components/TipTapEditor";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Campaign, CampaignVersion, Template, ContactDatabase } from "@shared/schema";
+import type { Campaign, CampaignVersion, Template, ContactDatabase, BrandIdentity } from "@shared/schema";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -299,6 +299,10 @@ export default function CalendarView() {
 
   const { data: userTemplates = [] } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
+  });
+
+  const { data: brandIdentity } = useQuery<BrandIdentity>({
+    queryKey: ["/api/brand-identity"],
   });
 
   const { data: userDatabases = [] } = useQuery<ContactDatabase[]>({
@@ -840,6 +844,7 @@ export default function CalendarView() {
   const selectedAsunto = contentData?.asunto || contentData?.title || "";
   const selectedPreheader = contentData?.preheader || "";
   const selectedCtaText = contentData?.cta_text || contentData?.cta || "Ver más";
+  const selectedCtaUrl = contentData?.cta_url || "#";
   const selectedHtml = contentData
     ? contentData.cuerpo_html
       ? contentData.cuerpo_html
@@ -1059,21 +1064,49 @@ export default function CalendarView() {
                 <div className="border border-border rounded-xl overflow-hidden bg-white">
                   <iframe
                     data-testid="iframe-sent-preview"
-                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
-                      <div style="max-width:600px;margin:0 auto">
-                        ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
-                        <img src="${selectedImageUrl}" style="width:100%;height:auto;display:block" />
-                        <div style="padding:24px">${selectedHtml}</div>
-                        ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a href="${localCtaUrl || '#'}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${localCta || selectedCtaText}</a></div>` : ""}
-                      </div>
-                      <script>
-                        function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
-                        window.addEventListener('load',function(){setTimeout(sendHeight,100);});
-                        new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
-                        var imgs=document.querySelectorAll('img');
-                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
-                      </script>
-                    </body></html>`}
+                    srcDoc={(() => {
+                      const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+                      const asunto = localAsunto || selectedAsunto || "";
+                      const preheader = localPreheader || selectedPreheader || "";
+                      const imagen = selectedImageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
+                      const contenido = selectedHtml || "";
+                      const ctaTexto = localCta || selectedCtaText || "";
+                      const ctaUrl = localCtaUrl || selectedCtaUrl || "#";
+                      const logoUrl = brandIdentity?.logoUrl || "";
+                      if (tpl?.html) {
+                        let rendered = tpl.html;
+                        rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
+                        rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
+                        rendered = rendered.replace(/\{\{CONTENIDO\}\}/g, contenido);
+                        rendered = rendered.replace(/\{\{CTA_TEXTO\}\}/g, ctaTexto);
+                        rendered = rendered.replace(/\{\{CTA_URL\}\}/g, ctaUrl);
+                        rendered = rendered.replace(/\{\{IMAGEN_URL\}\}/g, imagen);
+                        rendered = rendered.replace(/\{\{LOGO_URL\}\}/g, logoUrl);
+                        return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}<script>
+                          function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
+                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                          var imgs=document.querySelectorAll('img');
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                        </script></body></html>`;
+                      }
+                      return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
+                        <div style="max-width:600px;margin:0 auto">
+                          ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
+                          <img src="${imagen}" style="width:100%;height:auto;display:block" />
+                          <div style="padding:24px">${contenido}</div>
+                          ${ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${ctaTexto}</a></div>` : ""}
+                        </div>
+                        <script>
+                          function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
+                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                          var imgs=document.querySelectorAll('img');
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                        </script>
+                      </body></html>`;
+                    })()}
+                    sandbox="allow-scripts"
                     className="w-full border-0"
                     style={{ minHeight: "400px", height: sentPreviewHeight > 0 ? sentPreviewHeight + "px" : "700px" }}
                     title="Vista final del correo enviado"
@@ -1305,7 +1338,7 @@ export default function CalendarView() {
                     </div>
                   )}
 
-                  {!isResend && (
+                  {!isResend && !imageApproved && (
                     <div className="flex flex-wrap gap-2">
                       <Button
                         data-testid="button-regenerate-image"
@@ -1357,7 +1390,7 @@ export default function CalendarView() {
                     </div>
                   )}
 
-                  {!isResend && imageVersions.length > 1 && (
+                  {!isResend && !imageApproved && imageVersions.length > 1 && (
                     <Button
                       data-testid="button-image-history"
                       variant={showImageHistory ? "default" : "secondary"}
@@ -1370,7 +1403,7 @@ export default function CalendarView() {
                     </Button>
                   )}
 
-                  {!isResend && (
+                  {!isResend && !imageApproved && (
                     <AnimatePresence>
                       {showImageHistory && (
                         <motion.div
@@ -1459,7 +1492,7 @@ export default function CalendarView() {
                         value={localAsunto}
                         onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={60}
-                        disabled={isLocked}
+                        disabled={isLocked || textApproved}
                         placeholder="Asunto del correo"
                         className="rounded-xl"
                       />
@@ -1475,7 +1508,7 @@ export default function CalendarView() {
                         value={localPreheader}
                         onChange={(e) => { setLocalPreheader(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={100}
-                        disabled={isLocked}
+                        disabled={isLocked || textApproved}
                         placeholder="Texto de vista previa"
                         className="rounded-xl"
                       />
@@ -1489,6 +1522,7 @@ export default function CalendarView() {
                             key={selectedVersion.id}
                             content={selectedHtml}
                             onChange={(html) => handleTextChange(selectedVersion.id, html)}
+                            editable={!isLocked && !textApproved}
                           />
                         ) : (
                           <div className="p-4 text-sm text-muted-foreground">Sin contenido generado aún.</div>
@@ -1506,7 +1540,7 @@ export default function CalendarView() {
                         value={localCta}
                         onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={25}
-                        disabled={isLocked}
+                        disabled={isLocked || textApproved}
                         placeholder="Texto del botón CTA"
                         className="rounded-xl"
                       />
@@ -1519,7 +1553,7 @@ export default function CalendarView() {
                         value={localCtaUrl}
                         onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApproved(false); }}
                         maxLength={500}
-                        disabled={isLocked}
+                        disabled={isLocked || textApproved}
                         placeholder="https://ejemplo.com/promo"
                         className="rounded-xl"
                         type="url"
@@ -1550,7 +1584,7 @@ export default function CalendarView() {
                     </motion.div>
                   )}
 
-                  {!isResend && (
+                  {!isResend && !textApproved && (
                     <div className="flex flex-wrap gap-2">
                       <Button
                         data-testid="button-regenerate-text"
@@ -1577,7 +1611,7 @@ export default function CalendarView() {
                     </div>
                   )}
 
-                  {!isResend && (
+                  {!isResend && !textApproved && (
                     <AnimatePresence>
                       {showTextHistory && (
                         <motion.div
@@ -1649,22 +1683,49 @@ export default function CalendarView() {
                 <div className="border border-border rounded-xl overflow-hidden bg-white">
                   <iframe
                     data-testid="iframe-email-preview"
-                    srcDoc={`<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
-                      <div style="max-width:600px;margin:0 auto">
-                        ${localAsunto || selectedAsunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${localAsunto || selectedAsunto}</h2>${(localPreheader || selectedPreheader) ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${localPreheader || selectedPreheader}</p>` : ""}</div>` : ""}
-                        <img src="${selectedImageUrl}" style="width:100%;height:auto;display:block" />
-                        <div style="padding:24px">${selectedHtml}</div>
-                        ${(localCta || selectedCtaText) ? `<div style="padding:0 24px 24px;text-align:center"><a style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${localCta || selectedCtaText}</a></div>` : ""}
-                        <div style="padding:16px 24px;background:#f9fafb;text-align:center;font-size:12px;color:#9ca3af">&copy; 2026 Mi Empresa. Todos los derechos reservados.</div>
-                      </div>
-                      <script>
-                        function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
-                        window.addEventListener('load',function(){setTimeout(sendHeight,100);});
-                        new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
-                        var imgs=document.querySelectorAll('img');
-                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
-                      </script>
-                    </body></html>`}
+                    srcDoc={(() => {
+                      const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+                      const asunto = localAsunto || selectedAsunto || "";
+                      const preheader = localPreheader || selectedPreheader || "";
+                      const imagen = selectedImageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
+                      const contenido = selectedHtml || "";
+                      const ctaTexto = localCta || selectedCtaText || "";
+                      const ctaUrl = localCtaUrl || selectedCtaUrl || "#";
+                      const logoUrl = brandIdentity?.logoUrl || "";
+                      if (tpl?.html) {
+                        let rendered = tpl.html;
+                        rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
+                        rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
+                        rendered = rendered.replace(/\{\{CONTENIDO\}\}/g, contenido);
+                        rendered = rendered.replace(/\{\{CTA_TEXTO\}\}/g, ctaTexto);
+                        rendered = rendered.replace(/\{\{CTA_URL\}\}/g, ctaUrl);
+                        rendered = rendered.replace(/\{\{IMAGEN_URL\}\}/g, imagen);
+                        rendered = rendered.replace(/\{\{LOGO_URL\}\}/g, logoUrl);
+                        return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}<script>
+                          function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
+                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                          var imgs=document.querySelectorAll('img');
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                        </script></body></html>`;
+                      }
+                      return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
+                        <div style="max-width:600px;margin:0 auto">
+                          ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
+                          <img src="${imagen}" style="width:100%;height:auto;display:block" />
+                          <div style="padding:24px">${contenido}</div>
+                          ${ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
+                        </div>
+                        <script>
+                          function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
+                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                          var imgs=document.querySelectorAll('img');
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                        </script>
+                      </body></html>`;
+                    })()}
+                    sandbox="allow-scripts"
                     className="w-full border-0"
                     style={{ minHeight: "400px", height: previewHeight > 0 ? previewHeight + "px" : "600px" }}
                     title="Vista previa completa"
