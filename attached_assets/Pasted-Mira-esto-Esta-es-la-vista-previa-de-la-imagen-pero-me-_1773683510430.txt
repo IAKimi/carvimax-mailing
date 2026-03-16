@@ -1,0 +1,18 @@
+Mira esto: Esta es la vista previa de la imagen, pero me muestra unos colores que son diferentes a los de mi plantilla que yo creé en mi usuario. Ahí había creado una plantilla con el banner color vino y un botón amarillo. Pero aquí me muestra otra plantilla. Eso es un error. Hay que revisarlo. Adicionalmente. (No se si podamos mejorar o arreglar esto) Pero cuando regeneré la imagen, me la hizo PERFECTA. Lo único único es que se tarda en mostrar la imagen en la previsualización, en términos de velocidad. No la muestra tan rápido. Y al final también, volvío a pasar que cuando cambio entre las imágenes V1 y V2, se tarda en mostrarmelas. Así como antes, que tu me decías que la app intentaba hacer peticiones a la base de datos para renderizarla. Pero después le hicimos un cambio y ya se veía rápido, ahora volvió a ser lenta. 
+Me generó este cintillo en la plantilla que nada que ver: © 2026 Mi Empresa. Todos los derechos reservados. (Nada que ver con respecto a lo que yo ya tenía en mi plantilla que hice con IA) 
+
+Lo otro que me estoy fijando: es que cuando yo le doy click "aprobar imagen," imagina. He regenerado dos imágenes. Aún me permite editar o regenerar o cargar imágenes o usar Nano Banana. Y no debería de ser así. En el momento en el que yo le dé "aprobar imagen," debería de inhabilitarme la vista de editar o cargar imágenes o regenerar. Si yo le di aprobar ya la cagaste, ya aprobaste y no podes hacer nada mas. Lo mismo con texto. OJO si le doy guardar cambios es diferente, eso es un checkpoint, ahí si debería poder editar. Solo hasta darle click a “aprobar” se bloquea todo. 
+
+Ya cuando has aprobado todo y te aparece la barra al 100%, en el botón de “vista previa final” ahí si me muestra mi plantilla que seleccioné. En mi preview de edición es que no me muestra bien, y me muestra lo de “imagen adjunta” 
+
+Lo otro. El preview del de edición me muestra: 
+¡Tu primer carro está mas cerca con nuestro financiamiento!
+JUSTO DEBAJO 
+“Finacia tu primer auto de forma fácil y confiable, sin complicaciones” 
+
+Ese texto que es??? Y porque no sale en mi plantilla final, solo en el preview pero en la final no? Quizas cuando se generan con IA no se inyecta ese campo dinámico entonces no se pone? No se si me entendes? 
+Pero todo lo del preview debería aparecer en la vista previa final, y todos los datos deberían inyectarse. 
+
+Lo otro, en base de datos no me deja borrar contactos específicos. Solo editar el actual, intente borrar los campos de una fila completa para borrarlo todo pero no me dejó….Revisa todo esto entendiste bien?
+
+Rundown de que entendiste. 
