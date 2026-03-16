@@ -705,6 +705,7 @@ export async function registerRoutes(
     const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
 
     const versions = await storage.getCampaignVersions(campaignId);
+    const resolved = getResolvedCampaignContent(versions);
     const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
     const imageVersionNumber = imageVersions.length + 1;
 
@@ -712,7 +713,7 @@ export async function registerRoutes(
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber: imageVersionNumber,
-      contentJson: {},
+      contentJson: resolved.contentJson,
       imageUrl,
       isSelected: true,
       type: "image",
@@ -766,13 +767,14 @@ export async function registerRoutes(
     }
 
     const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const resolved = getResolvedCampaignContent(versions);
     const imageVersionNumber = imageVersions.length + 1;
 
     await storage.deselectVersionsByType(campaignId, ["initial", "image"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber: imageVersionNumber,
-      contentJson: {},
+      contentJson: resolved.contentJson,
       imageUrl,
       isSelected: true,
       type: "image",
@@ -861,13 +863,14 @@ export async function registerRoutes(
     }
 
     const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const resolved = getResolvedCampaignContent(versions);
     const imageVersionNumber = imageVersions.length + 1;
 
     await storage.deselectVersionsByType(campaignId, ["initial", "image"]);
     const newVersion = await storage.createCampaignVersion({
       campaignId,
       versionNumber: imageVersionNumber,
-      contentJson: {},
+      contentJson: resolved.contentJson,
       imageUrl,
       isSelected: true,
       type: "image",
