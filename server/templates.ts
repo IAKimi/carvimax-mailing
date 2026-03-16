@@ -84,18 +84,25 @@ export function renderTemplateWithContent(
   let html = templateHtml;
   const missingFields: string[] = [];
 
+  const ctaEnabled = contentJson?.cta_enabled !== false;
   const asunto = (contentJson?.asunto as string) || "";
   const preheader = (contentJson?.preheader as string) || "";
   const contenido = (contentJson?.cuerpo_html as string) || (contentJson?.html as string) || (contentJson?.body as string) || "";
-  const ctaTexto = (contentJson?.cta_text as string) || "";
-  const ctaUrl = (contentJson?.cta_url as string) || "#";
+  const ctaTexto = ctaEnabled ? ((contentJson?.cta_text as string) || "") : "";
+  const ctaUrl = ctaEnabled ? ((contentJson?.cta_url as string) || "#") : "";
 
   if (!asunto) missingFields.push(TEMPLATE_PLACEHOLDERS.ASUNTO.label);
   if (!preheader) missingFields.push(TEMPLATE_PLACEHOLDERS.PREHEADER.label);
   if (!contenido) missingFields.push(TEMPLATE_PLACEHOLDERS.CONTENIDO.label);
-  if (!ctaTexto) missingFields.push(TEMPLATE_PLACEHOLDERS.CTA_TEXTO.label);
-  if (!ctaUrl || ctaUrl === "#") missingFields.push(TEMPLATE_PLACEHOLDERS.CTA_URL.label);
+  if (ctaEnabled) {
+    if (!ctaTexto) missingFields.push(TEMPLATE_PLACEHOLDERS.CTA_TEXTO.label);
+    if (!ctaUrl || ctaUrl === "#") missingFields.push(TEMPLATE_PLACEHOLDERS.CTA_URL.label);
+  }
   if (!imageUrl) missingFields.push(TEMPLATE_PLACEHOLDERS.IMAGEN_URL.label);
+
+  if (!ctaEnabled) {
+    html = html.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '<!-- Botón CTA desactivado -->');
+  }
 
   html = html.replace(/\{\{ASUNTO\}\}/g, asunto);
   html = html.replace(/\{\{PREHEADER\}\}/g, preheader);

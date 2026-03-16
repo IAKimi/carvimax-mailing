@@ -702,6 +702,8 @@ export async function registerRoutes(
         preheader: emailContent.preheader,
         cuerpo_html: emailContent.cuerpo_html,
         cta_text: emailContent.cta_text,
+        cta_url: previousContent?.cta_url || "",
+        cta_enabled: previousContent?.cta_enabled !== false,
       };
     } catch (err: any) {
       console.error("Error regenerando texto con OpenAI:", err.message);

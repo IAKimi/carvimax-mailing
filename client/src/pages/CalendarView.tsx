@@ -194,6 +194,7 @@ export default function CalendarView() {
   const [localPreheader, setLocalPreheader] = useState("");
   const [localCta, setLocalCta] = useState("");
   const [localCtaUrl, setLocalCtaUrl] = useState("");
+  const [ctaEnabled, setCtaEnabled] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [pendingVersionSwitch, setPendingVersionSwitch] = useState<{ fn: () => void } | null>(null);
@@ -806,6 +807,21 @@ export default function CalendarView() {
       toast({ title: "Contenido vacío", description: "Debe tener contenido en el cuerpo del correo antes de aprobar.", variant: "destructive" });
       return;
     }
+    if (ctaEnabled) {
+      if (!localCtaUrl || !localCtaUrl.trim()) {
+        toast({ title: "URL del botón vacía", description: "Debe ingresar la URL del botón CTA o desactivar el botón antes de aprobar.", variant: "destructive" });
+        return;
+      }
+      try {
+        const parsed = new URL(localCtaUrl.trim());
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new Error('Invalid protocol');
+        }
+      } catch {
+        toast({ title: "URL inválida", description: "La URL del botón CTA no es válida. Debe comenzar con https:// o http://", variant: "destructive" });
+        return;
+      }
+    }
     if (hasUnsavedChanges && selectedVersion) {
       const existing = (selectedVersion.contentJson as any) || {};
       const updatedContent = {
@@ -814,6 +830,7 @@ export default function CalendarView() {
         preheader: localPreheader,
         cta_text: localCta,
         cta_url: localCtaUrl,
+        cta_enabled: ctaEnabled,
       };
       updateVersionMutation.mutate(
         { id: selectedVersion.id, updates: { contentJson: updatedContent } },
@@ -881,12 +898,14 @@ export default function CalendarView() {
       setLocalPreheader(cd?.preheader || "");
       setLocalCta(cd?.cta_text || cd?.cta || "");
       setLocalCtaUrl(cd?.cta_url || "");
+      setCtaEnabled(cd?.cta_enabled !== false);
       setHasUnsavedChanges(false);
     } else {
       setLocalAsunto("");
       setLocalPreheader("");
       setLocalCta("");
       setLocalCtaUrl("");
+      setCtaEnabled(true);
       setHasUnsavedChanges(false);
     }
   }, [selectedVersion?.id]);
@@ -900,6 +919,7 @@ export default function CalendarView() {
       preheader: localPreheader,
       cta_text: localCta,
       cta_url: localCtaUrl,
+      cta_enabled: ctaEnabled,
     };
     updateVersionMutation.mutate(
       { id: selectedVersion.id, updates: { contentJson: updatedContent } },
@@ -1088,11 +1108,14 @@ export default function CalendarView() {
                       const preheader = localPreheader || selectedPreheader || "";
                       const imagen = selectedImageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
                       const contenido = selectedHtml || "";
-                      const ctaTexto = localCta || selectedCtaText || "";
-                      const ctaUrl = localCtaUrl || selectedCtaUrl || "#";
+                      const ctaTexto = ctaEnabled ? (localCta || selectedCtaText || "") : "";
+                      const ctaUrl = ctaEnabled ? (localCtaUrl || selectedCtaUrl || "#") : "";
                       const logoUrl = brandIdentity?.logoUrl || "";
                       if (tpl?.html) {
                         let rendered = tpl.html;
+                        if (!ctaEnabled) {
+                          rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
+                        }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
                         rendered = rendered.replace(/\{\{CONTENIDO\}\}/g, contenido);
@@ -1113,7 +1136,7 @@ export default function CalendarView() {
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
                           <img src="${imagen}" style="width:100%;height:auto;display:block" />
                           <div style="padding:24px">${contenido}</div>
-                          ${ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${ctaTexto}</a></div>` : ""}
+                          ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${ctaTexto}</a></div>` : ""}
                         </div>
                         <script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
@@ -1579,31 +1602,47 @@ export default function CalendarView() {
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Botón de acción (CTA)</Label>
-                        <span className="text-[10px] text-muted-foreground">{localCta.length}/25</span>
+                        <div className="flex items-center gap-2">
+                          {ctaEnabled && <span className="text-[10px] text-muted-foreground">{localCta.length}/25</span>}
+                          <Button
+                            data-testid="button-toggle-cta"
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 px-2 text-xs ${ctaEnabled ? 'text-destructive hover:text-destructive' : 'text-green-600 hover:text-green-700'}`}
+                            disabled={isLocked || textApproved}
+                            onClick={() => { setCtaEnabled(!ctaEnabled); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                          >
+                            {ctaEnabled ? <><Trash2 className="h-3 w-3 mr-1" />Quitar</> : <><PlusCircle className="h-3 w-3 mr-1" />Añadir</>}
+                          </Button>
+                        </div>
                       </div>
-                      <Input
-                        data-testid="input-edit-cta"
-                        value={localCta}
-                        onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
-                        maxLength={25}
-                        disabled={isLocked || textApproved}
-                        placeholder="Texto del botón CTA"
-                        className="rounded-xl"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Enlace del botón (URL)</Label>
-                      <Input
-                        data-testid="input-edit-cta-url"
-                        value={localCtaUrl}
-                        onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
-                        maxLength={500}
-                        disabled={isLocked || textApproved}
-                        placeholder="https://ejemplo.com/promo"
-                        className="rounded-xl"
-                        type="url"
-                      />
+                      {ctaEnabled && (
+                        <>
+                          <Input
+                            data-testid="input-edit-cta"
+                            value={localCta}
+                            onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                            maxLength={25}
+                            disabled={isLocked || textApproved}
+                            placeholder="Texto del botón CTA"
+                            className="rounded-xl"
+                          />
+                          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-2">Enlace del botón (URL)</Label>
+                          <Input
+                            data-testid="input-edit-cta-url"
+                            value={localCtaUrl}
+                            onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                            maxLength={500}
+                            disabled={isLocked || textApproved}
+                            placeholder="https://ejemplo.com/promo"
+                            className="rounded-xl"
+                            type="url"
+                          />
+                        </>
+                      )}
+                      {!ctaEnabled && (
+                        <p className="text-xs text-muted-foreground italic">El botón CTA no se incluirá en el correo.</p>
+                      )}
                     </div>
                   </div>
 
@@ -1735,11 +1774,14 @@ export default function CalendarView() {
                       const preheader = localPreheader || selectedPreheader || "";
                       const imagen = selectedImageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
                       const contenido = selectedHtml || "";
-                      const ctaTexto = localCta || selectedCtaText || "";
-                      const ctaUrl = localCtaUrl || selectedCtaUrl || "#";
+                      const ctaTexto = ctaEnabled ? (localCta || selectedCtaText || "") : "";
+                      const ctaUrl = ctaEnabled ? (localCtaUrl || selectedCtaUrl || "#") : "";
                       const logoUrl = brandIdentity?.logoUrl || "";
                       if (tpl?.html) {
                         let rendered = tpl.html;
+                        if (!ctaEnabled) {
+                          rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
+                        }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
                         rendered = rendered.replace(/\{\{CONTENIDO\}\}/g, contenido);
@@ -1760,7 +1802,7 @@ export default function CalendarView() {
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
                           <img src="${imagen}" style="width:100%;height:auto;display:block" />
                           <div style="padding:24px">${contenido}</div>
-                          ${ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
+                          ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
                         </div>
                         <script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
