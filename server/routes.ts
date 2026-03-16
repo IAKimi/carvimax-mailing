@@ -17,6 +17,24 @@ import { db } from "./db";
 
 let wss: WebSocketServer | null = null;
 
+interface ResolvedCampaignContent {
+  contentJson: Record<string, unknown>;
+  imageUrl: string | null;
+}
+
+function getResolvedCampaignContent(versions: Array<{ type: string; isSelected: boolean | null; contentJson: unknown; imageUrl: string | null }>): ResolvedCampaignContent {
+  const textVersions = versions.filter(v => v.type === "initial" || v.type === "text");
+  const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
+
+  const selectedText = textVersions.find(v => v.isSelected) || textVersions[textVersions.length - 1];
+  const selectedImage = imageVersions.find(v => v.isSelected) || imageVersions[imageVersions.length - 1];
+
+  const contentJson = (selectedText?.contentJson as Record<string, unknown>) || {};
+  const imageUrl = selectedImage?.imageUrl || selectedText?.imageUrl || null;
+
+  return { contentJson, imageUrl };
+}
+
 function broadcastWs(type: string, data: any) {
   if (!wss) return;
   const msg = JSON.stringify({ type, data });
@@ -875,8 +893,9 @@ export async function registerRoutes(
     const { subject, preheader, body, cta, ctaUrl, targetDatabase, scheduledAt } = req.body || {};
 
     const originalVersions = await storage.getCampaignVersions(id);
+    const resolved = originalVersions.length > 0 ? getResolvedCampaignContent(originalVersions) : { contentJson: {}, imageUrl: null };
+    const origContent = resolved.contentJson;
     const selectedVersion = originalVersions.find(v => v.isSelected) || originalVersions[0];
-    const origContent = (selectedVersion?.contentJson || {}) as Record<string, unknown>;
 
     const campaignName = subject || (origContent.asunto as string) || `${original.name} (reenvío)`;
 
@@ -913,7 +932,7 @@ export async function registerRoutes(
         campaignId: newCampaign.id,
         versionNumber: 1,
         contentJson: newContentJson,
-        imageUrl: selectedVersion.imageUrl || null,
+        imageUrl: resolved.imageUrl || selectedVersion.imageUrl || null,
         isSelected: true,
         type: "initial",
       });
@@ -1412,13 +1431,13 @@ export async function registerRoutes(
     const template = tpls.find(t => t.id === campaign.templateId);
     if (!template) return res.status(404).json({ message: "Plantilla no encontrada." });
     const versions = await storage.getCampaignVersions(id);
-    const selected = versions.find(v => v.isSelected) || versions[0];
-    if (!selected) return res.status(400).json({ message: "No hay versiones generadas para esta campaña." });
+    if (versions.length === 0) return res.status(400).json({ message: "No hay versiones generadas para esta campaña." });
+    const resolved = getResolvedCampaignContent(versions);
     const brandData = await storage.getBrandIdentity(req.session.userId!);
-    const imagePublicUrl = selected.imageUrl ? getImagePublicUrl(selected.imageUrl, req) : null;
+    const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl, req) : null;
     const result = renderTemplateWithContent(
       template.html,
-      selected.contentJson as Record<string, unknown> | null,
+      resolved.contentJson,
       imagePublicUrl,
       brandData
     );
@@ -1446,18 +1465,18 @@ export async function registerRoutes(
       }
 
       const versions = await storage.getCampaignVersions(campaignId);
-      const selected = versions.find(v => v.isSelected) || versions[0];
-      if (!selected) {
+      if (versions.length === 0) {
         return { success: false, error: "No hay versiones generadas para esta campaña." };
       }
 
+      const resolved = getResolvedCampaignContent(versions);
       const brandData = await storage.getBrandIdentity(userId);
 
-      const imagePublicUrl = selected.imageUrl ? getImagePublicUrl(selected.imageUrl) : null;
+      const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl) : null;
 
       let renderedHtml = renderTemplateWithContent(
         template.html,
-        selected.contentJson as Record<string, unknown> | null,
+        resolved.contentJson,
         imagePublicUrl,
         brandData
       ).html;
@@ -1476,8 +1495,7 @@ export async function registerRoutes(
         return { success: false, error: "La base de datos de contactos está vacía." };
       }
 
-      const contentJson = selected.contentJson as Record<string, unknown> | null;
-      const subject = (contentJson?.asunto as string) || campaign.name || "Sin asunto";
+      const subject = (resolved.contentJson?.asunto as string) || campaign.name || "Sin asunto";
 
       const senderName = brandData?.senderName || brandData?.companyName || "PostIAlo Mailing";
       const senderEmail = brandData?.senderEmail || "noreply@postialo.com";
