@@ -10,7 +10,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
-import { validateTemplatePlaceholders, renderTemplateWithContent } from "./templates";
+import { validateTemplatePlaceholders, validateTemplateStructure, renderTemplateWithContent } from "./templates";
 import { campaigns as campaignsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1389,6 +1389,13 @@ export async function registerRoutes(
       if (validation.missing.length > 0) {
         console.warn("AI template missing placeholders:", validation.missing);
       }
+      const structureCheck = validateTemplateStructure(sanitizedHtml);
+      if (!structureCheck.valid) {
+        console.warn("AI template structure violation:", structureCheck.errors);
+        return res.status(422).json({
+          message: `La plantilla generada no cumple con la estructura estándar: ${structureCheck.errors.join(" ")} Se regenerará automáticamente.`,
+        });
+      }
       const tpl = await storage.createTemplate({
         userId: req.session.userId!,
         name: result.name,
@@ -1442,6 +1449,13 @@ export async function registerRoutes(
       const editedHtml = await editTemplateHtml(tpl.html, instructions, brandData || null);
       const sanitizedHtml = sanitizeHtml(editedHtml);
       const validation = validateTemplatePlaceholders(sanitizedHtml);
+      const structureCheck = validateTemplateStructure(sanitizedHtml);
+      if (!structureCheck.valid) {
+        console.warn("AI edit structure violation:", structureCheck.errors);
+        return res.status(422).json({
+          message: `La edición no cumple con la estructura estándar: ${structureCheck.errors.join(" ")} Intente de nuevo con instrucciones diferentes.`,
+        });
+      }
       const newVersion = await storage.createTemplate({
         userId: req.session.userId!,
         name: tpl.name + ` (v${totalVersions + 1})`,

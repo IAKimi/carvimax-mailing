@@ -26,6 +26,37 @@ export function validateTemplatePlaceholders(html: string): PlaceholderValidatio
   };
 }
 
+export interface StructureValidation {
+  valid: boolean;
+  errors: string[];
+}
+
+export function validateTemplateStructure(html: string): StructureValidation {
+  const errors: string[] = [];
+  const lower = html.toLowerCase();
+
+  const asuntoIdx = html.indexOf("{{ASUNTO}}");
+  const imagenIdx = html.indexOf("{{IMAGEN_URL}}");
+  const contenidoIdx = html.indexOf("{{CONTENIDO}}");
+  const ctaTextoIdx = html.indexOf("{{CTA_TEXTO}}");
+
+  if (asuntoIdx === -1 || imagenIdx === -1 || contenidoIdx === -1 || ctaTextoIdx === -1) {
+    return { valid: true, errors: [] };
+  }
+
+  if (imagenIdx < asuntoIdx) {
+    errors.push("La imagen debe aparecer después del header/asunto.");
+  }
+  if (contenidoIdx < imagenIdx) {
+    errors.push("El contenido debe aparecer después de la imagen.");
+  }
+  if (ctaTextoIdx < contenidoIdx) {
+    errors.push("El botón CTA debe aparecer después del contenido.");
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
 function fixGradientsForEmail(html: string): string {
   return html.replace(
     /background(?:-image)?:\s*(?:linear|radial)-gradient\([^)]+\)/gi,

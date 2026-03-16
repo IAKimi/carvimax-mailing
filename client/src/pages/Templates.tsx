@@ -810,11 +810,15 @@ export default function Templates() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+              <p className="font-semibold mb-1">Estructura estándar del correo</p>
+              <p className="text-xs leading-relaxed">Todas las plantillas siguen este orden fijo: <strong>Banner (logo + asunto)</strong> → <strong>Imagen</strong> → <strong>Contenido</strong> → <strong>Botón</strong> → <strong>Footer</strong>. Los colores y el logo se toman de tu Identidad de Marca. Puedes personalizar colores de texto, estilos de fuente, formato del contenido y dimensiones de la imagen a través de tu indicación.</p>
+            </div>
             <div className="space-y-2">
               <Label>Descripción de la plantilla</Label>
               <Textarea
                 data-testid="input-ai-template-prompt"
-                placeholder="Ej: Necesito una plantilla corporativa minimalista para el sector tecnológico, con colores azul oscuro y blanco, que tenga espacio para un banner principal, un bloque de texto y un botón de llamada a la acción..."
+                placeholder="Ej: Quiero que el contenido tenga estilo moderno con texto en negrita para los títulos, la imagen centrada con bordes redondeados, y el botón en color rojo..."
                 value={aiPrompt}
                 onChange={e => setAiPrompt(e.target.value)}
                 className="rounded-xl min-h-[120px]"
@@ -854,7 +858,7 @@ export default function Templates() {
               Editar Plantilla con IA
             </DialogTitle>
             <DialogDescription>
-              Describa los cambios que desea aplicar. La IA mantendrá la estructura base y solo modificará lo solicitado.
+              Describa los cambios cosméticos que desea aplicar. La estructura de bloques se mantendrá intacta.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
@@ -862,11 +866,14 @@ export default function Templates() {
               Plantilla: <span className="font-semibold text-foreground">{editingTemplate?.name}</span>
               <span className="text-xs ml-2">({editingTemplate?.aiEditCount || 0}/3 ediciones usadas)</span>
             </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+              <p className="text-xs leading-relaxed">Puedes modificar: colores, fuentes, estilos de texto, formato del contenido, dimensiones de la imagen. La estructura (Banner → Imagen → Contenido → Botón → Footer) no se puede alterar.</p>
+            </div>
             <div className="space-y-2">
               <Label>Instrucciones de edición</Label>
               <Textarea
                 data-testid="input-edit-ai-instructions"
-                placeholder="Ej: Cambia los colores principales a tonos verdes, agrega un segundo bloque de contenido, cambia la fuente a Helvetica..."
+                placeholder="Ej: Cambia los colores principales a tonos verdes, pon el texto del contenido en negrita, centra la imagen con bordes redondeados..."
                 value={editAiInstructions}
                 onChange={e => setEditAiInstructions(e.target.value)}
                 className="rounded-xl min-h-[120px]"

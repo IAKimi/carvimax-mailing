@@ -291,82 +291,114 @@ const editTemplateSchema = {
   strict: true,
 };
 
-const VISUAL_STYLE_PROMPTS: Record<string, string> = {
-  minimalista: `ESTILO VISUAL — MINIMALISTA:
-- Espacios en blanco generosos entre secciones (padding 40-60px)
-- Máximo 2 colores (primario + blanco/gris claro)
-- Sin sombras, sin gradientes, sin bordes decorativos
-- Tipografía limpia y legible con tamaños grandes
-- Separadores finos (1px) en color gris claro
-- Botón CTA con diseño flat, sin sombras, bordes redondeados sutiles (4px)
-- Imágenes sin bordes ni marcos`,
+function buildBaseTemplateHtml(brand: BrandIdentityData | null): string {
+  const primaryColor = brand?.primaryColor || "#002073";
+  const secondaryColor = brand?.secondaryColor || "#e3001b";
+  const headingFont = brand?.headingFont || "'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif";
+  const bodyFont = brand?.bodyFont || "'Poppins', 'Helvetica Neue', Arial, sans-serif";
 
-  corporativo: `ESTILO VISUAL — CORPORATIVO:
-- Diseño estructurado y simétrico con líneas rectas
-- Header con fondo del color primario de marca
-- Secciones claramente delimitadas con bordes sutiles (1px solid)
-- Tipografía serif o sans-serif profesional
-- Paleta de colores sobria: primario + secundario + gris oscuro
-- Botón CTA sólido, rectangular con esquinas apenas redondeadas (3px)
-- Footer formal con datos de contacto bien organizados`,
+  const logoUrl = brand?.logoUrl && !brand.logoUrl.startsWith("data:") ? brand.logoUrl : null;
+  const logoPlaceholder = logoUrl || "{{LOGO_URL}}";
+  const companyName = brand?.companyName || "Logo";
 
-  moderno: `ESTILO VISUAL — MODERNO:
-- Bordes redondeados generosos (12-16px) en tarjetas y contenedores
-- Sombras sutiles (box-shadow ligero) para dar profundidad
-- Colores sólidos vibrantes en el header (NUNCA gradientes — no son soportados en email)
-- Espaciado amplio y limpio entre elementos
-- Uso estratégico del color de acento para destacar elementos
-- Botón CTA con color sólido de fondo (NUNCA gradiente), bordes redondeados (8-12px)
-- Transiciones visuales suaves entre secciones`,
+  const headerContent = logoUrl || brand?.logoUrl
+    ? `<table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="120" valign="middle" style="padding-right:15px;">
+                  <img src="${logoPlaceholder}" alt="${companyName}" width="120" style="display:block;border:0;" />
+                </td>
+                <td align="center" valign="middle" style="font-family:${headingFont}; font-size:24px; line-height:32px; font-weight:700; color:#ffffff;">
+                  {{ASUNTO}}
+                </td>
+                <td width="120"></td>
+              </tr>
+            </table>`
+    : `<table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="font-family:${headingFont}; font-size:28px; line-height:36px; font-weight:700; color:#ffffff;">
+                  {{ASUNTO}}
+                </td>
+              </tr>
+            </table>`;
 
-  creativo: `ESTILO VISUAL — CREATIVO:
-- Formas y layouts asimétricos cuando sea posible
-- Uso audaz de los 3 colores de marca (primario, secundario, acento)
-- Fondos con colores vibrantes en secciones alternas
-- Tipografía expresiva con tamaños variados
-- Elementos decorativos: íconos, separadores temáticos, badges
-- Botón CTA grande y llamativo con color de acento
-- Bordes redondeados grandes (16-24px)`,
+  const footerParts: string[] = [];
+  if (brand?.whatsapp) footerParts.push(`WhatsApp: ${brand.whatsapp}`);
+  if (brand?.website) footerParts.push(`<a href="${brand.website}" target="_blank" style="color:${primaryColor}; text-decoration:none;">${brand.website.replace(/^https?:\/\//, '')}</a>`);
+  const footerContact = footerParts.length > 0
+    ? `<div>Contacto: ${footerParts.join(" | ")}</div>`
+    : "";
 
-  elegante: `ESTILO VISUAL — ELEGANTE:
-- Paleta oscura o con tonos profundos del color primario
-- Tipografía serif refinada para títulos, sans-serif para cuerpo
-- Espaciado generoso, diseño aireado y sofisticado
-- Líneas decorativas finas doradas o del color de acento
-- Sombras muy sutiles, casi imperceptibles
-- Botón CTA con borde fino y fondo transparente o sólido elegante
-- Footer minimalista con separador fino`,
-};
+  return `<!DOCTYPE html><html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ASUNTO}}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6fb;font-family:${bodyFont};">
+<span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
+<table align="center" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#f4f6fb" style="padding:20px 0;">
+  <tr>
+    <td align="center">
+      <table cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:#ffffff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.08);overflow:hidden;">
+        <!-- BLOQUE 1: Header/Banner con logo y asunto -->
+        <tr>
+          <td bgcolor="${primaryColor}" style="padding:20px;">
+            ${headerContent}
+          </td>
+        </tr>
+        <!-- BLOQUE 2: Imagen hero -->
+        <tr>
+          <td style="padding:20px; background:#ffffff;">
+            <img src="{{IMAGEN_URL}}" alt="Imagen del correo" width="600" style="display:block;border:0;width:100%;max-width:600px;border-radius:16px;" />
+          </td>
+        </tr>
+        <!-- BLOQUE 3: Contenido principal -->
+        <tr>
+          <td style="padding:20px 30px; font-family:${bodyFont}; font-size:16px; line-height:24px; color:#333333; background:#ffffff;">
+            {{CONTENIDO}}
+          </td>
+        </tr>
+        <!-- BLOQUE 4: Botón CTA -->
+        <tr>
+          <td align="center" style="padding:0 30px 30px 30px; background:#ffffff;">
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{CTA_URL}}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="12%" strokecolor="${secondaryColor}" fillcolor="${secondaryColor}">
+              <w:anchorlock/>
+              <center style="color:#ffffff;font-family:${headingFont};font-size:16px;font-weight:bold;">{{CTA_TEXTO}}</center>
+            </v:roundrect>
+            <![endif]-->
+            <a href="{{CTA_URL}}" target="_blank" style="background-color:${secondaryColor}; border-radius:12px; color:#ffffff; display:inline-block; font-family:${headingFont}; font-size:16px; font-weight:700; line-height:48px; text-align:center; text-decoration:none; width:240px; -webkit-text-size-adjust:none; mso-hide:all;">
+              {{CTA_TEXTO}}
+            </a>
+          </td>
+        </tr>
+        <!-- BLOQUE 5: Footer -->
+        <tr>
+          <td style="padding:20px 30px; font-family:${bodyFont}; font-size:12px; line-height:18px; color:#555555; background:#f9f9f9; border-top:1px solid #dddddd; text-align:center; border-radius:0 0 16px 16px;">
+            ${footerContact}
+            <div style="padding-top:8px;">
+              <a href="{{UNSUBSCRIBE_LINK}}" target="_blank" style="color:#777777; text-decoration:underline;"></a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body></html>`;
+}
 
 function buildTemplateInstructions(brand: BrandIdentityData | null): string {
   const primaryColor = brand?.primaryColor || "#002073";
   const secondaryColor = brand?.secondaryColor || "#e3001b";
   const accentColor = brand?.accentColor || "#f59e0b";
-  const headingFont = brand?.headingFont || "Arial, sans-serif";
-  const bodyFont = brand?.bodyFont || "Arial, sans-serif";
-  const visualStyle = brand?.visualStyle || "moderno";
+  const headingFont = brand?.headingFont || "'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif";
+  const bodyFont = brand?.bodyFont || "'Poppins', 'Helvetica Neue', Arial, sans-serif";
 
-  const logoUrl = brand?.logoUrl && !brand.logoUrl.startsWith("data:") ? brand.logoUrl : null;
-  const logoSection = logoUrl
-    ? `- Logo de la empresa (URL): ${logoUrl}
-- INSTRUCCIÓN DE LOGO: Incluir el logo como imagen en la ESQUINA SUPERIOR IZQUIERDA del header. Usar <img src="${logoUrl}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />.`
-    : brand?.logoUrl?.startsWith("data:")
-      ? `- INSTRUCCIÓN DE LOGO: Incluir un placeholder {{LOGO_URL}} en la ESQUINA SUPERIOR IZQUIERDA del header como <img src="{{LOGO_URL}}" alt="${brand.companyName || 'Logo'}" width="120" style="display:block;border:0;" />.`
-      : "- Logo: No configurado. Usar solo el nombre de la empresa como texto en el header.";
-
-  const footerContactSection = (() => {
-    const parts: string[] = [];
-    if (brand?.website) parts.push(`Sitio web: ${brand.website}`);
-    if (brand?.whatsapp) parts.push(`WhatsApp: ${brand.whatsapp}`);
-    if (parts.length > 0) {
-      return `\n- FOOTER: Incluir ${parts.join(" y ")} y enlace de cancelación de suscripción.`;
-    }
-    return "\n- FOOTER: Incluir enlace de cancelación de suscripción.";
-  })();
+  const baseHtml = buildBaseTemplateHtml(brand);
 
   const brandContext = brand
     ? `
-IDENTIDAD VISUAL:
+IDENTIDAD VISUAL DEL USUARIO:
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
 - Productos/Servicios: ${brand.products || "No especificados"}
@@ -375,92 +407,74 @@ IDENTIDAD VISUAL:
 - Color de acento: ${accentColor}
 - Fuente de títulos: ${headingFont}
 - Fuente de cuerpo: ${bodyFont}
-${logoSection}
+- Logo: ${brand.logoUrl ? "Configurado" : "No configurado"}
 - Sitio web: ${brand.website || "No configurado"}
 - WhatsApp: ${brand.whatsapp || "No configurado"}
 `
-    : "IDENTIDAD VISUAL: No configurada. Usa colores corporativos genéricos profesionales con fuentes Arial/Helvetica.";
-
-  const stylePrompt = VISUAL_STYLE_PROMPTS[visualStyle] || VISUAL_STYLE_PROMPTS["moderno"];
+    : "IDENTIDAD VISUAL: No configurada. Usa colores corporativos genéricos profesionales.";
 
   return `Eres un diseñador senior experto en plantillas HTML de email marketing con 15 años de experiencia en compatibilidad cross-client (Gmail, Outlook, Apple Mail, Yahoo).
 
 ${brandContext}
 
-${stylePrompt}
+PLANTILLA HTML BASE (ESTRUCTURA INMUTABLE):
+A continuación se te proporciona la plantilla HTML base que DEBES usar como fundamento. La estructura de bloques es FIJA e INMUTABLE. Tu trabajo es ADAPTAR esta plantilla según las preferencias cosméticas del usuario, SIN alterar el orden ni la posición de los bloques.
 
-CALIDAD DE DISEÑO BASE (aplicar SIEMPRE además del estilo visual):
-- Padding interno consistente en todas las celdas (mínimo 20px)
-- Jerarquía visual clara: título > subtítulo > cuerpo > CTA
-- Contraste adecuado entre texto y fondo (ratio mínimo 4.5:1)
-- Imágenes con bordes redondeados cuando el estilo lo permita
-- Separación visual clara entre secciones (espaciado o separadores)
-- El botón CTA debe ser el elemento más prominente después de la imagen
-- Colores de fondo alternos entre secciones para dar ritmo visual
+\`\`\`html
+${baseHtml}
+\`\`\`
 
-SISTEMA DE PLACEHOLDERS OBLIGATORIOS (6 de 6 — TODOS son requeridos):
-Tu plantilla DEBE incluir EXACTAMENTE estos 6 placeholders. Si falta CUALQUIERA de ellos, la plantilla será rechazada por el sistema. Son marcadores dinámicos que serán reemplazados programáticamente. NUNCA uses texto real en su lugar — deben aparecer literalmente como se muestran aquí:
+ESTRUCTURA DE BLOQUES FIJA (NUNCA cambiar el orden):
+1. BLOQUE 1 — HEADER/BANNER: Fondo del color primario. Logo en esquina superior izquierda + {{ASUNTO}} centrado. Este bloque SIEMPRE va primero.
+2. BLOQUE 2 — IMAGEN HERO: {{IMAGEN_URL}} siempre va DESPUÉS del header y ANTES del contenido.
+3. BLOQUE 3 — CONTENIDO: {{CONTENIDO}} siempre va DESPUÉS de la imagen.
+4. BLOQUE 4 — BOTÓN CTA: {{CTA_TEXTO}} y {{CTA_URL}} siempre van DESPUÉS del contenido.
+5. BLOQUE 5 — FOOTER: Datos de contacto y enlace de cancelación. Siempre al final.
 
-1. {{ASUNTO}} — OBLIGATORIO. Ubicación: dentro del tag <title> en el <head>. Es el asunto del correo.
-2. {{PREHEADER}} — OBLIGATORIO. Ubicación: como primer elemento dentro del <body>, dentro de un <span> oculto:
-   <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
-3. {{IMAGEN_URL}} — OBLIGATORIO. Ubicación: como valor del atributo src="" de la imagen hero/banner principal del correo. Ejemplo:
-   <img src="{{IMAGEN_URL}}" alt="Imagen del correo" width="600" style="display:block;border:0;width:100%;max-width:600px;" />
-4. {{CONTENIDO}} — OBLIGATORIO. Ubicación: como el bloque principal de texto dentro de un <td> de la tabla central. Este contenido ya viene en formato HTML (párrafos, negritas, etc.), así que NO lo envuelvas en tags <p> adicionales.
-5. {{CTA_TEXTO}} — OBLIGATORIO. Ubicación: como texto visible dentro del botón principal de acción (<a> con estilo de botón).
-6. {{CTA_URL}} — OBLIGATORIO. Ubicación: como valor del atributo href="" del mismo botón de acción.
+⚠️ REGLAS CRÍTICAS DE ESTRUCTURA:
+- NUNCA cambies el orden de los 5 bloques. El orden siempre es: Header → Imagen → Contenido → CTA → Footer.
+- NUNCA muevas la imagen después del contenido ni el CTA antes del contenido.
+- NUNCA elimines ningún bloque.
+- El {{ASUNTO}} SIEMPRE debe aparecer centrado en el banner del header.
+- El logo SIEMPRE debe estar en la esquina superior izquierda del header (si está configurado).
 
-ESTRUCTURA VISUAL OBLIGATORIA (de arriba a abajo, en este orden EXACTO):
-1. <head> con <title>{{ASUNTO}}</title>
-2. <body> → preheader oculto con {{PREHEADER}}
-3. Header con fondo del color primario: ${brand?.logoUrl ? "logo de la empresa en esquina superior izquierda" : "nombre de la empresa como texto"}
-4. IMAGEN HERO/BANNER con {{IMAGEN_URL}} — SIEMPRE debe ir ANTES del contenido de texto
-5. CONTENIDO principal con {{CONTENIDO}} — SIEMPRE DESPUÉS de la imagen
-6. BOTÓN CTA con {{CTA_TEXTO}} y {{CTA_URL}} — DESPUÉS del contenido
-7. Footer con datos de contacto (WhatsApp/sitio web si están disponibles) y enlace de cancelación de suscripción${footerContactSection}
+QUÉ PUEDE PERSONALIZAR EL USUARIO (a través de su prompt):
+- Colores de texto, fondos de secciones, bordes
+- Estilos de fuente (negrita, tamaño, cursiva)
+- Formato del contenido (tablas, listas, relieves, secciones internas)
+- Dimensiones y alineación de la imagen (centrada, full-width, con márgenes, bordes redondeados)
+- Estilo del botón CTA (colores, bordes, tamaño)
+- Añadir elementos decorativos DENTRO de los bloques existentes (separadores, íconos, badges)
+- Estilos del footer
 
-⚠️ REGLA CRÍTICA: La imagen ({{IMAGEN_URL}}) NUNCA debe aparecer después del contenido ({{CONTENIDO}}) ni después del CTA. La imagen SIEMPRE va ARRIBA, como banner/hero, ANTES de cualquier texto del cuerpo del correo.
+QUÉ NO PUEDE PERSONALIZAR:
+- El orden de los bloques (siempre Header → Imagen → Contenido → CTA → Footer)
+- La posición del logo (siempre esquina superior izquierda del header)
+- La posición del {{ASUNTO}} (siempre centrado en el header)
+- Eliminar bloques obligatorios
+
+SISTEMA DE PLACEHOLDERS OBLIGATORIOS (los 6 deben estar presentes):
+1. {{ASUNTO}} — En <title> del <head> Y visible centrado en el header/banner.
+2. {{PREHEADER}} — Primer elemento del <body>, en <span> oculto.
+3. {{IMAGEN_URL}} — src="" de la imagen hero en el BLOQUE 2.
+4. {{CONTENIDO}} — Bloque de texto principal en el BLOQUE 3. Ya viene en HTML, NO envolver en <p>.
+5. {{CTA_TEXTO}} — Texto del botón en el BLOQUE 4.
+6. {{CTA_URL}} — href="" del botón en el BLOQUE 4.
 
 REGLAS TÉCNICAS DE HTML PARA EMAIL:
-1. Estructura COMPLETA: <!DOCTYPE html>, <html lang="es">, <head> con meta charset y viewport, <body>.
-2. SOLO estilos inline (style="..."). Los clientes de email ignoran <style>, CSS externo y clases.
-3. Ancho máximo: max-width: 600px con width: 100% para responsive.
-4. Layout con TABLAS HTML (<table>, <tr>, <td>) — es la única forma garantizada de layout en Outlook.
-5. Incluye MSO conditional comments para Outlook donde sea necesario (botones, anchos fijos).
-6. Atributos bgcolor="" además de background-color en style para máxima compatibilidad.
-7. Todas las imágenes con atributo alt="", width="" explícito, y style="display:block;border:0;".
-8. Font stacks seguros: usa la fuente de marca con fallbacks (ej: "'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif").
-9. Footer obligatorio con texto de cancelación de suscripción (placeholder).
-10. Los colores DEBEN ser coherentes con la identidad de marca proporcionada.
-11. Diseño limpio, moderno, profesional y visualmente atractivo.
-12. Todo texto auxiliar o decorativo debe estar en español.
-13. El nombre de la plantilla debe ser descriptivo y corto (máx 100 chars), en español.
-14. NUNCA incluyas texto de ejemplo dentro de los placeholders. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} para ser reemplazados por el sistema.
-15. NO uses JavaScript ni event handlers (onclick, onmouseover, etc.).
-16. NUNCA uses linear-gradient, radial-gradient ni ningún gradiente CSS — NO son soportados por Gmail, Yahoo Mail ni la mayoría de clientes de correo. Usa SIEMPRE background-color con un color sólido.
-17. El botón CTA DEBE seguir el patrón "bulletproof button": un <td> con bgcolor="" que contiene un <a> con background-color sólido (NO gradiente), color del texto, padding, y text-decoration:none. Ejemplo:
-    <td align="center" bgcolor="#e3001b" style="border-radius:8px;">
-      <a href="{{CTA_URL}}" target="_blank" style="background-color:#e3001b;border-radius:8px;color:#ffffff;display:inline-block;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;line-height:48px;text-align:center;text-decoration:none;width:240px;-webkit-text-size-adjust:none;">{{CTA_TEXTO}}</a>
-    </td>`;
+1. SOLO estilos inline (style="..."). Los clientes de email ignoran <style> y CSS externo.
+2. Ancho máximo: max-width: 600px con width: 100% para responsive.
+3. Layout con TABLAS HTML (<table>, <tr>, <td>).
+4. Incluye MSO conditional comments para Outlook en botones.
+5. Atributos bgcolor="" además de background-color en style.
+6. Todas las imágenes con alt="", width="" explícito, y style="display:block;border:0;".
+7. NUNCA uses linear-gradient, radial-gradient ni gradientes CSS.
+8. NUNCA uses JavaScript ni event handlers.
+9. Todo texto auxiliar o decorativo en español.
+10. El nombre de la plantilla debe ser descriptivo y corto (máx 100 chars), en español.
+11. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} — nunca texto de ejemplo.
+12. El botón CTA DEBE usar el patrón "bulletproof button" con bgcolor="" sólido.`;
 }
-
-const VARIANT_INSTRUCTIONS = [
-  `ENFOQUE DE LAYOUT — VARIANTE A:
-- Layout clásico centrado con imagen hero de ancho completo arriba
-- Contenido en una sola columna, centrado
-- CTA como botón prominente centrado debajo del texto
-- Header con fondo sólido del color primario
-- Espaciado generoso y simétrico
-- Estilo visual limpio y directo`,
-
-  `ENFOQUE DE LAYOUT — VARIANTE B:
-- Layout más dinámico con secciones de fondo alterno (color/blanco)
-- Imagen hero con bordes redondeados y margen lateral (no de ancho completo)
-- CTA alineado a la izquierda o con diseño tipo tarjeta con borde
-- Header minimalista con fondo blanco o transparente
-- Uso de separadores visuales o líneas decorativas entre secciones
-- Estructura más compacta con menos espaciado vertical`,
-];
 
 export async function generateTemplateHtml(
   prompt: string,
@@ -473,7 +487,7 @@ export async function generateTemplateHtml(
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
       instructions,
-      input: `Genera una plantilla HTML de email marketing basada en esta descripción:\n${prompt}`,
+      input: `Adapta la plantilla HTML base según estas preferencias del usuario. Recuerda: MANTÉN la estructura de bloques exactamente igual (Header→Imagen→Contenido→CTA→Footer). Solo personaliza aspectos cosméticos (colores, fuentes, estilos, formato del contenido, dimensiones de imagen) según lo que el usuario solicite:\n\n${prompt}`,
       text: { format: templateSchema },
       max_output_tokens: 4000,
       temperature: 0.7,
@@ -504,7 +518,7 @@ export async function editTemplateHtml(
   try {
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      instructions: instructions + `\n\nIMPORTANTE: Se te proporcionará un HTML original de plantilla y las instrucciones del usuario para editarlo. Debes mantener la estructura base y solo aplicar los cambios solicitados. Devuelve el HTML completo editado.`,
+      instructions: instructions + `\n\nIMPORTANTE: Se te proporcionará un HTML de plantilla y las instrucciones del usuario para editarlo. DEBES mantener la estructura de bloques EXACTAMENTE igual (Header→Imagen→Contenido→CTA→Footer). Solo aplica cambios cosméticos: colores, fuentes, estilos de texto, formato del contenido, dimensiones de imagen. Si el usuario pide cambiar el orden de los bloques, IGNORA esa parte y mantén el orden original. Devuelve el HTML completo editado.`,
       input: [
         {
           role: "user" as const,
@@ -512,7 +526,7 @@ export async function editTemplateHtml(
         },
         {
           role: "user" as const,
-          content: `Aplica los siguientes cambios a la plantilla:\n${userInstructions}`,
+          content: `Aplica los siguientes cambios cosméticos a la plantilla (sin alterar el orden de bloques Header→Imagen→Contenido→CTA→Footer):\n${userInstructions}`,
         },
       ],
       text: { format: editTemplateSchema },
