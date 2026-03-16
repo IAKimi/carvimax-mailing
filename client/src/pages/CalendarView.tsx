@@ -780,8 +780,11 @@ export default function CalendarView() {
   }
 
   function handleTextChange(versionId: number, newHtml: string) {
+    if (textApproved) return;
     const version = versions.find(v => v.id === versionId);
     const existing = (version?.contentJson as any) || {};
+    const currentHtml = existing.cuerpo_html ?? existing.html ?? "";
+    if (newHtml === currentHtml) return;
     const updatedContent = existing.cuerpo_html !== undefined
       ? { ...existing, cuerpo_html: newHtml }
       : { ...existing, html: newHtml };

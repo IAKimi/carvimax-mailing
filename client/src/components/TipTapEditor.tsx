@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -84,6 +84,8 @@ const MenuBar = ({ editor }: { editor: any }) => {
 }
 
 export function TipTapEditor({ content, onChange, editable = true }: TipTapEditorProps) {
+  const suppressUpdateRef = useRef(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -93,6 +95,7 @@ export function TipTapEditor({ content, onChange, editable = true }: TipTapEdito
     content,
     editable,
     onUpdate: ({ editor }) => {
+      if (suppressUpdateRef.current) return;
       onChange(editor.getHTML());
     },
     editorProps: {
@@ -104,7 +107,11 @@ export function TipTapEditor({ content, onChange, editable = true }: TipTapEdito
 
   useEffect(() => {
     if (editor) {
+      suppressUpdateRef.current = true;
       editor.setEditable(editable);
+      requestAnimationFrame(() => {
+        suppressUpdateRef.current = false;
+      });
     }
   }, [editor, editable]);
 
