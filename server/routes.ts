@@ -1251,6 +1251,10 @@ export async function registerRoutes(
   app.put("/api/brand-identity", requireAuth, async (req, res) => {
     try {
       const input = updateBrandIdentitySchema.parse(req.body);
+      const existingBrand = await storage.getBrandIdentity(req.session.userId!);
+      if (existingBrand?.logoUrl && input.logoUrl !== undefined && input.logoUrl !== existingBrand.logoUrl) {
+        deleteLogoFile(existingBrand.logoUrl);
+      }
       const brand = await storage.upsertBrandIdentity(req.session.userId!, input);
       res.json(brand);
     } catch (err) {
