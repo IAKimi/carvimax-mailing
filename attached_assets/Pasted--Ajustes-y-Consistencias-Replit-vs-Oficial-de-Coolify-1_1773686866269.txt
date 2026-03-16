@@ -1,0 +1,18 @@
+🛠️ Ajustes y Consistencias (Replit vs Oficial de Coolify)
+1. El Firewall (UFW) vs Docker (¡Muy Importante!)
+Lo que dice Replit (Seguridad VPS): Recomienda activar UFW (sudo ufw enable) y abrir los puertos 80, 443 y 22.
+Lo que dice la documentación de Coolify: Docker (que es lo que usa Coolify) ignora las reglas de UFW por defecto y manipula las tablas de red (iptables) directamente. Si configuras UFW de manera tradicional, podrías terminar exponiendo puertos sin querer o bloqueando el tráfico interno entre tus contenedores.
+El ajuste: La documentación oficial de Coolify indica que si quieres usar un firewall para cerrar puertos, debes usar una utilidad específica llamada ufw-docker
+. Como tienes un perfil no técnico, mi recomendación es que no toques el firewall de Ubuntu (UFW) por ahora. Coolify ya aísla las bases de datos en una red interna y solo expone lo que tú le digas en el panel de control.
+2. La conexión a la Base de Datos (PostgreSQL)
+Lo que dice Replit: Sugiere hacer un "túnel SSH" hacia el VPS para correr los comandos de Drizzle y crear las tablas
+.
+El ajuste: Como me confirmaste que la app crea las tablas sola al arrancar (server/migrations.ts), nos saltamos ese paso por completo. Además, en Coolify, las bases de datos no son accesibles desde el exterior por defecto por motivos de seguridad; solo las aplicaciones que están en el mismo servidor (como tu app de PostIAlo) pueden hablar con ella usando la "Internal URL"
+. ¡Esto nos ahorra trabajo y es mucho más seguro!
+3. Los Volúmenes Persistentes (Archivos Subidos)
+Lo que dice Replit: Pide configurar un volumen con el nombre postialo-uploads apuntando a /app/uploads
+.
+El ajuste: En el panel de Coolify (Storage / Persistent Storage), la plataforma maneja los nombres de los volúmenes de forma transparente. Solo tendrás que ir a tu aplicación, decirle que quieres guardar el directorio /app/uploads
+, y Coolify se encargará de crear y enlazar la carpeta en el disco de tu VPS sin que tengamos que escribir comandos.
+📦 Respuestas a tus dudas y "Qué decirle a Replit"
+Las respuestas de Replit a los 5 puntos son perfectas. La confirmación de que no se necesitan variables de entorno para compilar y que las migraciones son automáticas nos hace la vida un 80% más fácil

@@ -18,3 +18,15 @@ id = "roH89nkhAWBPB_vZNdTFY"
 uri = "file://DOCKER_COOLIFY.md"
 type = "text"
 title = "Guía Docker + Coolify — PostIAlo Mailing"
+
+[[outputs]]
+id = "WYTKHm5QCdLzszAVMX03E"
+uri = "file://postialo-uploads.tar.gz"
+type = "unspecified"
+title = "PostIAlo Uploads (logos e imágenes) — 17MB"
+
+[[outputs]]
+id = "VXE48JHmCua0AMn84622k"
+uri = "file://postialo-db-backup.sql.gz"
+type = "unspecified"
+title = "PostIAlo Database Backup (respaldo completo) — 11KB"

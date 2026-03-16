@@ -1,0 +1,27 @@
+Vaya, Mira. Necesito que me ayudes a preparar un prompt de contextualización para un cuaderno de NotebookLM.
+
+Te pongo un poco en contexto y también retomando todos los documentos que tú me creaste de cómo podíamos hacer para poder migrar este procedimiento y toda esta plataforma a un repositorio propio, utilizando Cooli y todo lo que detallamos en los documentos.
+
+He armado un cuaderno de NotebookLM que contiene 300 fuentes de cómo funciona toda la documentación de API y toda la plataforma de Cooli adicionalmente a los documentos que tú has creado de cómo tienen que ser exactamente los puntos necesarios para la configuración y todo eso.
+
+Entonces, ese es un cuaderno que tiene todo el super cerebro para una persona como yo, que soy una persona comercial de negocio y sin ningún tipo de conocimiento técnico en cómo levantar una plataforma.
+
+Entonces, ese cuaderno va a ser como mi coach para poder irme guiando paso a paso literalmente como for dummies, para que yo pueda ir configurando todo para que la aplicación ya funcione en una instancia separada.
+
+Hay que explicarle también a nivel de contexto general porque obviamente yo lo voy a poner a leer los documentos que tú creaste, pero a nivel de contexto general.
+
+La lógica que quiero implementar es que siempre pueda seguir haciendo uso del agente de Replit, en este caso vos, y que siempre pueda seguir viendo la plataforma en un ecosistema de pruebas.
+
+Y que cuando yo ya tenga todo en orden y le haga cambios o lo que sea, esto automáticamente utilizando tu módulo de Git, haga una sincronización de cambios y haga un push a mi repositorio de GitHub en donde va estar almacenada toda la información de la cual se va a estar alimentando la plataforma ya en producción.
+
+La idea ya para ese entonces sería despublicar la app de Replit para sólo estar utilizando el agente, la sincronización de datos a GitHub y que la plataforma en donde yo monte esto se alimente de ese GitHub y ya no tengamos ese costo disparándose en Replit.
+
+Que prácticamente todo sea a nivel de mano de obra.
+
+Entonces, primero necesito que me valideces si eso es posible según lo que hemos hablado.
+
+Y adicionalmente, decirle que se han creado esos dos documentos y que cada documento tiene un propósito en particular.
+
+Hay que explicar cuál es el propósito de los documentos y que los lea primero para que sepa exactamente qué es lo que estamos buscando lograr con esto, y que sepa específicamente cómo es toda la configuración.
+
+Entonces ya para que él basado en ese texto de contextualización me comience a dar coaching de cómo tengo que hacer para configurar. 
