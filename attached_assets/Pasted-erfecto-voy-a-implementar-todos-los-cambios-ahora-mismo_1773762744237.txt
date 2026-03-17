@@ -1,0 +1,49 @@
+erfecto, voy a implementar todos los cambios ahora mismo. Déjame empezar marcando la tarea en progreso y luego trabajar en los 6 fixes.
+
+The task is still in PROPOSED state. Let me work on it directly since the user told me to implement it. Let me start with all the fixes in parallel - first reading the files I need:
+
+Now let me fix all the issues. Let me start with the quick ones:
+
+S2 Fix - Clean error messages in queryClient.ts:
+
+Now let me work on the CalendarView.tsx fixes. Let me find and fix each issue:
+
+Now let me read the areas around the regen buttons to understand the structure:
+
+Now let me read the text regen button area:
+
+Now let me do S1 - Replace the regen button with "Regeneraciones agotadas" message when limit is reached:
+
+Now fix the Nano Banana button (also hide when regen exhausted):
+
+Now fix the text regen button - same pattern:
+
+Good. Now S3 - increase CTA limit to 40 characters:
+
+Now let me fix the CTA limit in the AI prompt too. Let me find the relevant section:
+
+Now S4 - Fix image staying locked when approved and switching text versions. Let me find the doSelectTextVersion function:
+
+Now I need to find the useEffect that syncs the image when changing text versions. Let me look for where selectedImageUrl or editorLocalImageUrl is set based on version changes:
+
+The key issue is on line 964 - the selectedImageUrl always derives from selectedImageVersion. The problem is that when text versions and image versions have different versionNumbers, the image might change. Let me look at how selectedImageVersion is computed:
+
+I see the issue. The selectedImageVersion at line 948 uses isSelected on the image versions array. This should work correctly UNLESS the image version list is being affected. But the real issue is likely that when switching text versions, the doSelectTextVersion function sets isSelected on text versions but doesn't affect image versions. However, the user reports the image changing — this could be because the image version isSelected is being affected. Let me check more carefully.
+
+Actually, looking at the data from the logs, I can see that some versions have type: "image" and others have type: "text", and they share the same versionNumber. The isSelected is shared across text versions since doSelectTextVersion only updates text version isSelected flags. But the user reports that the image changes. Let me check if there's something in the useEffect that syncs things:
+
+The useEffect on line 966 only syncs text content (asunto, preheader, cta), not image. Let me look more carefully at what happens during version invalidation after doSelectTextVersion calls updateVersionMutation.mutate:
+
+The issue is that after doSelectTextVersion calls updateVersionMutation.mutate, the query cache is invalidated, which refetches the versions. When the versions come back, if the imageVersions.find(v => v.isSelected) returns a different image version (because the backend might have isSelected set differently), the image changes. But actually - the doSelectTextVersion only updates TEXT versions' isSelected. So image versions should not be affected.
+
+Wait - looking at the production logs, I see the text versions have imageUrl in their contentJson. Each text version stores a reference to an imageUrl! The selectedImageUrl on line 964 gets it from selectedImageVersion?.imageUrl which is a field on the version, not the content. Let me look at how the image versions are filtered:
+
+I see! Both textVersions and imageVersions include type === "initial" versions. So the "initial" version appears in both lists. When a text version is selected via doSelectTextVersion, it sets isSelected on text versions. But the initial type version shares between both lists — so selecting a text version that's also initial could cause the image to change.
+
+But more importantly, looking at the production data: each version has an imageUrl field at the top level. The selectedImageVersion picks the image version with isSelected: true. When doSelectTextVersion calls updateVersionMutation.mutate to set isSelected, it invalidates the cache, causing the versions to be refetched. If the initial version had a different isSelected state, this can cause the image to change.
+
+The real fix is simpler: when imageApproved === true, lock the displayed image to whatever it was when approved. Let me add a state to store the approved image URL:
+
+I see that setImageApproved already persists the approval. The approach: add a state approvedImageUrl that captures the image URL at the moment of approval, then use that in selectedImageUrl when imageApproved is true.
+
+AI services temporarily unavailable. Please try again later.

@@ -1479,16 +1479,23 @@ export default function CalendarView() {
 
                   {!isResend && !imageApproved && (
                     <div className="flex flex-wrap gap-2">
+                      {((editingCampaign as any)?.imageRegenCount || 0) >= 2 ? (
+                        <span data-testid="text-image-regen-exhausted" className="text-xs text-gray-400 italic flex items-center gap-1 px-2 py-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Regeneraciones de imagen agotadas
+                        </span>
+                      ) : (
                       <Button
                         data-testid="button-regenerate-image"
                         size="sm"
                         className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleRegenerateImage}
-                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 2 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                        disabled={isCancelled || isSent || regenerateImageMutation.isPending || generateVersionMutation.isPending}
                       >
                         {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                         Regenerar ({Math.max(0, 2 - ((editingCampaign as any)?.imageRegenCount || 0))})
                       </Button>
+                      )}
                       <Button
                         data-testid="button-upload-image"
                         variant="outline"
@@ -1516,16 +1523,18 @@ export default function CalendarView() {
                           e.target.value = "";
                         }}
                       />
+                      {((editingCampaign as any)?.imageRegenCount || 0) < 2 && (
                       <Button
                         data-testid="button-nano-banana"
                         size="sm"
                         className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={handleEditWithNanoBanana}
-                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 2 || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
+                        disabled={isCancelled || isSent || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
                       >
                         {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                         Nano Banana
                       </Button>
+                      )}
                     </div>
                   )}
 
@@ -1706,7 +1715,7 @@ export default function CalendarView() {
                             data-testid="input-edit-cta"
                             value={localCta}
                             onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
-                            maxLength={25}
+                            maxLength={40}
                             disabled={isLocked || textApproved}
                             placeholder="Texto del botón CTA"
                             className="rounded-xl"
@@ -1755,16 +1764,23 @@ export default function CalendarView() {
 
                   {!isResend && !textApproved && (
                     <div className="flex flex-wrap gap-2">
+                      {((editingCampaign as any)?.textRegenCount || 0) >= 2 ? (
+                        <span data-testid="text-text-regen-exhausted" className="text-xs text-gray-400 italic flex items-center gap-1 px-2 py-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Regeneraciones de texto agotadas
+                        </span>
+                      ) : (
                       <Button
                         data-testid="button-regenerate-text"
                         size="sm"
                         className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleRegenerateText}
-                        disabled={isCancelled || isSent || ((editingCampaign as any)?.textRegenCount || 0) >= 2 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
+                        disabled={isCancelled || isSent || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                       >
                         {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                         Regenerar Texto ({Math.max(0, 2 - ((editingCampaign as any)?.textRegenCount || 0))})
                       </Button>
+                      )}
                       {textVersions.length > 1 && (
                         <Button
                           data-testid="button-text-history"

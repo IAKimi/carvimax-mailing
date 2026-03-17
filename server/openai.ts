@@ -69,7 +69,7 @@ REGLAS ESTRICTAS DE REDACCIÓN:
 4. Escribe directo al punto, ve al grano. No incluyas introducciones, conclusiones ni texto conversacional.
 5. El asunto debe ser persuasivo, corto (máximo 60 caracteres) y generar curiosidad.
 6. El preheader debe complementar el asunto y enganchar al lector (máximo 100 caracteres).
-7. El cta_text debe ser un texto corto y accionable para el botón principal del correo (máximo 25 caracteres).
+7. El cta_text debe ser un texto corto y accionable para el botón principal del correo (máximo 40 caracteres).
 8. Todo el contenido debe estar en español.
 9. Respeta estrictamente el tono y la personalidad de la marca descrita arriba.`;
 }
