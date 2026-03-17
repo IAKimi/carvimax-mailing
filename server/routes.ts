@@ -1616,6 +1616,12 @@ export async function registerRoutes(
         brandData
       ).html;
 
+      const textVersions = versions.filter(v => v.type === "initial" || v.type === "text");
+      const activeTextVersion = textVersions.find(v => v.isSelected) || textVersions[textVersions.length - 1];
+      if (activeTextVersion) {
+        await storage.updateCampaignVersion(activeTextVersion.id, { sentHtml: renderedHtml } as any);
+      }
+
       const dbId = parseInt(campaign.targetDatabase, 10);
       if (isNaN(dbId)) {
         return { success: false, error: "Base de datos de contactos inválida." };

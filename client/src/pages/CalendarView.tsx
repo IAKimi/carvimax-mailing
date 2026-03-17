@@ -1220,6 +1220,18 @@ export default function CalendarView() {
                   <iframe
                     data-testid="iframe-sent-preview"
                     srcDoc={(() => {
+                      const heightScript = `<script>
+                        function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
+                        window.addEventListener('load',function(){setTimeout(sendHeight,200);});
+                        setTimeout(sendHeight,500);setTimeout(sendHeight,1500);
+                        new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
+                        var imgs=document.querySelectorAll('img');
+                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
+                      </script>`;
+                      const storedHtml = (selectedVersion as any)?.sentHtml;
+                      if (storedHtml) {
+                        return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${storedHtml}${heightScript}</body></html>`;
+                      }
                       const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
                       const asunto = localAsunto || selectedAsunto || "";
                       const preheader = localPreheader || selectedPreheader || "";
@@ -1232,6 +1244,7 @@ export default function CalendarView() {
                         let rendered = tpl.html;
                         if (!ctaEnabled) {
                           rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
+                          rendered = rendered.replace(/<tr[^>]*>[\s\S]*?\{\{CTA_TEXTO\}\}[\s\S]*?<\/tr>/gi, '');
                         }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
@@ -1240,14 +1253,7 @@ export default function CalendarView() {
                         rendered = rendered.replace(/\{\{CTA_URL\}\}/g, ctaUrl);
                         rendered = rendered.replace(/\{\{IMAGEN_URL\}\}/g, imagen);
                         rendered = rendered.replace(/\{\{LOGO_URL\}\}/g, logoUrl);
-                        return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}<script>
-                          function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
-                          window.addEventListener('load',function(){setTimeout(sendHeight,200);});
-                          setTimeout(sendHeight,500);
-                          new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
-                          var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
-                        </script></body></html>`;
+                        return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}${heightScript}</body></html>`;
                       }
                       return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                         <div style="max-width:600px;margin:0 auto">
@@ -1256,14 +1262,7 @@ export default function CalendarView() {
                           <div style="padding:24px">${contenido}</div>
                           ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${ctaTexto}</a></div>` : ""}
                         </div>
-                        <script>
-                          function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
-                          window.addEventListener('load',function(){setTimeout(sendHeight,200);});
-                          setTimeout(sendHeight,500);
-                          new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
-                          var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
-                        </script>
+                        ${heightScript}
                       </body></html>`;
                     })()}
                     sandbox="allow-scripts"
@@ -1283,10 +1282,12 @@ export default function CalendarView() {
                       <p className="text-sm font-semibold leading-snug">{localPreheader || selectedPreheader}</p>
                     </div>
                   )}
+                  {ctaEnabled && (
                   <div className="bg-muted/50 rounded-xl p-4">
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Botón CTA</p>
                     <p className="text-sm font-semibold leading-snug">{localCta || selectedCtaText || "—"}</p>
                   </div>
+                  )}
                   <div className="bg-muted/50 rounded-xl p-4">
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Versión</p>
                     <p className="text-sm font-semibold">V{selectedVersion.versionNumber}</p>
@@ -1916,6 +1917,7 @@ export default function CalendarView() {
                         let rendered = tpl.html;
                         if (!ctaEnabled) {
                           rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
+                          rendered = rendered.replace(/<tr[^>]*>[\s\S]*?\{\{CTA_TEXTO\}\}[\s\S]*?<\/tr>/gi, '');
                         }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);

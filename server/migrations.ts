@@ -178,6 +178,13 @@ const migrations: Migration[] = [
       console.log(`[migration 005] Cancelled ${result.rowCount} stale scheduled/sending campaigns`);
     },
   },
+  {
+    name: "006_add_sent_html_to_campaign_versions",
+    up: async (client) => {
+      await client.query(`ALTER TABLE campaign_versions ADD COLUMN IF NOT EXISTS sent_html TEXT`);
+      console.log("[migration 006] Added sent_html column to campaign_versions");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

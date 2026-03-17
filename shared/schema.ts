@@ -48,6 +48,7 @@ export const campaignVersions = pgTable("campaign_versions", {
   imageUrl: text("image_url"),
   isSelected: boolean("is_selected").default(false),
   type: text("type").notNull().default("initial"),
+  sentHtml: text("sent_html"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
