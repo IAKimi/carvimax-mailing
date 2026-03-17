@@ -211,7 +211,6 @@ export default function CalendarView() {
   useEffect(() => {
     const params = new URLSearchParams(searchString);
     const editId = params.get("edit");
-    const viewId = params.get("view");
     if (editId) {
       const id = parseInt(editId, 10);
       if (!isNaN(id) && id !== editingCampaignId) {
@@ -221,29 +220,8 @@ export default function CalendarView() {
         setIsResend(true);
         setLoc("/calendar", { replace: true });
       }
-    } else if (viewId) {
-      const id = parseInt(viewId, 10);
-      if (!isNaN(id) && id !== editingCampaignId) {
-        setEditingCampaignId(id);
-        setApprovedImageUrl(null);
-        setHasUnsavedChanges(false);
-      }
     }
   }, [searchString]);
-
-  const viewIdRestoredRef = useRef<number | null>(null);
-  useEffect(() => {
-    const params = new URLSearchParams(searchString);
-    const viewId = params.get("view");
-    if (viewId && editingCampaignId === parseInt(viewId, 10) && campaigns.length > 0 && viewIdRestoredRef.current !== editingCampaignId) {
-      const camp = campaigns.find(c => c.id === editingCampaignId);
-      if (camp) {
-        setTextApprovedLocal(camp.textApproved ?? false);
-        setImageApprovedLocal(camp.imageApproved ?? false);
-        viewIdRestoredRef.current = editingCampaignId;
-      }
-    }
-  }, [editingCampaignId, campaigns, searchString]);
 
   useEffect(() => {
     function handlePreviewMessage(e: MessageEvent) {
@@ -535,7 +513,6 @@ export default function CalendarView() {
     setImageApprovedLocal(camp?.imageApproved ?? false);
     setApprovedImageUrl(null);
     setHasUnsavedChanges(false);
-    setLoc(`/calendar?view=${campaignId}`, { replace: true });
   }
 
   function handleBackToCalendar() {
@@ -550,9 +527,6 @@ export default function CalendarView() {
     setApprovedImageUrl(null);
     setEditorLocalImageUrl(null);
     setHasUnsavedChanges(false);
-    setSentPreviewHeight(0);
-    viewIdRestoredRef.current = null;
-    setLoc("/calendar", { replace: true });
     setShowEditorTemplateSelector(false);
   }
 
@@ -1140,19 +1114,19 @@ export default function CalendarView() {
 
     return (
       <Layout>
-        <div className="space-y-4 max-w-full overflow-x-hidden">
-          <div className="flex items-center gap-4 flex-wrap min-w-0">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <Button
               data-testid="button-back-to-calendar"
               variant="ghost"
               onClick={handleBackToCalendar}
-              className="rounded-xl gap-2 flex-shrink-0"
+              className="rounded-xl gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Volver al Calendario
             </Button>
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 data-testid="text-editor-title" className="text-2xl md:text-3xl font-extrabold truncate">{selectedAsunto || editingCampaign.name}</h1>
                 {statusTags.map((tag) => (
                   <span key={tag.label} data-testid={`tag-status-${tag.label.toLowerCase()}`} className={`text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap ${tag.className}`}>
@@ -1258,8 +1232,6 @@ export default function CalendarView() {
                         let rendered = tpl.html;
                         if (!ctaEnabled) {
                           rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
-                          rendered = rendered.replace(/<tr[^>]*>[\s\S]*?\{\{CTA_TEXTO\}\}[\s\S]*?<\/tr>/gi, '');
-                          rendered = rendered.replace(/<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '');
                         }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
@@ -1271,7 +1243,7 @@ export default function CalendarView() {
                         return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}<script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
                           window.addEventListener('load',function(){setTimeout(sendHeight,200);});
-                          setTimeout(sendHeight,500);setTimeout(sendHeight,1500);
+                          setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
                           for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
@@ -1287,7 +1259,7 @@ export default function CalendarView() {
                         <script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
                           window.addEventListener('load',function(){setTimeout(sendHeight,200);});
-                          setTimeout(sendHeight,500);setTimeout(sendHeight,1500);
+                          setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
                           for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
@@ -1311,12 +1283,10 @@ export default function CalendarView() {
                       <p className="text-sm font-semibold leading-snug">{localPreheader || selectedPreheader}</p>
                     </div>
                   )}
-                  {ctaEnabled && (
                   <div className="bg-muted/50 rounded-xl p-4">
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Botón CTA</p>
                     <p className="text-sm font-semibold leading-snug">{localCta || selectedCtaText || "—"}</p>
                   </div>
-                  )}
                   <div className="bg-muted/50 rounded-xl p-4">
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Versión</p>
                     <p className="text-sm font-semibold">V{selectedVersion.versionNumber}</p>
@@ -1946,8 +1916,6 @@ export default function CalendarView() {
                         let rendered = tpl.html;
                         if (!ctaEnabled) {
                           rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
-                          rendered = rendered.replace(/<tr[^>]*>[\s\S]*?\{\{CTA_TEXTO\}\}[\s\S]*?<\/tr>/gi, '');
-                          rendered = rendered.replace(/<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '');
                         }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
