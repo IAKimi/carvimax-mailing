@@ -1,0 +1,33 @@
+Y punto importante es que todo funcionó correctamente como debería ser en el sentido de que se tomó la plantilla original del usuario. Puede ver en los logs exactamente la última tarea que acabo de hacer, que fue cargar una plantilla y yo darle clic a "Adaptar con AI".
+Pero aquí el problema fue que primero lo que yo te diría acá es que en lo que dice "Para que su plantilla funcione con el editor de campañas, incluye estos marcadores en su HTML", creo que deberíamos de quitar esto. Sino que aquí en este campo debería ser un recuadro amarillo que sea como una alerta, un warning, que diga que la plantilla que el usuario coloque se adaptará agregándole los siguientes placeholders en caso de que no lo contenga para que su plantilla funcione con nuestra plataforma. Un mensaje así hay que poner, no hay que poner que tiene que contener eso porque está contradictorio. Si yo pego el código y abajo me sale un botón que dice "Adaptar con IA", entonces no es necesario que arriba pongamos que tiene que incluirlos porque si los puede adaptar con IA no tiene que incluirlos.
+Siguiente punto: cuando yo le doy a "Pegar el código" justo abajo me aparece "Vista previa". Creo que no deberíamos de hacer que me aparezca un contenedor como pop-up que cubra casi que toda la página y del lado izquierdo veamos la interfaz en donde aparezca esta advertencia:
+
+el campo de nombre de plantilla
+
+el campo de código HTML
+
+el campo que dice "placeholders faltantes" y que dice "Adaptar con inteligencia artificial insertar placeholders"
+Y del lado derecho aparezca una previsualización en grande de cómo se ve el correo que yo he pegado con mi código cuando lo pego así, no más. Y también cuando ya le doy clic al botón de "Adaptar con inteligencia artificial", lo otro creo que tenemos que buscar un concepto más tropicalizado al usuario y no utilizar las palabras "placeholders". Y tampoco ponerle ahí las muy variables dinámicas que tiene que contener porque si ya vamos a darle un botón de inteligencia artificial al usuario para que lo haga al usuario final, no le importa qué cosas hay o qué cosas no hay. Sino que lo que le importa es que la funcionalidad sí esté operando correctamente.
+Entonces como te decía, la estructura tiene que ser:
+
+el warning
+
+nombre de la plantilla
+
+código HTML
+
+y justo debajo el botón de "Adaptar con inteligencia artificial" y la propuesta que vos me pongas de que podríamos poner ahí eso del lado izquierdo y del lado derecho la previsualización en tiempo real que debería de funcionar con yo tan solo pegar el código y me muestra cómo se ve mi plantilla actual. Y cuando yo le doy "Adaptar con inteligencia artificial", esa debería de refrescarse a lo que me adaptó la IA.
+
+Como segundo punto en los logs puedes revisar que: la plantilla que yo cargué ya contenía un asunto preliminar. Ya contiene también mi logo puesto centrado como banner y la foto en grande. Ya me aparece el footer con el campo que dice "Red Intel Phone" y los enlaces para ambas páginas web. Ya tiene un botón que dice "Agendar una reunión".
+Realmente el único campo que nosotros tendríamos que cambiar, basado en este ejemplo, es el texto que aparece justo encima del botón que dice "Ahora control de turnos por voz o por NFC incluido dentro de nuestros planes". Ese es el único placeholder que nosotros deberíamos de sustituirle al usuario que debería de aparecer ahí, los corchetes y el contenido.
+Verá porque todo lo demás el usuario ya lo está subiendo:
+
+ya existe una imagen
+ya existe un logo ahí
+existe un footer
+existe un botón
+Entonces esto no sé qué tan factible o difícil sea pero a lo que deberíamos de apuntarle es que si la plantilla que yo subo ya se reconoce aunque no tenga placeholders, ya se reconoce que ya existen esos elementos dentro del HTML (llámese un logo, llámese una imagen, llámese un botón y un footer con una firma o algo a éstos). Automáticamente no hay que incluirles nada porque es que la plantilla los trae.
+Lo que hay que identificar acá es que sí puede cambiar en el texto de la plantilla que está antes del botón en este ejemplo en particular. Entonces no sé cómo podríamos decirle a la gente de inteligencia artificial que sólo incruste el placeholder en ese campo que podría ser variable. La idea es que si yo selecciono esa plantilla ya en el parámetro de calendario ya me aparecen bloqueados por defecto todos los campos que identificó la IA que ya venían correctamente situados aunque sin placeholder en la plantilla original que subió el usuario.
+Lo único que debería de hacerse ahí es un sistema o proceso que bloquee estos campos para que cuando la API de ChatGPT que genera los textos sólo genere únicamente el parámetro dinámico o variable que puede venir en la plantilla que se ajustó, que subió manualmente el usuario. No sé si me doy a entender.
+
+Me entiendes la idea? Que tan posible es? Y si si, explicame lo que entendiste?

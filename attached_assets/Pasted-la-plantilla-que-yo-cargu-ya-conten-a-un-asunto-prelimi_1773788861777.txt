@@ -1,0 +1,10 @@
+la plantilla que yo cargué ya contenía un asunto preliminar. Ya contiene también mi logo puesto centrado como banner y la foto en grande. Ya me aparece el footer con el campo que dice "Red Intel Phone" y los enlaces para ambas páginas web. Ya tiene un botón que dice "Agendar una reunión".
+Realmente el único campo que nosotros tendríamos que cambiar, basado en este ejemplo, es el texto que aparece justo encima del botón que dice "Ahora control de turnos por voz o por NFC incluido dentro de nuestros planes". Ese es el único placeholder que nosotros deberíamos de sustituirle al usuario que debería de aparecer ahí, los corchetes y el contenido.
+Verá porque todo lo demás el usuario ya lo está subiendo:
+- ya existe una imagen
+- ya existe un logo ahí
+- existe un footer
+- existe un botón
+Entonces esto no sé qué tan factible o difícil sea pero a lo que deberíamos de apuntarle es que si la plantilla que yo subo ya se reconoce aunque no tenga placeholders, ya se reconoce que ya existen esos elementos dentro del HTML (llámese un logo, llámese una imagen, llámese un botón y un footer con una firma o algo a éstos). Automáticamente no hay que incluirles nada porque es que la plantilla los trae.
+Lo que hay que identificar acá es que sí puede cambiar en el texto de la plantilla que está antes del botón en este ejemplo en particular. Entonces no sé cómo podríamos decirle a la gente de inteligencia artificial que sólo incruste el placeholder en ese campo que podría ser variable. La idea es que si yo selecciono esa plantilla ya en el parámetro de calendario ya me aparecen bloqueados por defecto todos los campos que identificó la IA que ya venían correctamente situados aunque sin placeholder en la plantilla original que subió el usuario.
+Lo único que debería de hacerse ahí es un sistema o proceso que bloquee estos campos para que cuando la API de ChatGPT que genera los textos sólo genere únicamente el parámetro dinámico o variable que puede venir en la plantilla que se ajustó, que subió manualmente el usuario. No sé si me doy a entender.

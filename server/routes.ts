@@ -605,11 +605,15 @@ export async function registerRoutes(
       return "https://placehold.co/600x300/002073/white?text=Sin+imagen";
     })();
 
+    const templateLocked: string[] = campaign.templateId
+      ? ((await storage.getTemplate(campaign.templateId))?.lockedFields as string[] || [])
+      : [];
+
     const textPromise = (async () => {
       if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
         try {
           const brandData = await storage.getBrandIdentity(req.session.userId!);
-          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience);
+          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience, templateLocked);
           console.log("[OpenAI] Texto generado exitosamente:", JSON.stringify({ asunto: result.asunto, cta: result.cta_text }));
           return result;
         } catch (err: any) {
@@ -700,6 +704,10 @@ export async function registerRoutes(
       cta_text: previousContent?.cta_text || previousContent?.cta || "Ver más",
     };
 
+    const templateLockedRegen: string[] = campaign.templateId
+      ? ((await storage.getTemplate(campaign.templateId))?.lockedFields as string[] || [])
+      : [];
+
     let contentJson;
     try {
       if (!isOpenAIConfigured()) {
@@ -712,7 +720,8 @@ export async function registerRoutes(
         previousEmail,
         corrections,
         brandData || null,
-        campaign.targetAudience
+        campaign.targetAudience,
+        templateLockedRegen
       );
       contentJson = {
         asunto: emailContent.asunto,
@@ -1354,11 +1363,12 @@ export async function registerRoutes(
       const createTemplateSchema = z.object({
         name: z.string().min(1, "El nombre es requerido").max(200, "El nombre no puede exceder 200 caracteres"),
         html: z.string().min(1, "El HTML es requerido").max(50000, "El HTML no puede exceder 50000 caracteres"),
+        lockedFields: z.array(z.string()).optional(),
       });
       const input = createTemplateSchema.parse(req.body);
       const sanitizedHtml = sanitizeHtml(input.html);
       const validation = validateTemplatePlaceholders(sanitizedHtml);
-      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false, hasAllPlaceholders: validation.valid });
+      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false, hasAllPlaceholders: validation.valid, lockedFields: input.lockedFields || null });
       res.status(201).json({ ...tpl, missingPlaceholders: validation.missing });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1529,10 +1539,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "OpenAI no está configurado." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
-      const analyzedHtml = await analyzeTemplatePlaceholders(html, brandData || null);
-      const sanitizedResult = sanitizeHtml(analyzedHtml);
+      const result = await analyzeTemplatePlaceholders(html, brandData || null);
+      const sanitizedResult = sanitizeHtml(result.html);
       const validation = validateTemplatePlaceholders(sanitizedResult);
-      res.json({ html: sanitizedResult, valid: validation.valid, missing: validation.missing });
+      res.json({ html: sanitizedResult, valid: validation.valid, missing: validation.missing, lockedFields: result.lockedFields });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Error al analizar la plantilla." });
     }
@@ -1550,12 +1560,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "OpenAI no está configurado." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
-      const analyzedHtml = await analyzeTemplatePlaceholders(tpl.html, brandData || null);
-      const sanitizedHtml = sanitizeHtml(analyzedHtml);
+      const result = await analyzeTemplatePlaceholders(tpl.html, brandData || null);
+      const sanitizedHtml = sanitizeHtml(result.html);
       const validation = validateTemplatePlaceholders(sanitizedHtml);
       const updated = await storage.updateTemplate(id, {
         html: sanitizedHtml,
         hasAllPlaceholders: validation.valid,
+        lockedFields: result.lockedFields,
       } as any);
       res.json({ ...updated, missingPlaceholders: validation.missing });
     } catch (err: any) {

@@ -109,6 +109,7 @@ export const templates = pgTable("templates", {
   isConfirmed: boolean("is_confirmed").default(true),
   parentTemplateId: integer("parent_template_id"),
   versionNumber: integer("version_number").default(1),
+  lockedFields: jsonb("locked_fields").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

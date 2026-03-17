@@ -54,6 +54,8 @@ export default function Templates() {
   const [showTextEditDialog, setShowTextEditDialog] = useState(false);
   const [textEditNodes, setTextEditNodes] = useState<{ index: number; original: string; edited: string; label: string }[]>([]);
   const [adaptAiPending, setAdaptAiPending] = useState(false);
+  const [uploadLockedFields, setUploadLockedFields] = useState<string[]>([]);
+  const [aiAdapted, setAiAdapted] = useState(false);
 
   useEffect(() => {
     setCurrentSection("templates");
@@ -107,21 +109,19 @@ export default function Templates() {
   }, [displayTemplates]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; html: string }) => {
+    mutationFn: async (data: { name: string; html: string; lockedFields?: string[] }) => {
       const res = await apiRequest("POST", "/api/templates", data);
       return res.json();
     },
-    onSuccess: (result: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       setShowDialog(false);
       setNewName("");
       setNewHtml("");
-      if (result.missingPlaceholders && result.missingPlaceholders.length > 0) {
-        toast({ title: "Plantilla guardada", description: `Nota: faltan ${result.missingPlaceholders.length} placeholder(s) para compatibilidad completa.` });
-      } else {
-        toast({ title: "Plantilla guardada", description: "Su plantilla es totalmente compatible con el editor de campañas." });
-      }
+      setUploadLockedFields([]);
+      setAiAdapted(false);
+      toast({ title: "Plantilla guardada", description: "Su plantilla ha sido guardada exitosamente." });
     },
   });
 
@@ -297,7 +297,11 @@ export default function Templates() {
 
   function handleSaveTemplate() {
     if (!newName.trim() || !newHtml.trim()) return;
-    createMutation.mutate({ name: newName.trim(), html: newHtml.trim() });
+    const payload: { name: string; html: string; lockedFields?: string[] } = { name: newName.trim(), html: newHtml.trim() };
+    if (uploadLockedFields.length > 0) {
+      payload.lockedFields = uploadLockedFields;
+    }
+    createMutation.mutate(payload);
   }
 
   function toggleFavorite(id: number) {
@@ -771,119 +775,154 @@ export default function Templates() {
         )}
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Code className="w-5 h-5 text-primary" />
-              Cargar Plantilla HTML
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div data-testid="panel-placeholder-info" className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3">
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) { setUploadLockedFields([]); setAiAdapted(false); } }}>
+        <DialogContent className="max-w-[95vw] w-[1200px] rounded-2xl max-h-[92vh] overflow-hidden p-0">
+          <div className="flex flex-col h-full max-h-[92vh]">
+            <DialogHeader className="px-6 pt-5 pb-3 border-b border-border flex-shrink-0">
+              <DialogTitle className="flex items-center gap-2">
+                <Code className="w-5 h-5 text-primary" />
+                Cargar Plantilla HTML
+              </DialogTitle>
+              <DialogDescription className="sr-only">Cargue su plantilla HTML y adáptela con inteligencia artificial</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-1 overflow-hidden">
+              <div className="w-1/2 border-r border-border overflow-y-auto p-5 space-y-4">
+                <div data-testid="panel-upload-warning" className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      Tu plantilla será analizada y adaptada automáticamente para funcionar con nuestra plataforma. Los elementos que ya contenga (imágenes, botones, pie de página) se mantendrán intactos.
+                    </p>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Para que su plantilla funcione con el editor de campañas, incluya estos marcadores en su HTML:</p>
-                  <div className="grid grid-cols-1 gap-1">
-                    {placeholderList.map(p => (
-                      <div key={p.key} className="flex items-baseline gap-2 text-[11px]">
-                        <code className="font-mono text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 rounded px-1 py-0.5 flex-shrink-0">{p.key}</code>
-                        <span className="text-blue-600 dark:text-blue-400">— {p.description}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <Label>Nombre de la Plantilla</Label>
+                  <Input
+                    data-testid="input-template-name"
+                    placeholder="Ej: Mi plantilla promocional"
+                    maxLength={200}
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    className="rounded-xl"
+                  />
                 </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Nombre de la Plantilla</Label>
-              <Input
-                data-testid="input-template-name"
-                placeholder="Ej: Mi plantilla promocional"
-                maxLength={200}
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Código HTML</Label>
-              <Textarea
-                data-testid="input-template-html"
-                placeholder="Pegue su código HTML aquí..."
-                value={newHtml}
-                onChange={e => setNewHtml(e.target.value)}
-                className="rounded-xl min-h-[200px] font-mono text-sm"
-              />
-            </div>
-            {newHtmlValidation && !newHtmlValidation.valid && (
-              <div data-testid="warning-missing-placeholders" className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <div className="space-y-2 w-full">
-                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Placeholders faltantes ({newHtmlValidation.missing.length}):</p>
-                    <div className="flex flex-wrap gap-1">
-                      {newHtmlValidation.missing.map(m => (
-                        <code key={m} className="text-[10px] font-mono bg-amber-100 dark:bg-amber-900/50 text-amber-700 rounded px-1 py-0.5">{m}</code>
-                      ))}
-                    </div>
-                    <Button
-                      data-testid="button-adapt-ai-upload"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-xl gap-1.5 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 w-full"
-                      onClick={async () => {
-                        setAdaptAiPending(true);
-                        try {
-                          const res = await apiRequest("POST", "/api/templates/analyze-html", { html: newHtml });
-                          const data = await res.json();
-                          if (data.html) {
-                            setNewHtml(data.html);
-                            toast({ title: "Placeholders insertados", description: "La IA ha insertado los placeholders automáticamente. Revise la vista previa." });
+                <div className="space-y-2">
+                  <Label>Código HTML</Label>
+                  <Textarea
+                    data-testid="input-template-html"
+                    placeholder="Pegue su código HTML aquí..."
+                    value={newHtml}
+                    onChange={e => { setNewHtml(e.target.value); setAiAdapted(false); setUploadLockedFields([]); }}
+                    className="rounded-xl min-h-[180px] font-mono text-sm"
+                  />
+                </div>
+                {newHtml.trim() && (
+                  <Button
+                    data-testid="button-adapt-ai-upload"
+                    variant="outline"
+                    className="rounded-xl gap-2 w-full bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-300"
+                    onClick={async () => {
+                      setAdaptAiPending(true);
+                      try {
+                        const res = await apiRequest("POST", "/api/templates/analyze-html", { html: newHtml });
+                        const data = await res.json();
+                        if (data.html) {
+                          setNewHtml(data.html);
+                          setAiAdapted(true);
+                          if (data.lockedFields && Array.isArray(data.lockedFields)) {
+                            setUploadLockedFields(data.lockedFields);
                           }
-                        } catch (err: any) {
-                          toast({ title: "Error", description: err.message || "No se pudo adaptar la plantilla.", variant: "destructive" });
-                        } finally {
-                          setAdaptAiPending(false);
+                          toast({ title: "Plantilla adaptada", description: "La IA ha analizado y adaptado tu plantilla exitosamente." });
                         }
-                      }}
-                      disabled={adaptAiPending}
-                    >
-                      {adaptAiPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                      Adaptar con IA (insertar placeholders)
-                    </Button>
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message || "No se pudo adaptar la plantilla.", variant: "destructive" });
+                      } finally {
+                        setAdaptAiPending(false);
+                      }
+                    }}
+                    disabled={adaptAiPending || aiAdapted}
+                  >
+                    {adaptAiPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analizando plantilla...
+                      </>
+                    ) : aiAdapted ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Plantilla adaptada
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Adaptar con Inteligencia Artificial
+                      </>
+                    )}
+                  </Button>
+                )}
+                {aiAdapted && uploadLockedFields.length > 0 && (
+                  <div data-testid="panel-locked-fields-info" className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Elementos detectados en tu plantilla:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {uploadLockedFields.includes("imagen") && (
+                            <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 rounded-full px-2 py-0.5">Imagen</span>
+                          )}
+                          {(uploadLockedFields.includes("cta") || uploadLockedFields.includes("cta_url")) && (
+                            <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 rounded-full px-2 py-0.5">Botón</span>
+                          )}
+                          {uploadLockedFields.includes("footer") && (
+                            <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 rounded-full px-2 py-0.5">Pie de página</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">Estos elementos se mantendrán fijos al crear campañas con esta plantilla.</p>
+                      </div>
+                    </div>
                   </div>
+                )}
+                <Button
+                  data-testid="button-save-new-template"
+                  onClick={handleSaveTemplate}
+                  className="w-full rounded-xl"
+                  disabled={!newName.trim() || !newHtml.trim() || createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar Plantilla"
+                  )}
+                </Button>
+              </div>
+              <div className="w-1/2 flex flex-col bg-muted/30">
+                <div className="text-xs font-semibold text-muted-foreground px-4 py-2.5 bg-muted border-b border-border flex items-center gap-2">
+                  <Eye className="w-3.5 h-3.5" />
+                  Vista Previa
+                </div>
+                <div className="flex-1 overflow-auto p-3">
+                  {newHtml.trim() ? (
+                    <iframe
+                      data-testid="iframe-upload-preview"
+                      srcDoc={newHtml}
+                      sandbox=""
+                      className="w-full h-full min-h-[500px] bg-white rounded-lg border border-border"
+                      title="Vista previa de plantilla"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full min-h-[500px] text-muted-foreground">
+                      <div className="text-center space-y-2">
+                        <Code className="w-10 h-10 mx-auto opacity-30" />
+                        <p className="text-sm">Pegue su código HTML para ver la vista previa</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-            {newHtmlValidation && newHtmlValidation.valid && (
-              <div data-testid="success-all-placeholders" className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Todos los placeholders presentes. Plantilla totalmente compatible.</p>
-              </div>
-            )}
-            {newHtml && (
-              <div className="border border-border rounded-xl overflow-hidden">
-                <div className="text-xs font-semibold text-muted-foreground px-3 py-1.5 bg-muted">Vista Previa</div>
-                <iframe srcDoc={newHtml} sandbox="" className="w-full h-48 bg-white" title="preview" />
-              </div>
-            )}
-            <Button
-              data-testid="button-save-new-template"
-              onClick={handleSaveTemplate}
-              className="w-full rounded-xl"
-              disabled={!newName.trim() || !newHtml.trim() || createMutation.isPending}
-            >
-              {createMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Guardando...
-                </>
-              ) : (
-                "Guardar Plantilla"
-              )}
-            </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

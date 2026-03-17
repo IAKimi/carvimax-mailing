@@ -181,10 +181,23 @@ export async function generateEmailContent(
   idea: string,
   objective: string,
   brandIdentity: BrandIdentityData | null,
-  targetAudience?: string | null
+  targetAudience?: string | null,
+  lockedFields?: string[]
 ): Promise<EmailContent> {
   const client = getClient();
-  const instructions = buildInstructions(brandIdentity);
+  let instructions = buildInstructions(brandIdentity);
+  
+  if (lockedFields && lockedFields.length > 0) {
+    const lockedDescriptions: string[] = [];
+    if (lockedFields.includes("cta") || lockedFields.includes("cta_url")) {
+      lockedDescriptions.push("El botón CTA (cta_text y cta_url) ya existe en la plantilla del usuario. Genera valores genéricos cortos para estos campos ya que no se usarán.");
+    }
+    if (lockedFields.includes("imagen")) {
+      lockedDescriptions.push("La imagen ya existe en la plantilla del usuario.");
+    }
+    instructions += `\n\nIMPORTANTE — CAMPOS FIJOS DE LA PLANTILLA:\nLa plantilla del usuario ya contiene ciertos elementos fijos. ${lockedDescriptions.join(" ")} Concentra tu creatividad en el asunto, preheader y cuerpo del correo.`;
+  }
+
   let userInput = `Idea: ${idea}\nObjetivo: ${objective}`;
   if (targetAudience) {
     userInput += `\nPúblico objetivo de esta campaña: ${targetAudience}. Adapta el tono, vocabulario y enfoque del contenido para resonar con este público específico.`;
@@ -211,10 +224,20 @@ export async function regenerateEmailContent(
   previousEmailJson: EmailContent,
   userCorrections: string,
   brandIdentity: BrandIdentityData | null,
-  targetAudience?: string | null
+  targetAudience?: string | null,
+  lockedFields?: string[]
 ): Promise<EmailContent> {
   const client = getClient();
-  const instructions = buildInstructions(brandIdentity);
+  let instructions = buildInstructions(brandIdentity);
+  
+  if (lockedFields && lockedFields.length > 0) {
+    const lockedDescriptions: string[] = [];
+    if (lockedFields.includes("cta") || lockedFields.includes("cta_url")) {
+      lockedDescriptions.push("El botón CTA ya existe en la plantilla. Genera valores genéricos para cta_text y cta_url.");
+    }
+    instructions += `\n\nCAMPOS FIJOS DE LA PLANTILLA: ${lockedDescriptions.join(" ")} Concentra tu creatividad en asunto, preheader y cuerpo.`;
+  }
+
   let originalContext = `Idea: ${originalIdea}\nObjetivo: ${originalObjective}`;
   if (targetAudience) {
     originalContext += `\nPúblico objetivo de esta campaña: ${targetAudience}. Adapta el tono, vocabulario y enfoque del contenido para resonar con este público específico.`;
@@ -546,10 +569,15 @@ export async function editTemplateHtml(
   }
 }
 
+export interface TemplateAnalysisResult {
+  html: string;
+  lockedFields: string[];
+}
+
 export async function analyzeTemplatePlaceholders(
   originalHtml: string,
   brandIdentity: BrandIdentityData | null
-): Promise<string> {
+): Promise<TemplateAnalysisResult> {
   const client = getClient();
 
   const analyzeSchema = {
@@ -560,10 +588,15 @@ export async function analyzeTemplatePlaceholders(
       properties: {
         html: {
           type: "string",
-          description: "HTML completo de la plantilla con los 6 placeholders insertados en las ubicaciones correctas",
+          description: "HTML completo de la plantilla adaptada. Solo se insertan placeholders donde corresponde según el análisis.",
+        },
+        lockedFields: {
+          type: "array",
+          items: { type: "string" },
+          description: "Lista de campos que YA existen en la plantilla original y NO deben ser modificados. Valores posibles: 'imagen', 'cta', 'cta_url', 'footer'",
         },
       },
-      required: ["html"],
+      required: ["html", "lockedFields"],
       additionalProperties: false,
     },
     strict: true,
@@ -572,27 +605,35 @@ export async function analyzeTemplatePlaceholders(
   try {
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      instructions: `Eres un experto en plantillas HTML de email marketing. Tu ÚNICA tarea es analizar una plantilla HTML existente e insertar los 6 placeholders obligatorios en las ubicaciones correctas SIN cambiar la estructura, diseño, estilos ni contenido visual de la plantilla.
+      instructions: `Eres un experto en plantillas HTML de email marketing. Tu tarea es analizar una plantilla HTML subida por un usuario, detectar qué elementos ya existen y SOLO insertar placeholders donde el contenido es realmente variable.
 
-LOS 6 PLACEHOLDERS OBLIGATORIOS:
-1. {{ASUNTO}} — Debe ir dentro del tag <title> en el <head>. Si no hay <title>, agrégalo.
-2. {{PREHEADER}} — Debe ir como primer elemento dentro del <body>, en un <span> oculto:
-   <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
-3. {{IMAGEN_URL}} — Debe reemplazar el src="" de la imagen principal/hero/banner del correo. Si no hay imagen hero, agrega una antes del contenido principal.
-4. {{CONTENIDO}} — Debe reemplazar el bloque principal de texto/contenido del correo. Identifica el área de contenido principal y reemplázala.
-5. {{CTA_TEXTO}} — Debe reemplazar el texto del botón principal de acción (CTA). Si no hay botón, agrega uno después del contenido.
-6. {{CTA_URL}} — Debe reemplazar el href="" del botón CTA.
+ANÁLISIS INTELIGENTE — Detecta qué elementos ya existen:
+1. LOGO: Si la plantilla ya tiene una imagen de logo (usualmente en el header/banner), NO la toques. Agrégala a lockedFields como referencia pero no insertes placeholder.
+2. IMAGEN HERO: Si ya hay una imagen principal/hero/banner con un src real (no placeholder), NO la reemplaces. Agrega "imagen" a lockedFields.
+3. BOTÓN CTA: Si ya existe un botón de acción con texto real (ej: "Agendar reunión", "Comprar ahora"), NO reemplaces su texto ni su URL. Agrega "cta" y "cta_url" a lockedFields.
+4. FOOTER: Si ya existe un pie de página con información de contacto, firma, enlaces, redes sociales, etc., NO lo modifiques. Agrega "footer" a lockedFields.
+5. CONTENIDO VARIABLE: Identifica el bloque de texto principal que cambiaría entre campañas (ej: descripción de producto, mensaje promocional, párrafos informativos). SOLO en esta sección inserta {{CONTENIDO}}.
+
+PLACEHOLDERS A INSERTAR (SOLO si no existen o son técnicos/invisibles):
+- {{ASUNTO}} — SIEMPRE insertarlo dentro del tag <title> en el <head>. Si no hay <title>, agrégalo. Esto es invisible para el usuario.
+- {{PREHEADER}} — SIEMPRE insertarlo como primer elemento dentro del <body>, en un <span> oculto:
+  <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">{{PREHEADER}}</span>
+  Esto también es invisible para el usuario.
+- {{CONTENIDO}} — SOLO insertar si identificas texto variable que cambiaría entre campañas. Reemplaza ÚNICAMENTE ese bloque de texto.
+- {{IMAGEN_URL}} — SOLO insertar si NO hay imagen hero real. Si la plantilla ya trae imagen, NO tocar.
+- {{CTA_TEXTO}} — SOLO insertar si NO hay botón con texto real. Si el botón ya existe con texto, NO tocar.
+- {{CTA_URL}} — SOLO insertar si NO hay URL real en el botón CTA. Si ya tiene URL, NO tocar.
 
 REGLAS ESTRICTAS:
 - NO cambies la estructura HTML, layout, tablas ni estilos CSS/inline.
 - NO cambies colores, fuentes, márgenes ni ningún aspecto visual.
-- SOLO inserta/reemplaza los placeholders en las ubicaciones correctas.
-- Si la plantilla ya tiene algún placeholder, déjalo como está.
-- Si falta algún elemento estructural (como <title>, imagen hero, o botón CTA), agrégalo de forma mínima y coherente con el diseño existente.
-- Mantén todo el HTML original intacto excepto donde se insertan los placeholders.`,
-      input: `Analiza esta plantilla HTML e inserta los 6 placeholders obligatorios en las ubicaciones correctas:\n\n\`\`\`html\n${originalHtml}\n\`\`\``,
+- NO elimines ni modifiques contenido existente que el usuario ya diseñó.
+- Si la plantilla ya tiene algún placeholder ({{...}}), déjalo como está.
+- Mantén todo el HTML original intacto excepto donde insertas {{CONTENIDO}}, {{ASUNTO}} y {{PREHEADER}}.
+- El array lockedFields debe contener SOLO los campos que ya existen en la plantilla. Valores válidos: "imagen", "cta", "cta_url", "footer".`,
+      input: `Analiza esta plantilla HTML. Detecta qué elementos ya existen (logo, imagen, botón, footer) y solo inserta placeholders donde el contenido es variable:\n\n\`\`\`html\n${originalHtml}\n\`\`\``,
       text: { format: analyzeSchema },
-      max_output_tokens: 4000,
+      max_output_tokens: 8000,
       temperature: 0.3,
       store: false,
     });
@@ -600,9 +641,14 @@ REGLAS ESTRICTAS:
     const outputText = response.output_text;
     if (!outputText) throw new Error("OpenAI no devolvió contenido.");
 
-    const parsed = JSON.parse(outputText) as { html: string };
+    const parsed = JSON.parse(outputText) as { html: string; lockedFields: string[] };
     if (!parsed.html) throw new Error("La respuesta no contiene HTML analizado.");
-    return parsed.html;
+    if (!Array.isArray(parsed.lockedFields)) parsed.lockedFields = [];
+    
+    const validFields = ["imagen", "cta", "cta_url", "footer"];
+    parsed.lockedFields = parsed.lockedFields.filter(f => validFields.includes(f));
+    
+    return parsed;
   } catch (err: any) {
     handleOpenAIError(err);
   }

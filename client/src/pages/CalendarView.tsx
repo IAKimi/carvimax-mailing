@@ -14,7 +14,7 @@ import {
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
   Type, Eye, Wand2, Send, Loader2, XCircle, Ban, Trash2,
   FileText, CheckCircle2, AlertTriangle, Link2, Database,
-  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail
+  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail, Lock
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -1115,6 +1115,9 @@ export default function CalendarView() {
     const isFailed = editingCampaign?.status === "failed";
     const isPartial = editingCampaign?.status === "partial";
     const isLocked = isCancelled || isSent || isSending || isFailed || isPartial;
+    const selectedTemplate = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+    const templateLockedFields: string[] = (selectedTemplate as any)?.lockedFields || [];
+    const isFieldLocked = (field: string) => templateLockedFields.includes(field);
     const progressPercent = isLocked ? -1 : (imageApproved ? 50 : 0) + (textApproved ? 50 : 0);
 
     return (
@@ -1470,8 +1473,14 @@ export default function CalendarView() {
                     <h3 className="font-bold flex items-center gap-2">
                       <ImageIcon className="w-4 h-4 text-primary" />
                       Imagen
+                      {isFieldLocked("imagen") && <Lock className="w-3.5 h-3.5 text-blue-500" />}
                     </h3>
-                    {imageApproved && !isLocked && !isResend && (
+                    {isFieldLocked("imagen") && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 italic flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Incluida en plantilla
+                      </span>
+                    )}
+                    {!isFieldLocked("imagen") && imageApproved && !isLocked && !isResend && (
                       <div className="flex items-center gap-2">
                         <span data-testid="badge-image-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
                           <Check className="w-3 h-3" /> Aprobada
@@ -1518,7 +1527,7 @@ export default function CalendarView() {
                     </div>
                   )}
 
-                  {!isResend && !imageApproved && (
+                  {!isResend && !imageApproved && !isFieldLocked("imagen") && (
                     <div className="flex flex-wrap gap-2">
                       {((editingCampaign as any)?.imageRegenCount || 0) >= 2 ? (
                         <span data-testid="text-image-regen-exhausted" className="text-xs text-gray-400 italic flex items-center gap-1 px-2 py-1">
@@ -1717,6 +1726,23 @@ export default function CalendarView() {
                       />
                     </div>
 
+                    {templateLockedFields.length > 0 && (
+                      <div data-testid="panel-locked-fields-campaign" className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl px-3 py-2">
+                        <div className="flex items-start gap-2">
+                          <Lock className="w-3.5 h-3.5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-semibold text-blue-800 dark:text-blue-300">Campos fijos de tu plantilla:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {isFieldLocked("imagen") && <span className="text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 rounded-full px-1.5 py-0.5">Imagen</span>}
+                              {(isFieldLocked("cta") || isFieldLocked("cta_url")) && <span className="text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 rounded-full px-1.5 py-0.5">Botón</span>}
+                              {isFieldLocked("footer") && <span className="text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 rounded-full px-1.5 py-0.5">Pie de página</span>}
+                            </div>
+                            <p className="text-[9px] text-blue-600 dark:text-blue-400">Estos campos ya vienen incluidos en tu plantilla y no necesitan ser editados.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cuerpo del correo</Label>
                       <div data-testid="editor-cuerpo-html" className="border border-border rounded-xl overflow-hidden">
@@ -1735,47 +1761,60 @@ export default function CalendarView() {
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Botón de acción (CTA)</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                          Botón de acción (CTA)
+                          {isFieldLocked("cta") && <Lock className="w-3 h-3 text-blue-500" />}
+                        </Label>
                         <div className="flex items-center gap-2">
-                          {ctaEnabled && <span className="text-[10px] text-muted-foreground">{localCta.length}/40</span>}
-                          <Button
-                            data-testid="button-toggle-cta"
-                            variant="ghost"
-                            size="sm"
-                            className={`h-6 px-2 text-xs ${ctaEnabled ? 'text-destructive hover:text-destructive' : 'text-green-600 hover:text-green-700'}`}
-                            disabled={isLocked || textApproved}
-                            onClick={() => { setCtaEnabled(!ctaEnabled); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
-                          >
-                            {ctaEnabled ? <><Trash2 className="h-3 w-3 mr-1" />Quitar</> : <><PlusCircle className="h-3 w-3 mr-1" />Añadir</>}
-                          </Button>
+                          {ctaEnabled && !isFieldLocked("cta") && <span className="text-[10px] text-muted-foreground">{localCta.length}/40</span>}
+                          {!isFieldLocked("cta") && (
+                            <Button
+                              data-testid="button-toggle-cta"
+                              variant="ghost"
+                              size="sm"
+                              className={`h-6 px-2 text-xs ${ctaEnabled ? 'text-destructive hover:text-destructive' : 'text-green-600 hover:text-green-700'}`}
+                              disabled={isLocked || textApproved}
+                              onClick={() => { setCtaEnabled(!ctaEnabled); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                            >
+                              {ctaEnabled ? <><Trash2 className="h-3 w-3 mr-1" />Quitar</> : <><PlusCircle className="h-3 w-3 mr-1" />Añadir</>}
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      {ctaEnabled && (
+                      {isFieldLocked("cta") ? (
+                        <p className="text-[10px] text-blue-600 dark:text-blue-400 italic flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" /> El botón ya viene incluido en tu plantilla.
+                        </p>
+                      ) : (
                         <>
-                          <Input
-                            data-testid="input-edit-cta"
-                            value={localCta}
-                            onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
-                            maxLength={40}
-                            disabled={isLocked || textApproved}
-                            placeholder="Texto del botón CTA"
-                            className="rounded-xl"
-                          />
-                          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-2">Enlace del botón (URL)</Label>
-                          <Input
-                            data-testid="input-edit-cta-url"
-                            value={localCtaUrl}
-                            onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
-                            maxLength={500}
-                            disabled={isLocked || textApproved}
-                            placeholder="https://ejemplo.com/promo"
-                            className="rounded-xl"
-                            type="url"
-                          />
+                          {ctaEnabled && (
+                            <>
+                              <Input
+                                data-testid="input-edit-cta"
+                                value={localCta}
+                                onChange={(e) => { setLocalCta(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                                maxLength={40}
+                                disabled={isLocked || textApproved}
+                                placeholder="Texto del botón CTA"
+                                className="rounded-xl"
+                              />
+                              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-2">Enlace del botón (URL)</Label>
+                              <Input
+                                data-testid="input-edit-cta-url"
+                                value={localCtaUrl}
+                                onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                                maxLength={500}
+                                disabled={isLocked || textApproved}
+                                placeholder="https://ejemplo.com/promo"
+                                className="rounded-xl"
+                                type="url"
+                              />
+                            </>
+                          )}
+                          {!ctaEnabled && (
+                            <p className="text-xs text-muted-foreground italic">El botón CTA no se incluirá en el correo.</p>
+                          )}
                         </>
-                      )}
-                      {!ctaEnabled && (
-                        <p className="text-xs text-muted-foreground italic">El botón CTA no se incluirá en el correo.</p>
                       )}
                     </div>
                   </div>
