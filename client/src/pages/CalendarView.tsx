@@ -198,6 +198,8 @@ export default function CalendarView() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [pendingVersionSwitch, setPendingVersionSwitch] = useState<{ fn: () => void } | null>(null);
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -636,8 +638,8 @@ export default function CalendarView() {
   function handleRegenerateText() {
     if (!editingCampaignId || !editingCampaign) return;
     const textRegenCount = (editingCampaign as any).textRegenCount || 0;
-    if (textRegenCount >= 3) {
-      toast({ title: "Límite alcanzado", description: "Máximo 3 regeneraciones de texto.", variant: "destructive" });
+    if (textRegenCount >= 2) {
+      toast({ title: "Límite alcanzado", description: "Máximo 2 regeneraciones de texto.", variant: "destructive" });
       return;
     }
     setRegenTextCorrections("");
@@ -647,8 +649,8 @@ export default function CalendarView() {
   function handleRegenerateImage() {
     if (!editingCampaignId || !editingCampaign) return;
     const imageRegenCount = (editingCampaign as any).imageRegenCount || 0;
-    if (imageRegenCount >= 3) {
-      toast({ title: "Límite alcanzado", description: "Máximo 3 regeneraciones de imagen.", variant: "destructive" });
+    if (imageRegenCount >= 2) {
+      toast({ title: "Límite alcanzado", description: "Máximo 2 regeneraciones de imagen.", variant: "destructive" });
       return;
     }
     setRegenImagePrompt(editingCampaign?.imagePrompt || "");
@@ -658,8 +660,8 @@ export default function CalendarView() {
   function handleEditWithNanoBanana() {
     if (!editingCampaignId || !editingCampaign) return;
     const imageRegenCount = (editingCampaign as any).imageRegenCount || 0;
-    if (imageRegenCount >= 3) {
-      toast({ title: "Límite alcanzado", description: "Máximo 3 regeneraciones de imagen.", variant: "destructive" });
+    if (imageRegenCount >= 2) {
+      toast({ title: "Límite alcanzado", description: "Máximo 2 regeneraciones de imagen.", variant: "destructive" });
       return;
     }
     setEditImagePrompt("");
@@ -726,8 +728,8 @@ export default function CalendarView() {
     });
   }, [versions]);
 
-  const textVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "text");
-  const imageVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "image");
+  const textVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "text").sort((a, b) => a.versionNumber - b.versionNumber);
+  const imageVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "image").sort((a, b) => a.versionNumber - b.versionNumber);
 
   function doSelectTextVersion(versionId: number) {
     setLocalSelectedVersionId(versionId);
@@ -839,6 +841,7 @@ export default function CalendarView() {
             setHasUnsavedChanges(false);
             setTextApproved(true);
             toast({ title: "Texto aprobado" });
+            checkBothApprovalsAndSchedule(imageApproved, true);
           },
           onError: () => {
             toast({ title: "Error", description: "No se pudo guardar antes de aprobar.", variant: "destructive" });
@@ -848,6 +851,7 @@ export default function CalendarView() {
     } else {
       setTextApproved(true);
       toast({ title: "Texto aprobado" });
+      checkBothApprovalsAndSchedule(imageApproved, true);
     }
   }
 
@@ -858,6 +862,74 @@ export default function CalendarView() {
     }
     setImageApproved(true);
     toast({ title: "Imagen aprobada" });
+    checkBothApprovalsAndSchedule(true, textApproved);
+  }
+
+  function checkBothApprovalsAndSchedule(newImageApproved: boolean, newTextApproved: boolean) {
+    if (!newImageApproved || !newTextApproved) return;
+    if (!editingCampaignId || !editingCampaign) return;
+    if (editingCampaign.status !== "draft") return;
+    if (!editingCampaign.scheduledAt) return;
+
+    const scheduledTime = new Date(editingCampaign.scheduledAt).getTime();
+    const now = Date.now();
+
+    if (scheduledTime > now) {
+      updateCampaignMutation.mutate(
+        { id: editingCampaignId, updates: { status: "scheduled" } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+            toast({ title: "Correo programado", description: "Ambas aprobaciones confirmadas. Tu correo está programado para envío automático." });
+          },
+        }
+      );
+    } else {
+      const nextHour = new Date();
+      nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+      const localDateStr = `${nextHour.getFullYear()}-${String(nextHour.getMonth() + 1).padStart(2, "0")}-${String(nextHour.getDate()).padStart(2, "0")}T${String(nextHour.getHours()).padStart(2, "0")}:${String(nextHour.getMinutes()).padStart(2, "0")}`;
+      setRescheduleDate(localDateStr);
+      setShowRescheduleDialog(true);
+    }
+  }
+
+  function handleReschedule() {
+    if (!editingCampaignId || !rescheduleDate) return;
+    const newDate = new Date(rescheduleDate);
+    const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
+    if (newDate.getTime() < fifteenMinFromNow) {
+      toast({ title: "Fecha inválida", description: "La nueva fecha debe ser al menos 15 minutos en el futuro.", variant: "destructive" });
+      return;
+    }
+    updateCampaignMutation.mutate(
+      { id: editingCampaignId, updates: { scheduledAt: newDate.toISOString(), status: "scheduled" } },
+      {
+        onSuccess: () => {
+          setShowRescheduleDialog(false);
+          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+          toast({ title: "Correo reprogramado", description: `Nuevo envío: ${newDate.toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}` });
+        },
+        onError: (err: Error) => {
+          toast({ title: "Error", description: err.message || "No se pudo reprogramar.", variant: "destructive" });
+        },
+      }
+    );
+  }
+
+  function handleManualReschedule() {
+    if (!editingCampaignId || !editingCampaign) return;
+    if (editingCampaign.status === "scheduled" && editingCampaign.scheduledAt) {
+      const existingTime = new Date(editingCampaign.scheduledAt).getTime();
+      const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
+      if (existingTime <= fifteenMinFromNow) {
+        toast({ title: "No se puede reprogramar", description: "No puedes cambiar la fecha porque estás a menos de 15 minutos del envío programado.", variant: "destructive" });
+        return;
+      }
+    }
+    const current = editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt) : new Date();
+    const localDateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}T${String(current.getHours()).padStart(2, "0")}:${String(current.getMinutes()).padStart(2, "0")}`;
+    setRescheduleDate(localDateStr);
+    setShowRescheduleDialog(true);
   }
 
   const editingCampaign = campaigns.find(c => c.id === editingCampaignId);
@@ -1067,6 +1139,18 @@ export default function CalendarView() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              )}
+              {textApproved && imageApproved && !isLocked && editingCampaign?.scheduledAt && (
+                <Button
+                  data-testid="button-reschedule"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleManualReschedule}
+                  className="rounded-xl gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Reprogramar
+                </Button>
               )}
               {textApproved && imageApproved && !isLocked && (
                 <Button
@@ -1400,10 +1484,10 @@ export default function CalendarView() {
                         size="sm"
                         className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleRegenerateImage}
-                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
+                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 2 || regenerateImageMutation.isPending || generateVersionMutation.isPending}
                       >
                         {regenerateImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                        Regenerar ({Math.max(0, 3 - ((editingCampaign as any)?.imageRegenCount || 0))})
+                        Regenerar ({Math.max(0, 2 - ((editingCampaign as any)?.imageRegenCount || 0))})
                       </Button>
                       <Button
                         data-testid="button-upload-image"
@@ -1437,7 +1521,7 @@ export default function CalendarView() {
                         size="sm"
                         className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={handleEditWithNanoBanana}
-                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 3 || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
+                        disabled={isCancelled || isSent || ((editingCampaign as any)?.imageRegenCount || 0) >= 2 || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
                       >
                         {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                         Nano Banana
@@ -1676,10 +1760,10 @@ export default function CalendarView() {
                         size="sm"
                         className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleRegenerateText}
-                        disabled={isCancelled || isSent || ((editingCampaign as any)?.textRegenCount || 0) >= 3 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
+                        disabled={isCancelled || isSent || ((editingCampaign as any)?.textRegenCount || 0) >= 2 || regenerateTextMutation.isPending || generateVersionMutation.isPending}
                       >
                         {regenerateTextMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                        Regenerar Texto ({Math.max(0, 3 - ((editingCampaign as any)?.textRegenCount || 0))})
+                        Regenerar Texto ({Math.max(0, 2 - ((editingCampaign as any)?.textRegenCount || 0))})
                       </Button>
                       {textVersions.length > 1 && (
                         <Button
@@ -2159,6 +2243,43 @@ export default function CalendarView() {
               >
                 {editImageMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
                 Aplicar Edición
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+          <DialogContent data-testid="dialog-reschedule" className="sm:max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Reprogramar Envío
+              </DialogTitle>
+              <DialogDescription>
+                {editingCampaign?.scheduledAt && new Date(editingCampaign.scheduledAt).getTime() <= Date.now()
+                  ? "La hora programada originalmente ya pasó. Por favor selecciona una nueva fecha y hora para enviar tu correo."
+                  : "Selecciona una nueva fecha y hora para el envío de tu correo."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Nueva fecha y hora de envío</Label>
+                <Input
+                  data-testid="input-reschedule-date"
+                  type="datetime-local"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+              <Button
+                data-testid="button-confirm-reschedule"
+                onClick={handleReschedule}
+                disabled={!rescheduleDate || updateCampaignMutation.isPending}
+                className="w-full rounded-xl gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {updateCampaignMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Confirmar Nueva Fecha
               </Button>
             </div>
           </DialogContent>

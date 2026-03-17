@@ -235,7 +235,7 @@ export async function regenerateEmailContent(
         },
         {
           role: "user" as const,
-          content: `Por favor aplica las siguientes correcciones al correo generado y devuelve la propuesta ajustada respetando el formato JSON original:\nCorrecciones: ${userCorrections}`,
+          content: `INSTRUCCIÓN: Reescribe COMPLETAMENTE el correo electrónico basándote en las siguientes instrucciones del usuario. NO hagas cambios mínimos ni conservadores. Si el usuario pide cambiar el tono, REESCRIBE TODO el correo en ese tono desde cero. Si pide agregar emojis, inclúyelos generosamente. Si pide un enfoque diferente, cambia la estructura y el contenido por completo. El resultado debe ser un correo SUSTANCIALMENTE DIFERENTE al anterior, reflejando fielmente lo que pide el usuario. Mantén el formato JSON original.\n\nInstrucciones del usuario: ${userCorrections}`,
         },
       ],
       text: { format: emailSchema },

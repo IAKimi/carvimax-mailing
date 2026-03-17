@@ -456,7 +456,7 @@ export async function registerRoutes(
         ...input,
         userId: req.session.userId!,
         scheduledAt,
-        status: scheduledAt ? "scheduled" : "draft",
+        status: "draft",
       } as any);
       res.status(201).json(campaign);
     } catch (err) {
@@ -491,8 +491,16 @@ export async function registerRoutes(
         if (isNaN(newDate.getTime())) {
           return res.status(400).json({ message: "La fecha programada no es válida." });
         }
-        if (newDate.getTime() < Date.now()) {
-          return res.status(400).json({ message: "La fecha programada debe ser en el futuro." });
+        const fifteenMinutesFromNow = Date.now() + 15 * 60 * 1000;
+        if (newDate.getTime() < fifteenMinutesFromNow) {
+          return res.status(400).json({ message: "La fecha programada debe ser al menos 15 minutos en el futuro." });
+        }
+        if (existing.status === "scheduled" && existing.scheduledAt) {
+          const existingTime = new Date(existing.scheduledAt).getTime();
+          const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
+          if (existingTime <= fifteenMinFromNow) {
+            return res.status(400).json({ message: "No puedes cambiar la fecha porque estás a menos de 15 minutos del envío programado." });
+          }
         }
         updates.scheduledAt = newDate;
       }
@@ -656,8 +664,8 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const textRegenCount = campaign.textRegenCount || 0;
-    if (textRegenCount >= 3) {
-      return res.status(400).json({ message: "Máximo 3 regeneraciones de texto alcanzado." });
+    if (textRegenCount >= 2) {
+      return res.status(400).json({ message: "Máximo 2 regeneraciones de texto alcanzado." });
     }
 
     const { corrections } = req.body || {};
@@ -737,8 +745,8 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const imageRegenCount = campaign.imageRegenCount || 0;
-    if (imageRegenCount >= 3) {
-      return res.status(400).json({ message: "Máximo 3 regeneraciones de imagen alcanzado." });
+    if (imageRegenCount >= 2) {
+      return res.status(400).json({ message: "Máximo 2 regeneraciones de imagen alcanzado." });
     }
 
     const { imagePrompt } = req.body || {};
@@ -792,8 +800,8 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const imageRegenCount = campaign.imageRegenCount || 0;
-    if (imageRegenCount >= 3) {
-      return res.status(400).json({ message: "Máximo 3 regeneraciones de imagen alcanzado." });
+    if (imageRegenCount >= 2) {
+      return res.status(400).json({ message: "Máximo 2 regeneraciones de imagen alcanzado." });
     }
 
     const { editPrompt } = req.body || {};
@@ -855,8 +863,8 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const imageRegenCount = campaign.imageRegenCount || 0;
-    if (imageRegenCount >= 3) {
-      return res.status(400).json({ message: "Máximo 3 regeneraciones de imagen alcanzado." });
+    if (imageRegenCount >= 2) {
+      return res.status(400).json({ message: "Máximo 2 regeneraciones de imagen alcanzado." });
     }
 
     const { editPrompt, selectedAction, referenceImages } = req.body || {};
@@ -2081,6 +2089,10 @@ export async function registerRoutes(
         const now = new Date();
         for (const campaign of allCampaigns) {
           if (campaign.status === "scheduled" && campaign.scheduledAt && new Date(campaign.scheduledAt) <= now) {
+            if (!campaign.textApproved || !campaign.imageApproved) {
+              console.warn(`Scheduler: campaign #${campaign.id} skipped — missing approvals (text: ${campaign.textApproved}, image: ${campaign.imageApproved}). Keeping status "scheduled".`);
+              continue;
+            }
             const retryCount = campaign.schedulerRetryCount || 0;
             if (retryCount >= MAX_SCHEDULER_RETRIES) {
               console.error(`Scheduler: campaign #${campaign.id} exceeded ${MAX_SCHEDULER_RETRIES} retries, marking as failed.`);
