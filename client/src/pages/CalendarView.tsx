@@ -876,7 +876,7 @@ export default function CalendarView() {
 
     if (scheduledTime > now) {
       updateCampaignMutation.mutate(
-        { id: editingCampaignId, updates: { status: "scheduled" } },
+        { id: editingCampaignId, updates: { textApproved: newTextApproved, imageApproved: newImageApproved, status: "scheduled" } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
@@ -902,7 +902,7 @@ export default function CalendarView() {
       return;
     }
     updateCampaignMutation.mutate(
-      { id: editingCampaignId, updates: { scheduledAt: newDate.toISOString(), status: "scheduled" } },
+      { id: editingCampaignId, updates: { scheduledAt: newDate.toISOString(), status: "scheduled", textApproved: true, imageApproved: true } },
       {
         onSuccess: () => {
           setShowRescheduleDialog(false);
