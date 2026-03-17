@@ -956,12 +956,25 @@ export async function registerRoutes(
   });
 
   app.delete("/api/campaigns", requireAuth, async (req, res) => {
-    const userCampaigns = await storage.getCampaigns(req.session.userId!);
-    for (const c of userCampaigns) {
-      await cleanupCampaignFiles(c.id);
+    const { ids } = req.body || {};
+    if (ids !== undefined && (!Array.isArray(ids) || ids.length === 0)) {
+      return res.status(400).json({ message: "Debe proporcionar una lista válida de IDs." });
     }
-    await storage.deleteAllCampaigns(req.session.userId!);
-    res.json({ message: "Historial eliminado." });
+    const userCampaigns = await storage.getCampaigns(req.session.userId!);
+    if (Array.isArray(ids) && ids.length > 0) {
+      const validIds = ids.filter((id: number) => userCampaigns.some(c => c.id === id));
+      for (const id of validIds) {
+        await cleanupCampaignFiles(id);
+      }
+      await storage.deleteCampaigns(validIds, req.session.userId!);
+      res.json({ message: `${validIds.length} campaña(s) eliminada(s).` });
+    } else {
+      for (const c of userCampaigns) {
+        await cleanupCampaignFiles(c.id);
+      }
+      await storage.deleteAllCampaigns(req.session.userId!);
+      res.json({ message: "Historial eliminado." });
+    }
   });
 
   app.post("/api/campaigns/:id/resend", requireAuth, async (req, res) => {
@@ -1425,9 +1438,12 @@ export async function registerRoutes(
           message: `La plantilla generada no cumple con la estructura estándar: ${structureCheck.errors.join(" ")} Se regenerará automáticamente.`,
         });
       }
+      const existingTemplates = await storage.getTemplates(req.session.userId!);
+      const templateNumber = existingTemplates.filter(t => t.isAiGenerated).length + 1;
+      const standardName = `Plantilla ${templateNumber}`;
       const tpl = await storage.createTemplate({
         userId: req.session.userId!,
-        name: result.name,
+        name: standardName,
         html: sanitizedHtml,
         favorite: false,
         isAiGenerated: true,
@@ -1459,7 +1475,7 @@ export async function registerRoutes(
     }
     const parentId = tpl.parentTemplateId || tpl.id;
     const siblings = await storage.getTemplateVersions(parentId);
-    const totalVersions = siblings.length;
+    const totalVersions = siblings.length + 1;
     if (totalVersions >= 3) {
       return res.status(400).json({ message: "Máximo 3 versiones alcanzado. Confirme una versión antes de generar más." });
     }
@@ -1487,7 +1503,7 @@ export async function registerRoutes(
       }
       const newVersion = await storage.createTemplate({
         userId: req.session.userId!,
-        name: tpl.name + ` (v${totalVersions + 1})`,
+        name: tpl.name.replace(/ \(v\d+\)$/, '') + ` (v${totalVersions + 1})`,
         html: sanitizedHtml,
         favorite: false,
         isAiGenerated: true,
@@ -1502,6 +1518,23 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error editando plantilla con OpenAI:", err.message);
       return res.status(500).json({ message: err.message || "Error editando plantilla." });
+    }
+  });
+
+  app.post("/api/templates/analyze-html", requireAuth, aiLimiter, async (req, res) => {
+    const { html } = req.body;
+    if (!html || typeof html !== "string") return res.status(400).json({ message: "HTML requerido." });
+    try {
+      if (!isOpenAIConfigured()) {
+        return res.status(400).json({ message: "OpenAI no está configurado." });
+      }
+      const brandData = await storage.getBrandIdentity(req.session.userId!);
+      const analyzedHtml = await analyzeTemplatePlaceholders(html, brandData || null);
+      const sanitizedResult = sanitizeHtml(analyzedHtml);
+      const validation = validateTemplatePlaceholders(sanitizedResult);
+      res.json({ html: sanitizedResult, valid: validation.valid, missing: validation.missing });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Error al analizar la plantilla." });
     }
   });
 

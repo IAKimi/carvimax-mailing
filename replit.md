@@ -38,15 +38,15 @@ The application is built with a modern web stack, featuring a React frontend and
 ### Features
 - **Calendar**: Displays campaigns with status indicators (emerald=sent, blue=scheduled, gray=draft, red=cancelled) and image thumbnails on hover. Optimized for performance with memoized components and bulk image fetching.
 - **CSV/XLSX Import**: Supports importing contact data with automatic delimiter detection, English/Spanish column header mapping, and deduplication.
-- **Template Analysis**: AI-powered analysis to auto-insert placeholders into existing HTML templates.
-- **Single Template Generation**: Generates 1 template per request. Users can create new AI versions (up to 3) before confirming. Manual text editing available for all AI templates.
+- **Template Analysis**: AI-powered analysis to auto-insert placeholders into existing HTML templates. Upload dialog includes "Adaptar con IA" button when placeholders are missing, powered by `POST /api/templates/analyze-html`.
+- **Single Template Generation**: Generates 1 template per request with standardized naming ("Plantilla N"). Users can create new AI versions (up to 3 total including original) before confirming. Manual text editing available for all AI templates.
 - **Standardized Template Structure**: All AI-generated templates follow a fixed block order: Header/Banner (logo top-left + {{ASUNTO}} centered) → Hero Image → Content → CTA Button → Footer. `buildBaseTemplateHtml()` generates a parameterized base HTML template using brand colors/fonts/logo. The AI can only customize cosmetic aspects (colors, fonts, text styles, content formatting, image dimensions) but NEVER the block order. UI disclaimers in both "Create with AI" and "Edit with AI" dialogs inform users of the standard structure.
 - **Optimized AI Prompts**: Template generation (`buildTemplateInstructions`) passes the base HTML template + brand identity data and instructs the AI to adapt cosmetically. Campaign content (`buildInstructions`) uses copywriting-only data (company, industry, mission, vision, products, history, styleGuide, tone, targetAudience). Gemini receives only user prompt + action.
-- **Manual Text Editing**: AI-generated templates support inline text editing — extracts non-placeholder text nodes from HTML and allows editing without altering layout/styles.
+- **Manual Text Editing**: AI-generated templates support inline text editing — groups text nodes by nearest block parent (TD, DIV, P, etc.) into labeled sections (e.g., "Sección 1", "Párrafo 2") for a cleaner editing experience.
 - **Confirmed Template Lockdown**: Once a template is confirmed (`isConfirmed=true`), AI editing buttons are hidden. Only preview, rename, text edit, and delete remain.
 - **Validation & Security**: Enforces content approval, prevents modification of sent campaigns, and includes various input validations (e.g., website field auto-prepends `https://`).
 - **Target Audience**: Optional `targetAudience` field in campaigns, which is passed to AI prompts to tailor content.
-- **Historial de Correos**: Collapsible cards show campaign details, with client-side date range filtering.
+- **Historial de Correos**: Collapsible cards show campaign details, with client-side date range filtering. Selection mode with checkboxes for selective deletion. "Vaciar Todo" for clearing entire history. Both features moved from Calendar to MyEmails page.
 - **Dashboard (Analytics)**: Displays user-specific metrics (total campaigns, timeline, top databases/templates, contacts reached) using Recharts, with brand color schemes.
 - **Guided Tutorial Mode (Bombillo)**: Interactive, step-by-step guidance for new users, highlighting UI elements and providing tips, persisted in local storage.
 - **Logo Hosting**: `POST /api/brand/logo-upload` saves uploaded logos (PNG/JPG/WebP only, no SVG) to `uploads/logos/` and returns a public URL. Static serving via `app.use("/uploads", express.static(...))`.

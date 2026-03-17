@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarCell } from "@/components/CalendarCell";
-import { useSearch, useLocation } from "wouter";
+import { useSearch, useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import {
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
   Type, Eye, Wand2, Send, Loader2, XCircle, Ban, Trash2,
   FileText, CheckCircle2, AlertTriangle, Link2, Database,
-  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide
+  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -962,13 +962,18 @@ export default function CalendarView() {
   const editingCampaign = campaigns.find(c => c.id === editingCampaignId);
 
   const sortedTemplatesForSelector = useMemo(() => {
-    return [...userTemplates].sort((a, b) => {
+    const confirmed = userTemplates.filter(t => (t as any).isConfirmed !== false || !(t as any).parentTemplateId);
+    return [...confirmed].sort((a, b) => {
       if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
       if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
       if (a.favorite && !b.favorite) return -1;
       if (!a.favorite && b.favorite) return 1;
       return 0;
     });
+  }, [userTemplates]);
+
+  const hasUnconfirmedTemplates = useMemo(() => {
+    return userTemplates.some(t => (t as any).parentTemplateId && !(t as any).isConfirmed);
   }, [userTemplates]);
 
   const selectedTextVersion = (localSelectedVersionId ? textVersions.find(v => v.id === localSelectedVersionId) : null) || textVersions.find(v => v.isSelected) || textVersions[0];
@@ -2010,6 +2015,12 @@ export default function CalendarView() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 mt-3">
+                {hasUnconfirmedTemplates && (
+                  <div data-testid="warning-unconfirmed-templates" className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-800">Tiene versiones de plantillas sin confirmar. Confirme o descarte las versiones pendientes en la sección Plantillas antes de usarlas aquí.</p>
+                  </div>
+                )}
                 {sortedTemplatesForSelector.map(t => {
                   const tplHtml = t.html || "";
                   const onlyMissingCta = !t.hasAllPlaceholders && !ctaEnabled &&
@@ -2364,38 +2375,17 @@ export default function CalendarView() {
               <p className="text-muted-foreground mt-1">Organiza tu estrategia mensual. Haz clic en cualquier día para crear una nueva campaña con IA o gestionar tus envíos programados.</p>
             </div>
           </TutorialHighlight>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                data-testid="button-clear-history"
-                variant="outline"
-                size="sm"
-                className="rounded-xl gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                disabled={deleteAllCampaignsMutation.isPending}
-              >
-                {deleteAllCampaignsMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                Vaciar Historial
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="rounded-2xl">
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Vaciar todo el historial?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta acción eliminará TODOS los correos y sus versiones generadas de todos los meses. Esta acción no se puede deshacer.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  data-testid="button-confirm-clear-history"
-                  onClick={() => deleteAllCampaignsMutation.mutate()}
-                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Sí, vaciar todo
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Link href="/emails">
+            <Button
+              data-testid="button-go-history"
+              variant="outline"
+              size="sm"
+              className="rounded-xl gap-1.5"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Ver Historial
+            </Button>
+          </Link>
         </div>
 
         {campaignsLoading ? (
@@ -2653,12 +2643,8 @@ export default function CalendarView() {
                     <SelectValue placeholder="Seleccione una plantilla..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {[...userTemplates].sort((a, b) => {
-                      if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
-                      if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
-                      return 0;
-                    }).map(t => (
-                      <SelectItem key={t.id} value={String(t.id)}>
+                    {sortedTemplatesForSelector.map(t => (
+                      <SelectItem key={t.id} value={String(t.id)} disabled={!t.hasAllPlaceholders}>
                         <div className="flex items-center gap-2">
                           <span className="truncate">{t.name}</span>
                           {t.hasAllPlaceholders ? (

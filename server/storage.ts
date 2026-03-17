@@ -26,6 +26,7 @@ export interface IStorage {
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined>;
   deleteAllCampaigns(userId: number): Promise<void>;
+  deleteCampaigns(campaignIds: number[], userId: number): Promise<void>;
 
   getCampaignVersions(campaignId: number): Promise<CampaignVersion[]>;
   createCampaignVersion(version: InsertCampaignVersion): Promise<CampaignVersion>;
@@ -166,6 +167,17 @@ export class DatabaseStorage implements IStorage {
         await db.delete(campaignVersions).where(eq(campaignVersions.campaignId, cId));
       }
       await db.delete(campaigns).where(eq(campaigns.userId, userId));
+    }
+  }
+
+  async deleteCampaigns(campaignIds: number[], userId: number): Promise<void> {
+    if (campaignIds.length === 0) return;
+    for (const cId of campaignIds) {
+      const campaign = await db.select().from(campaigns).where(and(eq(campaigns.id, cId), eq(campaigns.userId, userId))).limit(1);
+      if (campaign.length > 0) {
+        await db.delete(campaignVersions).where(eq(campaignVersions.campaignId, cId));
+        await db.delete(campaigns).where(eq(campaigns.id, cId));
+      }
     }
   }
 

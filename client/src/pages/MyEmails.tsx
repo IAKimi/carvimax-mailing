@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw, Eye } from "lucide-react";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw, Eye, Trash2, CheckSquare, Square } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { TipTapEditor } from "@/components/TipTapEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,6 +45,8 @@ export default function MyEmails() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const { setCurrentSection, tutorialActive } = useTutorial();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -73,6 +76,53 @@ export default function MyEmails() {
       toast({ title: "Error al reenviar", description: err.message, variant: "destructive" });
     },
   });
+
+  const deleteSelectedMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await apiRequest("DELETE", "/api/campaigns", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast({ title: "Correos eliminados", description: "Los correos seleccionados han sido eliminados." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudieron eliminar los correos.", variant: "destructive" });
+    },
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/campaigns");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      toast({ title: "Historial vaciado", description: "Todos los correos han sido eliminados." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo vaciar el historial.", variant: "destructive" });
+    },
+  });
+
+  function toggleSelection(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === history.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(history.map(c => c.id)));
+    }
+  }
 
   useEffect(() => {
     setCurrentSection("emails");
@@ -183,6 +233,89 @@ export default function MyEmails() {
             <p className="text-muted-foreground mt-1">Registro de correos enviados y programados.</p>
           </div>
           <div className="flex items-center gap-2">
+            {history.length > 0 && (
+              <>
+                <Button
+                  data-testid="button-toggle-selection"
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-xl gap-1.5"
+                  onClick={() => {
+                    setSelectionMode(!selectionMode);
+                    if (selectionMode) setSelectedIds(new Set());
+                  }}
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  {selectionMode ? "Cancelar" : "Seleccionar"}
+                </Button>
+                {selectionMode && selectedIds.size > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        data-testid="button-delete-selected"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        disabled={deleteSelectedMutation.isPending}
+                      >
+                        {deleteSelectedMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        Eliminar ({selectedIds.size})
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="rounded-2xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar {selectedIds.size} correo(s)?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción eliminará los correos seleccionados y sus versiones. No se puede deshacer.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          data-testid="button-confirm-delete-selected"
+                          onClick={() => deleteSelectedMutation.mutate(Array.from(selectedIds))}
+                          className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                        >
+                          Sí, eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      data-testid="button-clear-history"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      disabled={deleteAllMutation.isPending}
+                    >
+                      {deleteAllMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      Vaciar Todo
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-2xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Vaciar todo el historial?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará TODOS los correos y sus versiones generadas. No se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        data-testid="button-confirm-clear-history"
+                        onClick={() => deleteAllMutation.mutate()}
+                        className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        Sí, vaciar todo
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
             <Button
               data-testid="button-toggle-filters"
               variant={showFilters ? "default" : "outline"}
@@ -258,6 +391,19 @@ export default function MyEmails() {
           </div>
         ) : history.length > 0 ? (
           <div className="space-y-3">
+            {selectionMode && (
+              <div className="flex items-center gap-3 px-2">
+                <button
+                  data-testid="button-select-all"
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {selectedIds.size === history.length ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
+                  {selectedIds.size === history.length ? "Deseleccionar todo" : "Seleccionar todo"}
+                </button>
+                <span className="text-xs text-muted-foreground">{selectedIds.size} de {history.length} seleccionados</span>
+              </div>
+            )}
             {history.map((campaign, i) => {
               const config = statusConfig[campaign.status] || statusConfig.draft;
               const StatusIcon = config.icon;
@@ -281,9 +427,18 @@ export default function MyEmails() {
                 >
                   <button
                     data-testid={`button-expand-${campaign.id}`}
-                    onClick={() => setExpandedId(isExpanded ? null : campaign.id)}
+                    onClick={() => selectionMode ? toggleSelection(campaign.id) : setExpandedId(isExpanded ? null : campaign.id)}
                     className="w-full p-5 flex items-center gap-4 text-left hover:bg-muted/30 transition-colors"
                   >
+                    {selectionMode && (
+                      <div className="flex-shrink-0" data-testid={`checkbox-campaign-${campaign.id}`}>
+                        {selectedIds.has(campaign.id) ? (
+                          <CheckSquare className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Square className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                    )}
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                       {campaign.status === "sent" ? (
                         <Send className="w-5 h-5 text-primary" />

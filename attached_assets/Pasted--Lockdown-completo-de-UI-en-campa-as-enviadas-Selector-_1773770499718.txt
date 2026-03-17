@@ -1,0 +1,49 @@
+# Lockdown completo de UI en campañas enviadas
+
+[Selector de plantillas mejorado](https://www.notion.so/Selector-de-plantillas-mejorado-31f1d877d17681a4858eedcdaa866360?pvs=21)
+
+[Botón Vaciar Historial](https://www.notion.so/Bot-n-Vaciar-Historial-31f1d877d17681a4a081d661b496ef1c?pvs=21)
+
+[Validación de imágenes placeholder](https://www.notion.so/Validaci-n-de-im-genes-placeholder-31f1d877d176810a8f12fd6b9c79577b?pvs=21)
+
+[Analizar con IA para plantillas incompletas](https://www.notion.so/Analizar-con-IA-para-plantillas-incompletas-31f1d877d1768107b206f18b10b9603d?pvs=21)
+
+[Validación de email duplicado al editar contacto](https://www.notion.so/Validaci-n-de-email-duplicado-al-editar-contacto-31f1d877d176811d936afb8b694ac589?pvs=21)
+
+[Deduplicación en importación CSV](https://www.notion.so/Deduplicaci-n-en-importaci-n-CSV-31f1d877d176816aa408e0d78b218b9f?pvs=21)
+
+[Bloquear edición de contenido en campañas enviadas](https://www.notion.so/Bloquear-edici-n-de-contenido-en-campa-as-enviadas-31f1d877d176818d8546e692a43f7105?pvs=21)
+
+[Bloquear IA en campañas enviadas](https://www.notion.so/Bloquear-IA-en-campa-as-enviadas-31f1d877d1768172bfddf4399ea3d77d?pvs=21)
+
+[Requiere plantilla y base de datos para publicar](https://www.notion.so/Requiere-plantilla-y-base-de-datos-para-publicar-31f1d877d17681b1a4a8fa41226c495b?pvs=21)
+
+[TipTap resetea aprobación de texto](https://www.notion.so/TipTap-resetea-aprobaci-n-de-texto-31f1d877d17681479368cee821501675?pvs=21)
+
+[Bloqueo de aprobación de texto vacío](https://www.notion.so/Bloqueo-de-aprobaci-n-de-texto-vac-o-31f1d877d17681fba615c28823b0e560?pvs=21)
+
+[Website auto-prepend https://](https://www.notion.so/Website-auto-prepend-https-31f1d877d17681f188a7fca5e949ca61?pvs=21)
+
+[SEO y meta tags — Títulos únicos por página, Open Graph tags para compartir](https://www.notion.so/SEO-y-meta-tags-T-tulos-nicos-por-p-gina-Open-Graph-tags-para-compartir-31f1d877d17681598c04ebec8c5de191?pvs=21)
+
+[Consolidar CampaignEditor.tsx — Existe una página standalone /campaigns/:id que duplica funcionalidad del editor dentro de CalendarView. Unificar o eliminar la redundancia](https://www.notion.so/Consolidar-CampaignEditor-tsx-Existe-una-p-gina-standalone-campaigns-id-que-duplica-funcionalida-31f1d877d17681f09602e7f95361d556?pvs=21)
+
+[Historial de correos mejorado (/emails) — La página "Mis Correos" existe pero es básica. Agregar filtros funcionales, búsqueda, paginación, y detalle de cada envío](https://www.notion.so/Historial-de-correos-mejorado-emails-La-p-gina-Mis-Correos-existe-pero-es-b-sica-Agregar-fil-31f1d877d17681cfa42ae6f8d7e641e5?pvs=21)
+
+[QA general y ajustes de UI — Revisión visual de todas las páginas en full-width, responsividad en mobile, edge cases de formularios, manejo de errores en todas las pantallas](https://www.notion.so/QA-general-y-ajustes-de-UI-Revisi-n-visual-de-todas-las-p-ginas-en-full-width-responsividad-en-mo-31f1d877d17681419ba9ec4b0bdef1b8?pvs=21)
+
+[Analytics / Métricas de envío — Dashboard con estadísticas: correos enviados, tasa de apertura, clics en CTA, rebotes. Requiere datos de callback de Make/Brevo](https://www.notion.so/Analytics-M-tricas-de-env-o-Dashboard-con-estad-sticas-correos-enviados-tasa-de-apertura-clic-31f1d877d176810799b4c6f5b6cb0a25?pvs=21)
+
+[Página de configuración de usuario — Cambiar contraseña, editar perfil (nombre, empresa), preferencias de cuenta](https://www.notion.so/P-gina-de-configuraci-n-de-usuario-Cambiar-contrase-a-editar-perfil-nombre-empresa-preferenci-31f1d877d17681238c68ddece9336e30?pvs=21)
+
+[Importación CSV de contactos — Los botones "Agregar CSV" y "Sobreescribir CSV" existen en la UI pero solo muestran toasts. Implementar parsing y carga real](https://www.notion.so/Importaci-n-CSV-de-contactos-Los-botones-Agregar-CSV-y-Sobreescribir-CSV-existen-en-la-UI-pero-31f1d877d1768168ac04d143655bb5ec?pvs=21)
+
+[Programación real de envíos — Cuando el usuario programa un correo para una fecha/hora, que el sistema dispare el payload a Make en el momento correcto (cron job o scheduler)](https://www.notion.so/Programaci-n-real-de-env-os-Cuando-el-usuario-programa-un-correo-para-una-fecha-hora-que-el-siste-31f1d877d176812d999dfb5972224060?pvs=21)
+
+[Payload para Make.com — Endpoint o lógica que construya el JSON payload con: destinatarios (de la BD de contactos asignada), HTML final renderizado (plantilla + contenido), asunto, preheader. Listo para ser consumido por un webhook de Make](https://www.notion.so/Payload-para-Make-com-Endpoint-o-l-gica-que-construya-el-JSON-payload-con-destinatarios-de-la-BD-31f1d877d17681a38351da835eddff21?pvs=21)
+
+[Endpoint de callback de envío — POST /api/campaigns/:id/delivery-status para que Make.com informe que el correo fue enviado/rebotado. Actualizar estado en DB](https://www.notion.so/Endpoint-de-callback-de-env-o-POST-api-campaigns-id-delivery-status-para-que-Make-com-informe-qu-31f1d877d176814eadcec4905b921a40?pvs=21)
+
+[Selector de base de datos en editor — Tarjeta "Base de Datos de Destino" en el editor de campaña, cambiar BD en cualquier momento, opción "Sin base de datos"](https://www.notion.so/Selector-de-base-de-datos-en-editor-Tarjeta-Base-de-Datos-de-Destino-en-el-editor-de-campa-a-ca-31f1d877d176813aacb4e32001844c1d?pvs=21)
+
+[Fix diálogo de selección — Mostrar campaign.name (título IA) en vez de campaign.idea (prompt largo), truncado sin overflow](https://www.notion.so/Fix-di-logo-de-selecci-n-Mostrar-campaign-name-t-tulo-IA-en-vez-de-campaign-idea-prompt-largo--31f1d877d176816b8987e6f4a90ad654?pvs=21)

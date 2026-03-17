@@ -52,7 +52,8 @@ export default function Templates() {
   const [showVersionsDialog, setShowVersionsDialog] = useState(false);
   const [versionsParentId, setVersionsParentId] = useState<number | null>(null);
   const [showTextEditDialog, setShowTextEditDialog] = useState(false);
-  const [textEditNodes, setTextEditNodes] = useState<{ index: number; original: string; edited: string }[]>([]);
+  const [textEditNodes, setTextEditNodes] = useState<{ index: number; original: string; edited: string; label: string }[]>([]);
+  const [adaptAiPending, setAdaptAiPending] = useState(false);
 
   useEffect(() => {
     setCurrentSection("templates");
@@ -273,7 +274,8 @@ export default function Templates() {
 
   function getVersionCount(template: Template): number {
     const parentId = (template as any).parentTemplateId || template.id;
-    return templates.filter(t => (t as any).parentTemplateId === parentId).length;
+    const children = templates.filter(t => (t as any).parentTemplateId === parentId).length;
+    return children + 1;
   }
 
   function startRename(template: Template) {
@@ -322,11 +324,21 @@ export default function Templates() {
     setShowManualEditDialog(true);
   }
 
-  function extractTextNodes(html: string): { index: number; original: string }[] {
+  function extractTextNodes(html: string): { index: number; original: string; label: string }[] {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-    const nodes: { index: number; original: string }[] = [];
     const placeholderPattern = /\{\{[A-Z_]+\}\}/;
+    const blockTags = ["TD", "DIV", "P", "LI", "H1", "H2", "H3", "H4", "H5", "H6", "TH", "BLOCKQUOTE"];
+
+    function findBlockParent(el: Element | null): Element | null {
+      while (el) {
+        if (blockTags.includes(el.tagName)) return el;
+        el = el.parentElement;
+      }
+      return null;
+    }
+
+    const rawNodes: { idx: number; text: string; block: Element | null }[] = [];
     let idx = 0;
     const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
     let node: Node | null;
@@ -335,18 +347,44 @@ export default function Templates() {
       if (text.length > 2 && !placeholderPattern.test(text)) {
         const parent = node.parentElement;
         if (parent && !["STYLE", "SCRIPT"].includes(parent.tagName)) {
-          nodes.push({ index: idx, original: text });
+          rawNodes.push({ idx, text, block: findBlockParent(parent) });
         }
       }
       idx++;
     }
-    return nodes;
+
+    const groups = new Map<Element | null, { indices: number[]; texts: string[] }>();
+    for (const n of rawNodes) {
+      if (!groups.has(n.block)) groups.set(n.block, { indices: [], texts: [] });
+      const g = groups.get(n.block)!;
+      g.indices.push(n.idx);
+      g.texts.push(n.text);
+    }
+
+    const labelMap: Record<string, string> = {
+      TD: "Celda", DIV: "Sección", P: "Párrafo", LI: "Elemento de lista",
+      H1: "Título", H2: "Subtítulo", H3: "Subtítulo", H4: "Subtítulo",
+      TH: "Encabezado", BLOCKQUOTE: "Cita",
+    };
+
+    const result: { index: number; original: string; label: string }[] = [];
+    let groupIdx = 0;
+    for (const [block, g] of groups) {
+      const tag = block?.tagName || "DIV";
+      const label = labelMap[tag] || "Texto";
+      result.push({
+        index: g.indices[0],
+        original: g.texts.join(" "),
+        label: `${label} ${++groupIdx}`,
+      });
+    }
+    return result;
   }
 
   function openTextEdit(template: Template) {
     setEditingTemplateId(template.id);
     const nodes = extractTextNodes(template.html);
-    setTextEditNodes(nodes.map(n => ({ ...n, edited: n.original })));
+    setTextEditNodes(nodes.map(n => ({ ...n, edited: n.original, label: n.label })));
     setShowTextEditDialog(true);
   }
 
@@ -358,22 +396,50 @@ export default function Templates() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(template.html, "text/html");
     const placeholderPattern = /\{\{[A-Z_]+\}\}/;
+    const blockTags = ["TD", "DIV", "P", "LI", "H1", "H2", "H3", "H4", "H5", "H6", "TH", "BLOCKQUOTE"];
+    function findBlockParent(el: Element | null): Element | null {
+      while (el) { if (blockTags.includes(el.tagName)) return el; el = el.parentElement; }
+      return null;
+    }
+
+    const rawNodes: { idx: number; text: string; block: Element | null; node: Node }[] = [];
     let idx = 0;
     const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
-    let node: Node | null;
-    const editMap = new Map(textEditNodes.filter(n => n.edited !== n.original).map(n => [n.index, n.edited]));
-    while ((node = walker.nextNode())) {
-      const text = (node.textContent || "").trim();
+    let n: Node | null;
+    while ((n = walker.nextNode())) {
+      const text = (n.textContent || "").trim();
       if (text.length > 2 && !placeholderPattern.test(text)) {
-        const parent = node.parentElement;
+        const parent = n.parentElement;
         if (parent && !["STYLE", "SCRIPT"].includes(parent.tagName)) {
-          if (editMap.has(idx)) {
-            node.textContent = (node.textContent || "").replace(text, editMap.get(idx)!);
-          }
+          rawNodes.push({ idx, text, block: findBlockParent(parent), node: n });
         }
       }
       idx++;
     }
+
+    const groups = new Map<Element | null, typeof rawNodes>();
+    for (const rn of rawNodes) {
+      if (!groups.has(rn.block)) groups.set(rn.block, []);
+      groups.get(rn.block)!.push(rn);
+    }
+
+    let groupIdx = 0;
+    for (const [, groupNodes] of groups) {
+      const editNode = textEditNodes[groupIdx];
+      groupIdx++;
+      if (!editNode || editNode.edited === editNode.original) continue;
+      const editedParts = editNode.edited.split(" ");
+      let partIdx = 0;
+      for (const gn of groupNodes) {
+        const wordsInOriginal = gn.text.split(/\s+/).length;
+        const replacement = editedParts.slice(partIdx, partIdx + wordsInOriginal).join(" ") || editedParts.slice(partIdx).join(" ");
+        if (replacement) {
+          gn.node.textContent = (gn.node.textContent || "").replace(gn.text, replacement);
+        }
+        partIdx += wordsInOriginal;
+      }
+    }
+
     const doctype = "<!DOCTYPE html>";
     const html = doctype + doc.documentElement.outerHTML;
     updateMutation.mutate({ id: editingTemplateId, html });
@@ -755,14 +821,38 @@ export default function Templates() {
               <div data-testid="warning-missing-placeholders" className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <div>
+                  <div className="space-y-2 w-full">
                     <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Placeholders faltantes ({newHtmlValidation.missing.length}):</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="flex flex-wrap gap-1">
                       {newHtmlValidation.missing.map(m => (
                         <code key={m} className="text-[10px] font-mono bg-amber-100 dark:bg-amber-900/50 text-amber-700 rounded px-1 py-0.5">{m}</code>
                       ))}
                     </div>
-                    <p className="text-[10px] text-amber-600 mt-1">La plantilla se guardará pero no será totalmente compatible con el editor.</p>
+                    <Button
+                      data-testid="button-adapt-ai-upload"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1.5 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 w-full"
+                      onClick={async () => {
+                        setAdaptAiPending(true);
+                        try {
+                          const res = await apiRequest("POST", "/api/templates/analyze-html", { html: newHtml });
+                          const data = await res.json();
+                          if (data.html) {
+                            setNewHtml(data.html);
+                            toast({ title: "Placeholders insertados", description: "La IA ha insertado los placeholders automáticamente. Revise la vista previa." });
+                          }
+                        } catch (err: any) {
+                          toast({ title: "Error", description: err.message || "No se pudo adaptar la plantilla.", variant: "destructive" });
+                        } finally {
+                          setAdaptAiPending(false);
+                        }
+                      }}
+                      disabled={adaptAiPending}
+                    >
+                      {adaptAiPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      Adaptar con IA (insertar placeholders)
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1058,7 +1148,7 @@ export default function Templates() {
             ) : (
               textEditNodes.map((node, i) => (
                 <div key={node.index} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Texto {i + 1}</Label>
+                  <Label className="text-xs text-muted-foreground">{node.label}</Label>
                   <Textarea
                     data-testid={`input-text-node-${i}`}
                     value={node.edited}
