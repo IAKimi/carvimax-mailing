@@ -512,6 +512,13 @@ export async function registerRoutes(
         if (!allowed.includes(status)) {
           return res.status(400).json({ message: `No se puede cambiar el estado de "${existing.status}" a "${status}".` });
         }
+        if (status === "scheduled") {
+          const mergedTextApproved = updates.textApproved !== undefined ? updates.textApproved : existing.textApproved;
+          const mergedImageApproved = updates.imageApproved !== undefined ? updates.imageApproved : existing.imageApproved;
+          if (!mergedTextApproved || !mergedImageApproved) {
+            return res.status(400).json({ message: "Ambas aprobaciones (texto e imagen) son requeridas para programar." });
+          }
+        }
         if (status === "sent") {
           if (!existing.templateId) {
             return res.status(400).json({ message: "Debe seleccionar una plantilla antes de enviar." });
@@ -987,8 +994,14 @@ export async function registerRoutes(
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
     });
 
-    if (scheduledAt) {
-      await storage.updateCampaign(newCampaign.id, { status: "scheduled" });
+    if (selectedVersion) {
+      await storage.updateCampaign(newCampaign.id, {
+        textApproved: true,
+        imageApproved: true,
+        ...(scheduledAt ? { status: "scheduled" } : {}),
+      });
+    } else if (scheduledAt) {
+      await storage.updateCampaign(newCampaign.id, { status: "draft" });
     }
 
     if (selectedVersion) {
