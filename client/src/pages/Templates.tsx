@@ -620,14 +620,6 @@ export default function Templates() {
                         {template.favorite ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> : <StarOff className="w-4 h-4 text-muted-foreground" />}
                       </Button>
                       <Button
-                        data-testid={`button-preview-template-${template.id}`}
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPreviewId(template.id)}
-                      >
-                        <Eye className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button
                         data-testid={`button-delete-template-${template.id}`}
                         variant="ghost"
                         size="icon"
@@ -775,9 +767,9 @@ export default function Templates() {
         )}
       </div>
 
-      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) { setUploadLockedFields([]); setAiAdapted(false); } }}>
-        <DialogContent className="max-w-[95vw] w-[1200px] rounded-2xl max-h-[92vh] overflow-hidden p-0">
-          <div className="flex flex-col h-full max-h-[92vh]">
+      <Dialog open={showDialog} onOpenChange={(open) => { if (!open && adaptAiPending) return; setShowDialog(open); if (!open) { setUploadLockedFields([]); setAiAdapted(false); } }}>
+        <DialogContent className="max-w-[95vw] w-[1200px] rounded-2xl h-[95vh] overflow-hidden p-0" onInteractOutside={(e) => { if (adaptAiPending) e.preventDefault(); }} onEscapeKeyDown={(e) => { if (adaptAiPending) e.preventDefault(); }}>
+          <div className="flex flex-col h-full">
             <DialogHeader className="px-6 pt-5 pb-3 border-b border-border flex-shrink-0">
               <DialogTitle className="flex items-center gap-2">
                 <Code className="w-5 h-5 text-primary" />
@@ -903,17 +895,17 @@ export default function Templates() {
                   <Eye className="w-3.5 h-3.5" />
                   Vista Previa
                 </div>
-                <div className="flex-1 overflow-auto p-3">
+                <div className="flex-1 overflow-hidden p-3">
                   {newHtml.trim() ? (
                     <iframe
                       data-testid="iframe-upload-preview"
                       srcDoc={newHtml}
                       sandbox=""
-                      className="w-full h-full min-h-[500px] bg-white rounded-lg border border-border"
+                      className="w-full h-full bg-white rounded-lg border border-border"
                       title="Vista previa de plantilla"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full min-h-[500px] text-muted-foreground">
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
                       <div className="text-center space-y-2">
                         <Code className="w-10 h-10 mx-auto opacity-30" />
                         <p className="text-sm">Pegue su código HTML para ver la vista previa</p>
@@ -1099,15 +1091,16 @@ export default function Templates() {
       </Dialog>
 
       <Dialog open={previewId !== null} onOpenChange={() => setPreviewId(null)}>
-        <DialogContent data-testid="dialog-preview-template" className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden max-h-[90vh]">
-          <DialogHeader className="p-4 border-b border-border">
+        <DialogContent data-testid="dialog-preview-template" className="max-w-[95vw] w-[900px] rounded-2xl p-0 overflow-hidden h-[95vh] flex flex-col">
+          <DialogHeader className="p-4 border-b border-border flex-shrink-0">
             <DialogTitle>{templates.find(t => t.id === previewId)?.name}</DialogTitle>
+            <DialogDescription className="sr-only">Vista previa de la plantilla</DialogDescription>
           </DialogHeader>
-          <div className="bg-white overflow-y-auto max-h-[calc(90vh-80px)]">
+          <div className="flex-1 overflow-hidden bg-white">
             <iframe
               srcDoc={templates.find(t => t.id === previewId)?.html || ""}
               sandbox=""
-              className="w-full h-[500px]"
+              className="w-full h-full"
               title="preview-full"
             />
           </div>

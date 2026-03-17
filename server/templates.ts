@@ -7,12 +7,29 @@ export interface PlaceholderValidation {
   missing: string[];
 }
 
-export function validateTemplatePlaceholders(html: string): PlaceholderValidation {
+const LOCKED_FIELD_TO_PLACEHOLDERS: Record<string, string[]> = {
+  imagen: ["{{IMAGEN_URL}}"],
+  cta: ["{{CTA_TEXTO}}"],
+  cta_url: ["{{CTA_URL}}"],
+  footer: [],
+};
+
+export function validateTemplatePlaceholders(html: string, lockedFields?: string[] | null): PlaceholderValidation {
   const present: string[] = [];
   const missing: string[] = [];
 
+  const coveredByLock = new Set<string>();
+  if (lockedFields && Array.isArray(lockedFields)) {
+    for (const lf of lockedFields) {
+      const mapped = LOCKED_FIELD_TO_PLACEHOLDERS[lf];
+      if (mapped) {
+        for (const key of mapped) coveredByLock.add(key);
+      }
+    }
+  }
+
   for (const key of ALL_PLACEHOLDER_KEYS) {
-    if (html.includes(key)) {
+    if (html.includes(key) || coveredByLock.has(key)) {
       present.push(key);
     } else {
       missing.push(key);

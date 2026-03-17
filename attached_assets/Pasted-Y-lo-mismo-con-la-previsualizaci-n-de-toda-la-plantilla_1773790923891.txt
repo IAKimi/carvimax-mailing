@@ -1,0 +1,14 @@
+Y lo mismo con la previsualización de toda la plantilla cuando yo estoy fuera de todas mis plantillas. Si yo le doy clic al preview, debería demostrarme la plantilla completa sin necesidad de yo tener que darle scroll.
+Lo otro, me estoy fijando en que cuando yo me sombreo sobre cualquiera de las plantillas, me aparece un ojo que dice "Vista previa". Pero justo debajo, en donde aparecen los botones del lápiz, la estrella y el basurero, hay otro ojo. Me parece contradictorio y demasiado overkill que tengamos dos botones; tiene que ser uno solo. Escogí uno o dejamos el de "Vista previa" en donde yo me sombreo y puedo seleccionar la imagen o el botón del ojo que aparece a la par del resto de controles.
+Lo otro es que cuando yo le di clic a "Generar mi plantilla", que fue a base de una plantilla que yo ya tenía pre-hecha y le di "Guardar", me apareció nuevamente el botón de "Analizar con inteligencia artificial" fuera del menú. Pero teóricamente yo ya la analicé la primera vez. Aquí me aparece un botón al darle clic a "Analizar con IA" que faltan aún tres placeholders. Realmente no tendría que ser así porque si vemos la plantilla, en la plantilla ya se contiene:
+- un banner principal en donde está el logo
+- esta la imagen en grande
+- esta el placeholder que pusimos, que es el contenido
+- ya hay un botón que dice "Agendar una reunión"
+- y ya hay un footer que tiene el cierre, que en este caso aparece en las dos URL de las páginas web de RED
+Entonces aquí no sé cómo podríamos revisar eso, verificar los logs, porque si yo ya guardé mi plantilla, porque ya la analicé la primera vez cuando estaba cargando la configuración. Ya ahí, en ese momento, la IA tuvo que haber identificado que ya existe imagen, ya existe logo, ya existe todo eso incrustar lo que hace falta. Y cuando se analice con inteligencia artificial, no sé cómo lo manejaríamos ahí. Si se pondrían los placeholders enmascarados, aunque no afecte la plantilla original para que el sistema lo reconozca como una plantilla completa. O directamente vamos a decirle a la IA que devuelva unos estados de que esto existe, esto existe, para que cuando se vaya a utilizar la plantilla en el calendario ya la reconozca como una plantilla que fue cargada y que sólo fue analizada con inteligencia artificial y que sólo se agregó un placeholder. Entonces que le mande la API de OpenAI y que sólo te devuelva el campo variable o cómo vamos a manejar eso, porque ahorita sólo los estamos haciendo a partir de la sección de plantilla que tiene errores, como te digo.
+Cuando yo la guardo ya debería de estar completa. No debería aparecerme incompleta ni debería aparecerme el botón de "Analizar con inteligencia artificial". Por ejemplo aquí, si le doy "Editar", me aparece que me hacen falta:
+- los del call to action texto
+- me falta call to action url
+- y me hace falta imagen url
+Pero el botón del call to action texto y call to action url ya existen.

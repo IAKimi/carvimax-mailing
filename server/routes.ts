@@ -1367,8 +1367,9 @@ export async function registerRoutes(
       });
       const input = createTemplateSchema.parse(req.body);
       const sanitizedHtml = sanitizeHtml(input.html);
-      const validation = validateTemplatePlaceholders(sanitizedHtml);
-      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false, hasAllPlaceholders: validation.valid, lockedFields: input.lockedFields || null });
+      const lockedFields = input.lockedFields || null;
+      const validation = validateTemplatePlaceholders(sanitizedHtml, lockedFields);
+      const tpl = await storage.createTemplate({ userId: req.session.userId!, name: input.name, html: sanitizedHtml, favorite: false, hasAllPlaceholders: validation.valid, lockedFields });
       res.status(201).json({ ...tpl, missingPlaceholders: validation.missing });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1387,7 +1388,9 @@ export async function registerRoutes(
       const input = updateTemplateSchema.parse(req.body);
       if (input.html) {
         input.html = sanitizeHtml(input.html);
-        const validation = validateTemplatePlaceholders(input.html);
+        const existingTpl = tpls.find(t => t.id === id);
+        const lf = (input as any).lockedFields ?? existingTpl?.lockedFields ?? null;
+        const validation = validateTemplatePlaceholders(input.html, lf);
         (input as any).hasAllPlaceholders = validation.valid;
       }
       const tpl = await storage.updateTemplate(id, input);
@@ -1541,7 +1544,7 @@ export async function registerRoutes(
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const result = await analyzeTemplatePlaceholders(html, brandData || null);
       const sanitizedResult = sanitizeHtml(result.html);
-      const validation = validateTemplatePlaceholders(sanitizedResult);
+      const validation = validateTemplatePlaceholders(sanitizedResult, result.lockedFields);
       res.json({ html: sanitizedResult, valid: validation.valid, missing: validation.missing, lockedFields: result.lockedFields });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Error al analizar la plantilla." });
@@ -1562,7 +1565,7 @@ export async function registerRoutes(
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const result = await analyzeTemplatePlaceholders(tpl.html, brandData || null);
       const sanitizedHtml = sanitizeHtml(result.html);
-      const validation = validateTemplatePlaceholders(sanitizedHtml);
+      const validation = validateTemplatePlaceholders(sanitizedHtml, result.lockedFields);
       const updated = await storage.updateTemplate(id, {
         html: sanitizedHtml,
         hasAllPlaceholders: validation.valid,
