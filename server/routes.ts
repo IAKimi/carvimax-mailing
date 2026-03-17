@@ -154,7 +154,7 @@ const updateTemplateSchema = z.object({
 });
 
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  draft: ["scheduled", "sending", "cancelled"],
+  draft: ["scheduled", "cancelled"],
   scheduled: ["cancelled", "sending", "sent"],
   sending: ["sent", "cancelled"],
   sent: [],
@@ -1705,6 +1705,12 @@ export async function registerRoutes(
     }
     if (campaign.status === "sending") {
       return res.status(400).json({ message: "La campaña ya se está enviando. Espere a que termine." });
+    }
+    if (!campaign.textApproved || !campaign.imageApproved) {
+      return res.status(400).json({ message: "Ambas aprobaciones (texto e imagen) son requeridas antes de enviar." });
+    }
+    if (campaign.status !== "scheduled" && campaign.status !== "draft") {
+      return res.status(400).json({ message: "Solo campañas en estado programado o borrador pueden enviarse." });
     }
     const result = await sendCampaignToWebhook(id, req.session.userId!);
     if (!result.success) {
