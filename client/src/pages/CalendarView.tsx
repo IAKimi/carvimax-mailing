@@ -1140,7 +1140,7 @@ export default function CalendarView() {
                   </AlertDialogContent>
                 </AlertDialog>
               )}
-              {textApproved && imageApproved && !isLocked && editingCampaign?.scheduledAt && (
+              {textApproved && imageApproved && !isLocked && editingCampaign?.scheduledAt && editingCampaign.status === "scheduled" && (
                 <Button
                   data-testid="button-reschedule"
                   variant="outline"
