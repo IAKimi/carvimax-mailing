@@ -38,3 +38,8 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+MAKE_WEBHOOK_SECRET = "PostIAlo028f3ed8959730cffef0ddabd0ed4b5b"

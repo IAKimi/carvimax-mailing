@@ -246,6 +246,8 @@ Antes de desplegar necesitas configurar las variables de entorno (siguiente paso
 | `GEMINI_API_KEY` | `tu-clave-gemini` | Tu clave de Google Gemini |
 | `PORT` | `5000` | Puerto interno de la app |
 | `NODE_ENV` | `production` | Modo producción |
+| `APP_URL` | `https://tu-dominio-produccion.com` | URL pública de la app (para imágenes en emails) |
+| `MAKE_WEBHOOK_SECRET` | *(usar el mismo valor configurado en Replit)* | Secret para webhook de Make.com (alfanumérico, sin caracteres especiales) |
 
 ### Generar un SESSION_SECRET seguro:
 

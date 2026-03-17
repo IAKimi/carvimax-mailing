@@ -170,6 +170,7 @@ export default function CalendarView() {
   const [previewHeight, setPreviewHeight] = useState(0);
   const [textApproved, setTextApprovedLocal] = useState(false);
   const [imageApproved, setImageApprovedLocal] = useState(false);
+  const [approvedImageUrl, setApprovedImageUrl] = useState<string | null>(null);
   const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "" });
   const [showTargetAudience, setShowTargetAudience] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
@@ -380,6 +381,7 @@ export default function CalendarView() {
 
   const setImageApproved = useCallback((value: boolean) => {
     setImageApprovedLocal(value);
+    if (!value) setApprovedImageUrl(null);
     if (editingCampaignId) {
       updateCampaignMutation.mutate({ id: editingCampaignId, updates: { imageApproved: value } });
     }
@@ -509,6 +511,7 @@ export default function CalendarView() {
     const camp = campaigns.find(c => c.id === campaignId);
     setTextApprovedLocal(camp?.textApproved ?? false);
     setImageApprovedLocal(camp?.imageApproved ?? false);
+    setApprovedImageUrl(null);
     setHasUnsavedChanges(false);
   }
 
@@ -521,6 +524,7 @@ export default function CalendarView() {
     setShowFinalPreview(false);
     setTextApprovedLocal(false);
     setImageApprovedLocal(false);
+    setApprovedImageUrl(null);
     setEditorLocalImageUrl(null);
     setHasUnsavedChanges(false);
     setShowEditorTemplateSelector(false);
@@ -849,9 +853,31 @@ export default function CalendarView() {
         }
       );
     } else {
-      setTextApproved(true);
-      toast({ title: "Texto aprobado" });
-      checkBothApprovalsAndSchedule(imageApproved, true);
+      if (selectedVersion) {
+        const existing = (selectedVersion.contentJson as any) || {};
+        const updatedContent = {
+          ...existing,
+          asunto: localAsunto,
+          preheader: localPreheader,
+          cta_text: localCta,
+          cta_url: localCtaUrl,
+          cta_enabled: ctaEnabled,
+        };
+        updateVersionMutation.mutate(
+          { id: selectedVersion.id, updates: { contentJson: updatedContent } },
+          {
+            onSuccess: () => {
+              setTextApproved(true);
+              toast({ title: "Texto aprobado" });
+              checkBothApprovalsAndSchedule(imageApproved, true);
+            },
+          }
+        );
+      } else {
+        setTextApproved(true);
+        toast({ title: "Texto aprobado" });
+        checkBothApprovalsAndSchedule(imageApproved, true);
+      }
     }
   }
 
@@ -860,6 +886,7 @@ export default function CalendarView() {
       toast({ title: "Imagen no válida", description: "Debe cargar o generar una imagen real antes de aprobar.", variant: "destructive" });
       return;
     }
+    setApprovedImageUrl(selectedImageUrl);
     setImageApproved(true);
     toast({ title: "Imagen aprobada" });
     checkBothApprovalsAndSchedule(true, textApproved);
@@ -961,7 +988,7 @@ export default function CalendarView() {
           ? `<p>${contentData.body}</p>`
           : ""
     : "";
-  const selectedImageUrl = editorLocalImageUrl || selectedImageVersion?.imageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
+  const selectedImageUrl = editorLocalImageUrl || (imageApproved && approvedImageUrl ? approvedImageUrl : selectedImageVersion?.imageUrl) || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
 
   useEffect(() => {
     if (selectedVersion) {
@@ -981,6 +1008,12 @@ export default function CalendarView() {
       setHasUnsavedChanges(false);
     }
   }, [selectedVersion?.id]);
+
+  useEffect(() => {
+    if (imageApproved && !approvedImageUrl && selectedImageVersion?.imageUrl) {
+      setApprovedImageUrl(selectedImageVersion.imageUrl);
+    }
+  }, [imageApproved, approvedImageUrl, selectedImageVersion?.imageUrl]);
 
   function handleSaveTextChanges() {
     if (!selectedVersion) return;
@@ -1209,25 +1242,27 @@ export default function CalendarView() {
                         rendered = rendered.replace(/\{\{LOGO_URL\}\}/g, logoUrl);
                         return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}<script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
-                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          window.addEventListener('load',function(){setTimeout(sendHeight,200);});
+                          setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
                         </script></body></html>`;
                       }
                       return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                         <div style="max-width:600px;margin:0 auto">
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
-                          <img src="${imagen}" style="width:100%;height:auto;display:block" />
+                          <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.style.display='none'" />
                           <div style="padding:24px">${contenido}</div>
                           ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${ctaTexto}</a></div>` : ""}
                         </div>
                         <script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'sent-preview-height',height:h},'*');}
-                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          window.addEventListener('load',function(){setTimeout(sendHeight,200);});
+                          setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
                         </script>
                       </body></html>`;
                     })()}
@@ -1696,7 +1731,7 @@ export default function CalendarView() {
                       <div className="flex items-center justify-between">
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Botón de acción (CTA)</Label>
                         <div className="flex items-center gap-2">
-                          {ctaEnabled && <span className="text-[10px] text-muted-foreground">{localCta.length}/25</span>}
+                          {ctaEnabled && <span className="text-[10px] text-muted-foreground">{localCta.length}/40</span>}
                           <Button
                             data-testid="button-toggle-cta"
                             variant="ghost"
@@ -1891,25 +1926,27 @@ export default function CalendarView() {
                         rendered = rendered.replace(/\{\{LOGO_URL\}\}/g, logoUrl);
                         return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${rendered}<script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
-                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          window.addEventListener('load',function(){setTimeout(sendHeight,200);});
+                          setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
                         </script></body></html>`;
                       }
                       return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                         <div style="max-width:600px;margin:0 auto">
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
-                          <img src="${imagen}" style="width:100%;height:auto;display:block" />
+                          <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.style.display='none'" />
                           <div style="padding:24px">${contenido}</div>
                           ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
                         </div>
                         <script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}
-                          window.addEventListener('load',function(){setTimeout(sendHeight,100);});
+                          window.addEventListener('load',function(){setTimeout(sendHeight,200);});
+                          setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);}
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
                         </script>
                       </body></html>`;
                     })()}
@@ -1971,13 +2008,19 @@ export default function CalendarView() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 mt-3">
-                {sortedTemplatesForSelector.map(t => (
+                {sortedTemplatesForSelector.map(t => {
+                  const tplHtml = t.html || "";
+                  const onlyMissingCta = !t.hasAllPlaceholders && !ctaEnabled &&
+                    tplHtml.includes("{{ASUNTO}}") && tplHtml.includes("{{PREHEADER}}") &&
+                    tplHtml.includes("{{CONTENIDO}}") && tplHtml.includes("{{IMAGEN_URL}}");
+                  const isSelectable = t.hasAllPlaceholders || onlyMissingCta;
+                  return (
                   <button
                     key={t.id}
                     data-testid={`button-assign-template-${t.id}`}
-                    onClick={() => t.hasAllPlaceholders && handleAssignTemplate(String(t.id))}
-                    disabled={!t.hasAllPlaceholders}
-                    className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${!t.hasAllPlaceholders ? "opacity-50 cursor-not-allowed" : "hover:border-primary/40 cursor-pointer"} ${editingCampaign?.templateId === t.id ? "border-primary bg-primary/5" : "border-border"}`}
+                    onClick={() => isSelectable && handleAssignTemplate(String(t.id))}
+                    disabled={!isSelectable}
+                    className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${!isSelectable ? "opacity-50 cursor-not-allowed" : "hover:border-primary/40 cursor-pointer"} ${editingCampaign?.templateId === t.id ? "border-primary bg-primary/5" : "border-border"}`}
                   >
                     <div className="w-24 h-16 rounded-lg overflow-hidden bg-muted border border-border flex-shrink-0 flex items-center justify-center">
                       <FileText className="w-6 h-6 text-muted-foreground" />
@@ -1994,6 +2037,10 @@ export default function CalendarView() {
                           <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1.5 py-0.5">
                             <CheckCircle2 className="w-2.5 h-2.5" /> Compatible
                           </span>
+                        ) : onlyMissingCta ? (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 bg-orange-100 rounded-full px-1.5 py-0.5">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Editada
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">
                             <AlertTriangle className="w-2.5 h-2.5" /> Incompleta
@@ -2007,7 +2054,8 @@ export default function CalendarView() {
                       </div>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
                 {userTemplates.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />

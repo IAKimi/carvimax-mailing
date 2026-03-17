@@ -237,6 +237,8 @@ function getImagePublicUrl(filename: string, req?: Request): string {
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
     const host = req.headers["x-forwarded-host"] || req.headers.host;
     baseUrl = `${protocol}://${host}`;
+  } else if (process.env.APP_URL) {
+    baseUrl = process.env.APP_URL.replace(/\/$/, "");
   } else {
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
     baseUrl = `https://${domain}`;
