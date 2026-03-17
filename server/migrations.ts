@@ -168,6 +168,16 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    name: "005_cancel_stale_scheduled_campaigns",
+    up: async (client) => {
+      const result = await client.query(`
+        UPDATE campaigns SET status = 'cancelled'
+        WHERE status IN ('scheduled', 'sending')
+      `);
+      console.log(`[migration 005] Cancelled ${result.rowCount} stale scheduled/sending campaigns`);
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
