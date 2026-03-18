@@ -281,8 +281,8 @@ function sanitizeHtml(html: string): string {
     .replace(/javascript\s*:/gi, "");
 }
 
-function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null; role: string; isActive: boolean; isVerified: boolean; createdAt: Date | null }) {
-  const { password, verificationToken, verificationTokenExpiresAt, ...safe } = user as any;
+function sanitizeUser(user: Record<string, unknown>) {
+  const { password, verificationToken, verificationTokenExpiresAt, ...safe } = user;
   return safe;
 }
 
@@ -466,10 +466,7 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Email requerido." });
     }
     const user = await storage.getUserByEmail(email);
-    if (!user) {
-      return res.json({ verified: false });
-    }
-    res.json({ verified: user.isVerified });
+    res.json({ verified: user?.isVerified === true });
   });
 
   app.post("/api/auth/resend-verification", authLimiter, async (req, res) => {
