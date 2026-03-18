@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, ArrowRight, Type } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
@@ -56,6 +57,7 @@ export default function Templates() {
   const [adaptAiPending, setAdaptAiPending] = useState(false);
   const [uploadLockedFields, setUploadLockedFields] = useState<string[]>([]);
   const [aiAdapted, setAiAdapted] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
     setCurrentSection("templates");
@@ -69,7 +71,9 @@ export default function Templates() {
     queryKey: ["/api/onboarding-status"],
   });
 
-  const displayTemplates = useMemo(() => {
+  const { confirmedTemplates, draftTemplates } = useMemo(() => {
+    const confirmed: Template[] = [];
+    const drafts: Template[] = [];
     const parentGroups = new Map<number, Template[]>();
     for (const t of templates) {
       const parentId = (t as any).parentTemplateId;
@@ -78,35 +82,31 @@ export default function Templates() {
         parentGroups.get(parentId)!.push(t);
       }
     }
-    const parentsWithUnconfirmedChildren = new Set(parentGroups.keys());
     const shown = new Set<number>();
-    const result: Template[] = [];
     for (const t of templates) {
       const parentId = (t as any).parentTemplateId;
       if (parentId && !(t as any).isConfirmed) {
         if (!shown.has(parentId)) {
           shown.add(parentId);
           const group = parentGroups.get(parentId)!;
-          result.push(group.sort((a, b) => ((b as any).versionNumber || 1) - ((a as any).versionNumber || 1))[0]);
+          drafts.push(group.sort((a, b) => ((b as any).versionNumber || 1) - ((a as any).versionNumber || 1))[0]);
         }
-      } else if (parentsWithUnconfirmedChildren.has(t.id)) {
-        continue;
-      } else {
-        result.push(t);
+      } else if (!(t as any).parentTemplateId || (t as any).isConfirmed) {
+        confirmed.push(t);
       }
     }
-    return result;
+    return { confirmedTemplates: confirmed, draftTemplates: drafts };
   }, [templates]);
 
   const sortedTemplates = useMemo(() => {
-    return [...displayTemplates].sort((a, b) => {
+    return [...confirmedTemplates].sort((a, b) => {
       if (a.favorite && !b.favorite) return -1;
       if (!a.favorite && b.favorite) return 1;
       if (a.hasAllPlaceholders && !b.hasAllPlaceholders) return -1;
       if (!a.hasAllPlaceholders && b.hasAllPlaceholders) return 1;
       return 0;
     });
-  }, [displayTemplates]);
+  }, [confirmedTemplates]);
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; html: string; lockedFields?: string[] }) => {
@@ -311,9 +311,15 @@ export default function Templates() {
     }
   }
 
-  function deleteTemplate(id: number) {
-    if (!window.confirm("¿Estás seguro de que deseas eliminar esta plantilla?")) return;
-    deleteMutation.mutate(id);
+  function handleDeleteClick(id: number) {
+    setDeleteConfirmId(id);
+  }
+
+  function confirmDelete() {
+    if (deleteConfirmId !== null) {
+      deleteMutation.mutate(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
   }
 
   function openEditAi(template: Template) {
@@ -623,7 +629,7 @@ export default function Templates() {
                         data-testid={`button-delete-template-${template.id}`}
                         variant="ghost"
                         size="icon"
-                        onClick={() => deleteTemplate(template.id)}
+                        onClick={() => handleDeleteClick(template.id)}
                       >
                         <Trash2 className="w-4 h-4 text-muted-foreground" />
                       </Button>
@@ -747,6 +753,89 @@ export default function Templates() {
           </div>
         )}
         </TutorialHighlight>
+
+        {draftTemplates.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-4">
+              <GitBranch className="w-4 h-4 text-orange-500" />
+              <h3 className="text-sm font-semibold text-muted-foreground">Versiones en proceso</h3>
+              <span className="text-xs bg-orange-100 text-orange-700 rounded-full px-2 py-0.5">{draftTemplates.length}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {draftTemplates.map((template, i) => (
+                <motion.div
+                  key={template.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.3 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  className="bg-card rounded-2xl border-2 border-orange-200 dark:border-orange-800 overflow-hidden shadow-sm group"
+                >
+                  <div
+                    className="h-48 overflow-hidden border-b border-border bg-white cursor-pointer relative"
+                    onClick={() => setPreviewId(template.id)}
+                  >
+                    <iframe
+                      srcDoc={template.html}
+                      sandbox=""
+                      className="w-full h-full pointer-events-none"
+                      style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
+                      title={template.name}
+                    />
+                    <div className="absolute inset-0 bg-transparent hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="bg-card/90 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-1.5 text-sm font-medium shadow-sm">
+                        <Eye className="w-4 h-4" />
+                        Vista previa
+                      </div>
+                    </div>
+                    <div className="absolute top-2 right-2">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-orange-100 text-orange-700 rounded-full px-2 py-0.5 shadow-sm">
+                        <GitBranch className="w-3 h-3" />
+                        Borrador
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <p className="text-sm font-semibold truncate">{template.name}</p>
+                    <div className="flex items-center gap-2">
+                      {getVersionCount(template) > 1 && (
+                        <Button
+                          data-testid={`button-view-versions-draft-${template.id}`}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl gap-1 text-xs"
+                          onClick={() => openVersions(template)}
+                        >
+                          <GitBranch className="w-3 h-3" />
+                          Ver {getVersionCount(template)} versiones
+                        </Button>
+                      )}
+                      <Button
+                        data-testid={`button-confirm-draft-${template.id}`}
+                        variant="default"
+                        size="sm"
+                        className="rounded-xl gap-1 text-xs bg-emerald-600 hover:bg-emerald-700"
+                        onClick={() => confirmMutation.mutate(template.id)}
+                        disabled={confirmMutation.isPending}
+                      >
+                        <Check className="w-3 h-3" />
+                        Confirmar
+                      </Button>
+                      <Button
+                        data-testid={`button-delete-draft-${template.id}`}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteClick(template.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {tutorialActive && <TutorialTip />}
 
@@ -1214,6 +1303,27 @@ export default function Templates() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar plantilla?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. La plantilla será eliminada permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete"
+              className="rounded-xl bg-red-600 hover:bg-red-700"
+              onClick={confirmDelete}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

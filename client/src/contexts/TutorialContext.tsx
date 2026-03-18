@@ -29,8 +29,8 @@ const CALENDAR_STEPS: TutorialStep[] = [
   { fieldId: "idea", label: "Idea del Correo", description: "Describa de qué se trata su correo. Puede ser una idea general — la IA se encargará de desarrollarla profesionalmente." },
   { fieldId: "objective", label: "Objetivo", description: "¿Cuál es el objetivo de este correo? (ej: Generar ventas, informar, invitar a un evento)." },
   { fieldId: "targetAudience", label: "Público Objetivo", description: "Opcional: defina a quién va dirigido este correo para que la IA adapte el tono y contenido." },
-  { fieldId: "imagePrompt", label: "Imagen", description: "Describa qué tipo de imagen desea para su correo. La IA la generará automáticamente." },
   { fieldId: "template", label: "Plantilla", description: "Seleccione una plantilla compatible para dar formato profesional a su correo." },
+  { fieldId: "imagePrompt", label: "Imagen", description: "Describa qué tipo de imagen desea para su correo. La IA la generará automáticamente." },
   { fieldId: "targetDatabase", label: "Base de Datos", description: "Escoja la base de datos de contactos a la que se enviará este correo." },
   { fieldId: "scheduledDate", label: "Fecha de Envío", description: "Defina la fecha y hora en que desea que se envíe su correo." },
 ];

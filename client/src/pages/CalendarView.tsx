@@ -590,7 +590,9 @@ export default function CalendarView() {
       toast({ title: "Texto no aprobado", description: "Debe aprobar el texto del correo antes de enviar.", variant: "destructive" });
       return;
     }
-    if (!imageApproved) {
+    const publishTemplate = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+    const publishImageLocked = ((publishTemplate as any)?.lockedFields || []).includes("imagen");
+    if (!imageApproved && !publishImageLocked) {
       toast({ title: "Imagen no aprobada", description: "Debe aprobar la imagen del correo antes de enviar.", variant: "destructive" });
       return;
     }
@@ -893,7 +895,9 @@ export default function CalendarView() {
   }
 
   function checkBothApprovalsAndSchedule(newImageApproved: boolean, newTextApproved: boolean) {
-    if (!newImageApproved || !newTextApproved) return;
+    const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+    const imgLocked = ((tpl as any)?.lockedFields || []).includes("imagen");
+    if (!(newImageApproved || imgLocked) || !newTextApproved) return;
     if (!editingCampaignId || !editingCampaign) return;
     if (editingCampaign.status !== "draft") return;
     if (!editingCampaign.scheduledAt) return;
@@ -1093,7 +1097,16 @@ export default function CalendarView() {
     const isSent = editingCampaign.status === "sent" || editingCampaign.status === "partial";
     const isSending = editingCampaign.status === "sending";
     const isGenerated = versions.length > 0;
-    const isReady = imageApproved && textApproved;
+
+    const isFailed = editingCampaign?.status === "failed";
+    const isPartial = editingCampaign?.status === "partial";
+    const isLocked = isCancelled || isSent || isSending || isFailed || isPartial;
+    const selectedTemplate = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+    const templateLockedFields: string[] = (selectedTemplate as any)?.lockedFields || [];
+    const isFieldLocked = (field: string) => templateLockedFields.includes(field);
+    const imageEffectivelyApproved = imageApproved || isFieldLocked("imagen");
+    const isReady = imageEffectivelyApproved && textApproved;
+    const progressPercent = isLocked ? -1 : (imageEffectivelyApproved ? 50 : 0) + (textApproved ? 50 : 0);
 
     const statusTags: Array<{ label: string; className: string }> = [];
     if (isResend) {
@@ -1111,14 +1124,6 @@ export default function CalendarView() {
       if (editingCampaign.status === "scheduled") statusTags.push({ label: "Programado", className: "bg-blue-100 text-blue-700" });
       if (editingCampaign.status === "draft") statusTags.push({ label: "Borrador", className: "bg-gray-100 text-gray-600" });
     }
-
-    const isFailed = editingCampaign?.status === "failed";
-    const isPartial = editingCampaign?.status === "partial";
-    const isLocked = isCancelled || isSent || isSending || isFailed || isPartial;
-    const selectedTemplate = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
-    const templateLockedFields: string[] = (selectedTemplate as any)?.lockedFields || [];
-    const isFieldLocked = (field: string) => templateLockedFields.includes(field);
-    const progressPercent = isLocked ? -1 : (imageApproved ? 50 : 0) + (textApproved ? 50 : 0);
 
     return (
       <Layout>
@@ -2580,6 +2585,57 @@ export default function CalendarView() {
                 </AnimatePresence>
               </div>
             </TutorialHighlight>
+            <TutorialHighlight fieldId="template">
+              <div className="space-y-2">
+                <Label>Plantilla</Label>
+                <Select
+                  value={form.templateId}
+                  onValueChange={(v) => {
+                    setForm(f => ({ ...f, templateId: v }));
+                    if (tutorial.tutorialActive && tutorial.getCurrentStep()?.fieldId === "template" && v) {
+                      tutorial.nextStep();
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
+                    <SelectValue placeholder="Seleccione una plantilla..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedTemplatesForSelector.map(t => (
+                      <SelectItem key={t.id} value={String(t.id)} disabled={!t.hasAllPlaceholders}>
+                        <div className="flex items-center gap-2">
+                          <span className="truncate">{t.name}</span>
+                          {t.hasAllPlaceholders ? (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                    {userTemplates.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                {form.templateId && (
+                  <div className="border border-border rounded-xl overflow-hidden bg-white">
+                    <iframe
+                      srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
+                      sandbox=""
+                      className="w-full h-24 pointer-events-none"
+                      style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
+                      title="template-mini-preview"
+                    />
+                  </div>
+                )}
+              </div>
+            </TutorialHighlight>
+            {!(form.templateId && (userTemplates.find(t => t.id === parseInt(form.templateId)) as any)?.lockedFields?.includes("imagen")) && (
             <TutorialHighlight fieldId="imagePrompt">
               <div className="space-y-2">
                 <Label>Imagen del Correo</Label>
@@ -2666,56 +2722,7 @@ export default function CalendarView() {
               </AnimatePresence>
               </div>
             </TutorialHighlight>
-            <TutorialHighlight fieldId="template">
-              <div className="space-y-2">
-                <Label>Plantilla</Label>
-                <Select
-                  value={form.templateId}
-                  onValueChange={(v) => {
-                    setForm(f => ({ ...f, templateId: v }));
-                    if (tutorial.tutorialActive && tutorial.getCurrentStep()?.fieldId === "template" && v) {
-                      tutorial.nextStep();
-                    }
-                  }}
-                >
-                  <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
-                    <SelectValue placeholder="Seleccione una plantilla..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedTemplatesForSelector.map(t => (
-                      <SelectItem key={t.id} value={String(t.id)} disabled={!t.hasAllPlaceholders}>
-                        <div className="flex items-center gap-2">
-                          <span className="truncate">{t.name}</span>
-                          {t.hasAllPlaceholders ? (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
-                              <AlertTriangle className="w-2.5 h-2.5" />
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                    {userTemplates.length === 0 && (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
-                    )}
-                  </SelectContent>
-                </Select>
-                {form.templateId && (
-                  <div className="border border-border rounded-xl overflow-hidden bg-white">
-                    <iframe
-                      srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
-                      sandbox=""
-                      className="w-full h-24 pointer-events-none"
-                      style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
-                      title="template-mini-preview"
-                    />
-                  </div>
-                )}
-              </div>
-            </TutorialHighlight>
+            )}
             <TutorialHighlight fieldId="targetDatabase">
               <div className="space-y-2">
                 <Label>Base de Datos de Destino</Label>

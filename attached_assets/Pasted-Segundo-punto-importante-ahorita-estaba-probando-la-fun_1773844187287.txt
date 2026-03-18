@@ -1,0 +1,15 @@
+Segundo punto importante: ahorita estaba probando la funcionalidad de crear una publicación utilizando la plantilla de RED que había precargado anteriormente. A esta plantilla solo le di clic a "Analizar con inteligencia artificial" y ella identificó que el único campo dinámico que podíamos tener era el texto. Entonces puso en la plantilla, en el contenedor de contenido, como único campo variable y el resto de la plantilla se mantiene igual.
+Ahorita me acabo de ir al calendario a querer crear una nueva campaña. Cuando yo creo una nueva campaña, me aparecen todos los diferentes parámetros. Todos estos parámetros son, por ejemplo:
+- Idea
+- Objeto
+- Objetivo
+- Público objetivo
+- Imagen del correo
+- Plantilla
+- Base de datos
+- Destino
+- Fecha y hora de programación
+Ahorita, pensando en que hemos implementado una nueva lógica para precisamente poder subir unas plantillas propias, creo que a la hora de ver este popup en el calendario nosotros deberíamos despedir, como una de las primeras cosas, después de repente, los tres parámetros de idea, objetivo y público objetivo. La plantilla, antes de ponerle a la persona la imagen del correo, en donde puede darle clic a los botones de "Prompt de imagen" y "Subir imagen".
+¿Por qué? Porque ¿qué pasa si esta persona ya selecciona una plantilla que ya, como tal, pre hecho en su plantilla que subió, ya tiene una imagen colocada? Si él ya tiene una imagen colocada y arcoeada en la plantilla y el único campo variable que se identificó fueron los textos, entonces la persona solo debería de poder llenar los tres parámetros de arriba, la idea del objetivo y el público objetivo, no la imagen.
+Ahorita por ejemplo yo acabo de crear uno nuevo en donde yo llene todos los parámetros y utilicé una plantilla que yo ya tenía existente con una imagen. Ahí se me desperdició una regeneración y disparó una petición a la API de una imagen que va a ser desperdiciada porque no va a ser incorporada o incrustada en la plantilla.
+Entonces creo que deberíamos de poner una especie de validación en donde me pida los tres parámetros, idea, objetivo y público objetivo. Después me pida la plantilla y si yo selecciono una plantilla que tiene la variable de imagen, entonces que me tire la opción de "Imagen del correo", "Prompt de imagen" o "Subir imagen". Pero si yo selecciono una de mis plantillas que yo tengo cargadas en mi usuario, que ya tiene algunos campos hard codeados, que en este caso sería por ejemplo la imagen, entonces no me debería aparecer eso. Sólo me debería de aparecer los parámetros que están ligados a los textos, que son idea, objetivo y público objetivo. Ese parámetro siempre tiene que aparecer pero si yo tengo una imagen hard codeada no debería de aparecerme esa opción porque ahí me va a pasar lo que me pasó ahorita, que estoy generando una imagen que no se va a ocupar porque mi herramienta ya había identificado que mi plantilla tiene una. Entonces es para también mitigar ese costo.
