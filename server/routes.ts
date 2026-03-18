@@ -335,7 +335,7 @@ export async function registerRoutes(
         return res.status(409).json({ message: "Ya existe una cuenta con este correo electrónico." });
       }
       const hashedPassword = await bcrypt.hash(input.password, 10);
-      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const verificationToken = crypto.randomUUID();
       const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       const user = await storage.createUser({
@@ -365,7 +365,6 @@ export async function registerRoutes(
               email: user.email,
               name: user.name,
               company: user.company || "",
-              verificationToken,
               verificationLink,
             }),
           });
@@ -373,7 +372,7 @@ export async function registerRoutes(
           console.error("[register] Failed to call verification webhook:", webhookErr);
         }
       } else {
-        console.warn("[register] MAKE_VERIFICATION_WEBHOOK_URL not set, skipping verification email.");
+        console.warn("[register] MAKE_VERIFICATION_WEBHOOK_URL not set, verification email will not be sent.");
       }
 
       res.status(201).json({ 
@@ -490,7 +489,7 @@ export async function registerRoutes(
       if (user.isVerified) {
         return res.json({ message: "La cuenta ya está verificada." });
       }
-      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const verificationToken = crypto.randomUUID();
       const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const { users: usersTable } = await import("@shared/schema");
       await db.update(usersTable)
@@ -512,13 +511,14 @@ export async function registerRoutes(
               email: user.email,
               name: user.name,
               company: user.company || "",
-              verificationToken,
               verificationLink,
             }),
           });
         } catch (webhookErr) {
           console.error("[resend-verification] Failed to call webhook:", webhookErr);
         }
+      } else {
+        console.warn("[resend-verification] MAKE_VERIFICATION_WEBHOOK_URL not set, verification email will not be sent.");
       }
       res.json({ message: "Si el correo existe, se enviará un nuevo enlace de verificación." });
     } catch (err) {
