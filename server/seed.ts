@@ -29,11 +29,20 @@ export async function seedProductionDatabase(): Promise<void> {
       await client.query("BEGIN");
 
       if (data.users?.length) {
+        const hasVerifiedCol = await client.query(`SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='is_verified'`);
+        const useVerified = hasVerifiedCol.rows.length > 0;
         for (const u of data.users) {
-          await client.query(
-            `INSERT INTO users (id, name, email, password, company, role, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
-            [u.id, u.name, u.email, u.password, u.company, u.role, u.is_active, u.created_at]
-          );
+          if (useVerified) {
+            await client.query(
+              `INSERT INTO users (id, name, email, password, company, role, is_active, is_verified, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+              [u.id, u.name, u.email, u.password, u.company, u.role, u.is_active, (u as any).is_verified !== false, u.created_at]
+            );
+          } else {
+            await client.query(
+              `INSERT INTO users (id, name, email, password, company, role, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
+              [u.id, u.name, u.email, u.password, u.company, u.role, u.is_active, u.created_at]
+            );
+          }
         }
         const maxId = Math.max(...data.users.map((u: any) => u.id));
         await client.query(`SELECT setval('users_id_seq', $1, true)`, [maxId]);

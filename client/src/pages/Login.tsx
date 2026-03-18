@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Mail, Lock, ArrowRight, User, Building2 } from "lucide-react";
+import { Mail, Lock, ArrowRight, User, Building2, CheckCircle2, RefreshCw, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,26 +11,74 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "pending-verification">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (mode === "pending-verification" && pendingEmail) {
+      pollingRef.current = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/auth/verification-status?email=${encodeURIComponent(pendingEmail)}`, { credentials: "include" });
+          const data = await res.json();
+          if (data.verified) {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            toast({ title: "Cuenta verificada", description: "Tu cuenta ha sido verificada. Inicia sesión para continuar." });
+            setMode("login");
+            setEmail(pendingEmail);
+          }
+        } catch {}
+      }, 5000);
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [mode, pendingEmail]);
+
+  async function handleResendVerification() {
+    setResending(true);
+    try {
+      await apiRequest("POST", "/api/auth/resend-verification", { email: pendingEmail });
+      toast({ title: "Correo enviado", description: "Se ha reenviado el enlace de verificación." });
+    } catch {
+      toast({ title: "Error", description: "No se pudo reenviar el correo.", variant: "destructive" });
+    } finally {
+      setResending(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await apiRequest("POST", "/api/auth/login", { email, password });
-      const user = await res.json();
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.pendingVerification) {
+          setPendingEmail(data.email || email);
+          setMode("pending-verification");
+          return;
+        }
+        throw new Error(data.message || "Error al iniciar sesión.");
+      }
       localStorage.setItem("postIAlo_auth", "true");
       setLocation("/");
     } catch (err: any) {
-      const msg = err.message?.includes("401")
+      const msg = err.message?.includes("incorrectos")
         ? "Correo o contraseña incorrectos."
-        : "Error al iniciar sesión. Intente de nuevo.";
+        : err.message || "Error al iniciar sesión. Intente de nuevo.";
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -41,19 +89,32 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await apiRequest("POST", "/api/auth/register", {
-        name,
-        email,
-        password,
-        company: company || undefined,
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          company: company || undefined,
+        }),
+        credentials: "include",
       });
-      const user = await res.json();
-      localStorage.setItem("postIAlo_auth", "true");
-      setLocation("/");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Error al registrarse.");
+      }
+      if (data.pendingVerification) {
+        setPendingEmail(data.email || email);
+        setMode("pending-verification");
+      } else {
+        localStorage.setItem("postIAlo_auth", "true");
+        setLocation("/");
+      }
     } catch (err: any) {
-      const msg = err.message?.includes("409")
+      const msg = err.message?.includes("409") || err.message?.includes("Ya existe")
         ? "Ya existe una cuenta con este correo."
-        : "Error al registrarse. Intente de nuevo.";
+        : err.message || "Error al registrarse. Intente de nuevo.";
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -82,13 +143,53 @@ export default function Login() {
             </h1>
           </div>
 
-          <p className="text-center text-gray-500 mb-8">
-            {mode === "login"
-              ? "Tu plataforma inteligente de email marketing"
-              : "Crea tu cuenta para comenzar"}
-          </p>
+          {mode !== "pending-verification" && (
+            <p className="text-center text-gray-500 mb-8">
+              {mode === "login"
+                ? "Tu plataforma inteligente de email marketing"
+                : "Crea tu cuenta para comenzar"}
+            </p>
+          )}
 
-          {mode === "login" ? (
+          {mode === "pending-verification" ? (
+            <div className="text-center space-y-5">
+              <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto">
+                <Clock className="w-8 h-8 text-[#002073]" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800" data-testid="text-pending-verification">
+                Verifica tu correo electrónico
+              </h2>
+              <p className="text-sm text-gray-500">
+                Hemos enviado un enlace de verificación a{" "}
+                <span className="font-semibold text-gray-700">{pendingEmail}</span>.
+                Haz clic en el enlace para activar tu cuenta.
+              </p>
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Verificando automáticamente...
+              </div>
+              <div className="pt-2 space-y-3">
+                <Button
+                  data-testid="button-resend-verification"
+                  variant="outline"
+                  className="w-full rounded-xl gap-2"
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                >
+                  <Mail className="w-4 h-4" />
+                  {resending ? "Reenviando..." : "Reenviar correo de verificación"}
+                </Button>
+                <button
+                  data-testid="button-back-to-login"
+                  type="button"
+                  onClick={() => { setMode("login"); if (pollingRef.current) clearInterval(pollingRef.current); }}
+                  className="text-sm text-[#002073] font-semibold hover:underline"
+                >
+                  Volver al inicio de sesión
+                </button>
+              </div>
+            </div>
+          ) : mode === "login" ? (
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700">Correo electrónico</Label>
@@ -219,54 +320,58 @@ export default function Login() {
             </form>
           )}
 
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-3 text-gray-400">o continúa con</span>
-            </div>
-          </div>
+          {mode !== "pending-verification" && (
+            <>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-3 text-gray-400">o continúa con</span>
+                </div>
+              </div>
 
-          <Button
-            data-testid="button-google-login"
-            variant="outline"
-            className="w-full rounded-xl gap-2 border-gray-300 text-gray-400 cursor-not-allowed"
-            size="lg"
-            disabled
-            title="Próximamente"
-          >
-            <SiGoogle className="w-4 h-4" />
-            Google (Próximamente)
-          </Button>
+              <Button
+                data-testid="button-google-login"
+                variant="outline"
+                className="w-full rounded-xl gap-2 border-gray-300 text-gray-400 cursor-not-allowed"
+                size="lg"
+                disabled
+                title="Próximamente"
+              >
+                <SiGoogle className="w-4 h-4" />
+                Google (Próximamente)
+              </Button>
 
-          <div className="mt-6 text-center">
-            {mode === "login" ? (
-              <p className="text-sm text-gray-500">
-                ¿No tienes cuenta?{" "}
-                <button
-                  data-testid="button-switch-to-register"
-                  type="button"
-                  onClick={() => setMode("register")}
-                  className="text-[#002073] font-semibold hover:underline"
-                >
-                  Regístrate
-                </button>
-              </p>
-            ) : (
-              <p className="text-sm text-gray-500">
-                ¿Ya tienes cuenta?{" "}
-                <button
-                  data-testid="button-switch-to-login"
-                  type="button"
-                  onClick={() => setMode("login")}
-                  className="text-[#002073] font-semibold hover:underline"
-                >
-                  Inicia sesión
-                </button>
-              </p>
-            )}
-          </div>
+              <div className="mt-6 text-center">
+                {mode === "login" ? (
+                  <p className="text-sm text-gray-500">
+                    ¿No tienes cuenta?{" "}
+                    <button
+                      data-testid="button-switch-to-register"
+                      type="button"
+                      onClick={() => setMode("register")}
+                      className="text-[#002073] font-semibold hover:underline"
+                    >
+                      Regístrate
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    ¿Ya tienes cuenta?{" "}
+                    <button
+                      data-testid="button-switch-to-login"
+                      type="button"
+                      onClick={() => setMode("login")}
+                      className="text-[#002073] font-semibold hover:underline"
+                    >
+                      Inicia sesión
+                    </button>
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </motion.div>
     </div>

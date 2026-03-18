@@ -192,6 +192,19 @@ const migrations: Migration[] = [
       console.log("[migration 007] Added locked_fields column to templates");
     },
   },
+  {
+    name: "008_add_email_verification_columns",
+    up: async (client) => {
+      await client.query(`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS verification_token TEXT,
+        ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP
+      `);
+      await client.query(`UPDATE users SET is_verified = true WHERE is_verified = false`);
+      console.log("[migration 008] Added email verification columns and marked existing users as verified");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

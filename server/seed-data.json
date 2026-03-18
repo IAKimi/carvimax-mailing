@@ -8,7 +8,8 @@
       "company": "Mailing Demo Account",
       "role": "admin",
       "created_at": "2026-03-10T20:49:17.449Z",
-      "is_active": true
+      "is_active": true,
+      "is_verified": true
     },
     {
       "id": 12,
@@ -18,7 +19,8 @@
       "company": "AMACHUCA",
       "role": "user",
       "created_at": "2026-03-10T21:17:00.035Z",
-      "is_active": true
+      "is_active": true,
+      "is_verified": true
     },
     {
       "id": 14,
@@ -28,7 +30,8 @@
       "company": "PostIAlo Mailing",
       "role": "superadmin",
       "created_at": "2026-03-12T20:00:46.557Z",
-      "is_active": true
+      "is_active": true,
+      "is_verified": true
     }
   ],
   "contact_databases": [

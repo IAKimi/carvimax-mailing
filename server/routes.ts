@@ -281,8 +281,8 @@ function sanitizeHtml(html: string): string {
     .replace(/javascript\s*:/gi, "");
 }
 
-function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null; role: string; isActive: boolean; createdAt: Date | null }) {
-  const { password, ...safe } = user;
+function sanitizeUser(user: { id: number; name: string; email: string; password: string; company: string | null; role: string; isActive: boolean; isVerified: boolean; createdAt: Date | null }) {
+  const { password, verificationToken, verificationTokenExpiresAt, ...safe } = user as any;
   return safe;
 }
 
@@ -335,14 +335,51 @@ export async function registerRoutes(
         return res.status(409).json({ message: "Ya existe una cuenta con este correo electrónico." });
       }
       const hashedPassword = await bcrypt.hash(input.password, 10);
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
       const user = await storage.createUser({
         name: input.name,
         email: input.email,
         password: hashedPassword,
         company: input.company || null,
       });
-      req.session.userId = user.id;
-      res.status(201).json(sanitizeUser(user));
+
+      const { users: usersTable } = await import("@shared/schema");
+      await db.update(usersTable)
+        .set({ verificationToken, verificationTokenExpiresAt })
+        .where(eq(usersTable.id, user.id));
+
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers["host"] || "localhost:5000";
+      const verificationLink = `${protocol}://${host}/verify/${verificationToken}`;
+
+      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL;
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+              company: user.company || "",
+              verificationToken,
+              verificationLink,
+            }),
+          });
+        } catch (webhookErr) {
+          console.error("[register] Failed to call verification webhook:", webhookErr);
+        }
+      } else {
+        console.warn("[register] MAKE_VERIFICATION_WEBHOOK_URL not set, skipping verification email.");
+      }
+
+      res.status(201).json({ 
+        message: "Cuenta creada. Revisa tu correo para verificar tu cuenta.",
+        pendingVerification: true,
+        email: user.email,
+      });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
@@ -364,6 +401,9 @@ export async function registerRoutes(
       }
       if (!user.isActive) {
         return res.status(403).json({ message: "Cuenta desactivada. Contacte al administrador." });
+      }
+      if (!user.isVerified) {
+        return res.status(403).json({ message: "Cuenta no verificada. Revisa tu correo electrónico para confirmar tu cuenta.", pendingVerification: true, email: user.email });
       }
       req.session.userId = user.id;
       res.json(sanitizeUser(user));
@@ -400,6 +440,90 @@ export async function registerRoutes(
       res.clearCookie("connect.sid");
       res.json({ message: "Sesión cerrada." });
     });
+  });
+
+  app.get("/api/auth/verify/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const user = await storage.getUserByVerificationToken(token);
+      if (!user) {
+        return res.status(400).json({ message: "Token de verificación inválido o expirado." });
+      }
+      if (user.verificationTokenExpiresAt && user.verificationTokenExpiresAt < new Date()) {
+        return res.status(400).json({ message: "El enlace de verificación ha expirado. Solicita uno nuevo." });
+      }
+      if (user.isVerified) {
+        req.session.userId = user.id;
+        return res.json({ message: "Cuenta ya verificada.", alreadyVerified: true });
+      }
+      await storage.verifyUser(user.id);
+      req.session.userId = user.id;
+      res.json({ message: "Cuenta verificada exitosamente.", verified: true });
+    } catch (err) {
+      console.error("[verify] Error:", err);
+      res.status(500).json({ message: "Error al verificar la cuenta." });
+    }
+  });
+
+  app.get("/api/auth/verification-status", async (req, res) => {
+    const email = req.query.email as string;
+    if (!email) {
+      return res.status(400).json({ message: "Email requerido." });
+    }
+    const user = await storage.getUserByEmail(email);
+    if (!user) {
+      return res.json({ verified: false });
+    }
+    res.json({ verified: user.isVerified });
+  });
+
+  app.post("/api/auth/resend-verification", authLimiter, async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: "Email requerido." });
+      }
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.json({ message: "Si el correo existe, se enviará un nuevo enlace de verificación." });
+      }
+      if (user.isVerified) {
+        return res.json({ message: "La cuenta ya está verificada." });
+      }
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+      const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const { users: usersTable } = await import("@shared/schema");
+      await db.update(usersTable)
+        .set({ verificationToken, verificationTokenExpiresAt })
+        .where(eq(usersTable.id, user.id));
+
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers["host"] || "localhost:5000";
+      const verificationLink = `${protocol}://${host}/verify/${verificationToken}`;
+
+      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL;
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+              company: user.company || "",
+              verificationToken,
+              verificationLink,
+            }),
+          });
+        } catch (webhookErr) {
+          console.error("[resend-verification] Failed to call webhook:", webhookErr);
+        }
+      }
+      res.json({ message: "Si el correo existe, se enviará un nuevo enlace de verificación." });
+    } catch (err) {
+      console.error("[resend-verification] Error:", err);
+      res.status(500).json({ message: "Error al reenviar verificación." });
+    }
   });
 
   app.get("/api/dashboard/stats", requireAuth, async (req, res) => {

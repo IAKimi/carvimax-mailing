@@ -18,6 +18,8 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: number): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
+  verifyUser(id: number): Promise<User | undefined>;
 
   getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]>;
   getCampaigns(userId: number): Promise<Campaign[]>;
@@ -94,6 +96,19 @@ export class DatabaseStorage implements IStorage {
   async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.verificationToken, token));
+    return user;
+  }
+
+  async verifyUser(id: number): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ isVerified: true, verificationToken: null, verificationTokenExpiresAt: null })
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
   }
 
   async getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]> {

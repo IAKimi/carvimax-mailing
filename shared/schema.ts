@@ -10,6 +10,9 @@ export const users = pgTable("users", {
   company: text("company"),
   role: text("role").notNull().default("user"),
   isActive: boolean("is_active").notNull().default(true),
+  isVerified: boolean("is_verified").notNull().default(false),
+  verificationToken: text("verification_token"),
+  verificationTokenExpiresAt: timestamp("verification_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -136,7 +139,7 @@ export const TEMPLATE_PLACEHOLDERS = {
 
 export const ALL_PLACEHOLDER_KEYS = Object.values(TEMPLATE_PLACEHOLDERS).map(p => p.key);
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, role: true, isActive: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, role: true, isActive: true, isVerified: true, verificationToken: true, verificationTokenExpiresAt: true, createdAt: true });
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({ id: true, createdAt: true, status: true, totalExpectedSends: true, sentCount: true, failedCount: true, imageRegenCount: true, textRegenCount: true, schedulerRetryCount: true, schedulerLastError: true, textApproved: true, imageApproved: true });
 export const insertCampaignVersionSchema = createInsertSchema(campaignVersions).omit({ id: true, createdAt: true });
 export const insertContactDatabaseSchema = createInsertSchema(contactDatabases).omit({ id: true, createdAt: true });

@@ -16,6 +16,7 @@ import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
 import AdminUsers from "@/pages/AdminUsers";
 import Dashboard from "@/pages/Dashboard";
+import VerifyEmail from "@/pages/VerifyEmail";
 import { getOnboardingLevel, type OnboardingStatus } from "@/components/Layout";
 
 const ROUTE_LEVELS: Record<string, number> = {
@@ -130,6 +131,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginRoute} />
+      <Route path="/verify/:token" component={VerifyEmail} />
       <Route path="/">{() => <ProtectedRoute component={Home} />}</Route>
       <Route path="/brand">{() => <ProtectedRoute component={BrandIdentity} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={CalendarView} />}</Route>
