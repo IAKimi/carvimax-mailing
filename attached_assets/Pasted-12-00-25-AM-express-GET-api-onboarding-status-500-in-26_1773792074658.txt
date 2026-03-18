@@ -1,0 +1,100 @@
+12:00:25 AM [express] GET /api/onboarding-status 500 in 26ms :: {"message":"column \"locked_fields\" does not exist"}
+12:00:26 AM [express] GET /api/brand-identity 304 in 25ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"http://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_8a08f4f33e31120e.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-16T21:58:52.056Z"}
+12:00:26 AM [express] GET /api/onboarding-status 500 in 25ms :: {"message":"column \"locked_fields\" does not exist"}
+12:00:33 AM [express] PUT /api/brand-identity 200 in 33ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"http://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_8a08f4f33e31120e.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-18T00:00:33.755Z"}
+12:00:33 AM [express] GET /api/brand-identity 200 in 21ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"http://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_8a08f4f33e31120e.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-18T00:00:33.755Z"}
+12:00:33 AM [express] GET /api/onboarding-status 500 in 124ms :: {"message":"column \"locked_fields\" does not exist"}
+12:00:40 AM [express] PUT /api/brand-identity 200 in 33ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"http://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_8a08f4f33e31120e.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-18T00:00:40.880Z"}
+12:00:41 AM [express] GET /api/brand-identity 200 in 20ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"http://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_8a08f4f33e31120e.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-18T00:00:40.880Z"}
+12:00:41 AM [express] GET /api/onboarding-status 500 in 58ms :: {"message":"column \"locked_fields\" does not exist"}
+at /app/dist/index.cjs:74:13326
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+at async /app/dist/index.cjs:88:31363
+at async /app/dist/index.cjs:328:17187 {
+length: 114,
+severity: 'ERROR',
+code: '42703',
+detail: undefined,
+hint: undefined,
+position: '186',
+internalPosition: undefined,
+internalQuery: undefined,
+where: undefined,
+schema: undefined,
+table: undefined,
+column: undefined,
+dataType: undefined,
+constraint: undefined,
+file: 'parse_relation.c',
+line: '3722',
+routine: 'errorMissingColumn'
+}
+Internal Server Error: error: column "locked_fields" does not exist
+at /app/dist/index.cjs:74:13326
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+at async /app/dist/index.cjs:88:31363
+at async /app/dist/index.cjs:328:17187 {
+length: 114,
+severity: 'ERROR',
+code: '42703',
+detail: undefined,
+hint: undefined,
+position: '186',
+internalPosition: undefined,
+internalQuery: undefined,
+where: undefined,
+schema: undefined,
+table: undefined,
+column: undefined,
+dataType: undefined,
+constraint: undefined,
+file: 'parse_relation.c',
+line: '3722',
+routine: 'errorMissingColumn'
+}
+Internal Server Error: error: column "locked_fields" does not exist
+at /app/dist/index.cjs:74:13326
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+at async /app/dist/index.cjs:88:31363
+at async /app/dist/index.cjs:328:17187 {
+length: 114,
+severity: 'ERROR',
+code: '42703',
+detail: undefined,
+hint: undefined,
+position: '186',
+internalPosition: undefined,
+internalQuery: undefined,
+where: undefined,
+schema: undefined,
+table: undefined,
+column: undefined,
+dataType: undefined,
+constraint: undefined,
+file: 'parse_relation.c',
+line: '3722',
+routine: 'errorMissingColumn'
+}
+Internal Server Error: error: column "locked_fields" does not exist
+at /app/dist/index.cjs:74:13326
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+at async /app/dist/index.cjs:88:31363
+at async /app/dist/index.cjs:328:17187 {
+length: 114,
+severity: 'ERROR',
+code: '42703',
+detail: undefined,
+hint: undefined,
+position: '186',
+internalPosition: undefined,
+internalQuery: undefined,
+where: undefined,
+schema: undefined,
+table: undefined,
+column: undefined,
+dataType: undefined,
+constraint: undefined,
+file: 'parse_relation.c',
+line: '3722',
+routine: 'errorMissingColumn'
+}

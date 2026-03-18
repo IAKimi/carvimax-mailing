@@ -185,6 +185,13 @@ const migrations: Migration[] = [
       console.log("[migration 006] Added sent_html column to campaign_versions");
     },
   },
+  {
+    name: "007_add_locked_fields_to_templates",
+    up: async (client) => {
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS locked_fields jsonb`);
+      console.log("[migration 007] Added locked_fields column to templates");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
