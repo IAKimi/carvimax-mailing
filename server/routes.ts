@@ -353,7 +353,7 @@ export async function registerRoutes(
 
       const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.eu2.make.com/0ifmac54kwkvgc85hlyq8nuxdfl15spu";
       try {
-        await fetch(webhookUrl, {
+        const webhookRes = await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -364,6 +364,9 @@ export async function registerRoutes(
             verificationLink,
           }),
         });
+        if (!webhookRes.ok) {
+          console.error(`[register] Verification webhook returned ${webhookRes.status}: ${await webhookRes.text().catch(() => "")}`);
+        }
       } catch (webhookErr) {
         console.error("[register] Failed to call verification webhook:", webhookErr);
       }
@@ -489,7 +492,7 @@ export async function registerRoutes(
 
       const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.eu2.make.com/0ifmac54kwkvgc85hlyq8nuxdfl15spu";
       try {
-        await fetch(webhookUrl, {
+        const webhookRes = await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -500,6 +503,9 @@ export async function registerRoutes(
             verificationLink,
           }),
         });
+        if (!webhookRes.ok) {
+          console.error(`[resend-verification] Webhook returned ${webhookRes.status}: ${await webhookRes.text().catch(() => "")}`);
+        }
       } catch (webhookErr) {
         console.error("[resend-verification] Failed to call webhook:", webhookErr);
       }
