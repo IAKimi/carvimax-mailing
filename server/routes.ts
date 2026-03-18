@@ -345,10 +345,7 @@ export async function registerRoutes(
         company: input.company || null,
       });
 
-      const { users: usersTable } = await import("@shared/schema");
-      await db.update(usersTable)
-        .set({ verificationToken, verificationTokenExpiresAt })
-        .where(eq(usersTable.id, user.id));
+      await storage.setVerificationToken(user.id, verificationToken, verificationTokenExpiresAt);
 
       const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers["host"] || "localhost:5000";
@@ -484,10 +481,7 @@ export async function registerRoutes(
       }
       const verificationToken = crypto.randomUUID();
       const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      const { users: usersTable } = await import("@shared/schema");
-      await db.update(usersTable)
-        .set({ verificationToken, verificationTokenExpiresAt })
-        .where(eq(usersTable.id, user.id));
+      await storage.setVerificationToken(user.id, verificationToken, verificationTokenExpiresAt);
 
       const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers["host"] || "localhost:5000";

@@ -20,6 +20,7 @@ export interface IStorage {
   getUserById(id: number): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
   verifyUser(id: number): Promise<User | undefined>;
+  setVerificationToken(userId: number, token: string, expiresAt: Date): Promise<void>;
 
   getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]>;
   getCampaigns(userId: number): Promise<Campaign[]>;
@@ -109,6 +110,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return updated;
+  }
+
+  async setVerificationToken(userId: number, token: string, expiresAt: Date): Promise<void> {
+    await db.update(users)
+      .set({ verificationToken: token, verificationTokenExpiresAt: expiresAt })
+      .where(eq(users.id, userId));
   }
 
   async getCampaignsLight(userId: number, year?: number, month?: number): Promise<CampaignListItem[]> {
