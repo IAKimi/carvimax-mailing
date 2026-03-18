@@ -26,16 +26,16 @@ export default function Login() {
     if (mode === "pending-verification" && pendingEmail) {
       pollingRef.current = setInterval(async () => {
         try {
-          const res = await fetch(`/api/auth/verification-status?email=${encodeURIComponent(pendingEmail)}`, { credentials: "include" });
+          const res = await fetch(`/api/auth/verification-status/${encodeURIComponent(pendingEmail)}`, { credentials: "include" });
           const data = await res.json();
           if (data.verified) {
             if (pollingRef.current) clearInterval(pollingRef.current);
-            toast({ title: "Cuenta verificada", description: "Tu cuenta ha sido verificada. Inicia sesión para continuar." });
-            setMode("login");
             setEmail(pendingEmail);
+            setMode("login");
+            toast({ title: "Cuenta verificada", description: "Tu cuenta ha sido verificada. Inicia sesión para continuar." });
           }
         } catch {}
-      }, 5000);
+      }, 3000);
     }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -66,7 +66,7 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.pendingVerification) {
+        if (data.needsVerification) {
           setPendingEmail(data.email || email);
           setMode("pending-verification");
           return;
@@ -104,7 +104,7 @@ export default function Login() {
       if (!res.ok) {
         throw new Error(data.message || "Error al registrarse.");
       }
-      if (data.pendingVerification) {
+      if (data.needsVerification) {
         setPendingEmail(data.email || email);
         setMode("pending-verification");
       } else {

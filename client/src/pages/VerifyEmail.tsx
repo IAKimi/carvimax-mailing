@@ -1,42 +1,24 @@
 import { useState, useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
 import { motion } from "framer-motion";
-import { Mail, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Mail, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid: "El enlace de verificación es inválido o ya fue utilizado.",
+  expired: "El enlace de verificación ha expirado. Solicita uno nuevo desde la pantalla de inicio de sesión.",
+  server: "Ocurrió un error al verificar tu cuenta. Intenta de nuevo más tarde.",
+};
 
 export default function VerifyEmail() {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/verify/:token");
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!params?.token) {
-      setStatus("error");
-      setMessage("Token de verificación no proporcionado.");
-      return;
-    }
-
-    fetch(`/api/auth/verify/${params.token}`, { credentials: "include" })
-      .then(async (res) => {
-        const data = await res.json();
-        if (res.ok) {
-          setStatus("success");
-          setMessage(data.message || "Cuenta verificada exitosamente.");
-          localStorage.setItem("postIAlo_auth", "true");
-          setTimeout(() => {
-            setLocation("/");
-          }, 2000);
-        } else {
-          setStatus("error");
-          setMessage(data.message || "Error al verificar la cuenta.");
-        }
-      })
-      .catch(() => {
-        setStatus("error");
-        setMessage("Error de conexión. Intenta de nuevo.");
-      });
-  }, [params?.token]);
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get("reason") || "invalid";
+    setMessage(ERROR_MESSAGES[reason] || ERROR_MESSAGES.invalid);
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#002073]">
@@ -60,43 +42,22 @@ export default function VerifyEmail() {
             </h1>
           </div>
 
-          {status === "loading" && (
-            <div className="space-y-4">
-              <Loader2 className="w-12 h-12 text-[#002073] animate-spin mx-auto" />
-              <p className="text-gray-600 font-medium">Verificando tu cuenta...</p>
+          <div className="space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+              <XCircle className="w-8 h-8 text-red-600" />
             </div>
-          )}
-
-          {status === "success" && (
-            <div className="space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800" data-testid="text-verify-success">
-                {message}
-              </h2>
-              <p className="text-sm text-gray-500">Redirigiendo al dashboard...</p>
-            </div>
-          )}
-
-          {status === "error" && (
-            <div className="space-y-4">
-              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
-                <XCircle className="w-8 h-8 text-red-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800" data-testid="text-verify-error">
-                Verificación fallida
-              </h2>
-              <p className="text-sm text-gray-500">{message}</p>
-              <Button
-                data-testid="button-go-to-login"
-                onClick={() => setLocation("/login")}
-                className="mt-4 rounded-xl bg-[#002073] hover:bg-[#001a5e] text-white"
-              >
-                Ir al inicio de sesión
-              </Button>
-            </div>
-          )}
+            <h2 className="text-xl font-bold text-gray-800" data-testid="text-verify-error">
+              Verificación fallida
+            </h2>
+            <p className="text-sm text-gray-500">{message}</p>
+            <Button
+              data-testid="button-go-to-login"
+              onClick={() => setLocation("/login")}
+              className="mt-4 rounded-xl bg-[#002073] hover:bg-[#001a5e] text-white"
+            >
+              Ir al inicio de sesión
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>

@@ -131,7 +131,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginRoute} />
-      <Route path="/verify/:token" component={VerifyEmail} />
+      <Route path="/verify/error" component={VerifyEmail} />
       <Route path="/">{() => <ProtectedRoute component={Home} />}</Route>
       <Route path="/brand">{() => <ProtectedRoute component={BrandIdentity} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={CalendarView} />}</Route>

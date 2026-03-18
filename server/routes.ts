@@ -352,7 +352,7 @@ export async function registerRoutes(
 
       const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers["host"] || "localhost:5000";
-      const verificationLink = `${protocol}://${host}/verify/${verificationToken}`;
+      const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
 
       const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL;
       if (webhookUrl) {
@@ -361,6 +361,7 @@ export async function registerRoutes(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              type: "verification",
               email: user.email,
               name: user.name,
               company: user.company || "",
@@ -377,7 +378,7 @@ export async function registerRoutes(
 
       res.status(201).json({ 
         message: "Cuenta creada. Revisa tu correo para verificar tu cuenta.",
-        pendingVerification: true,
+        needsVerification: true,
         email: user.email,
       });
     } catch (err) {
@@ -403,7 +404,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Cuenta desactivada. Contacte al administrador." });
       }
       if (!user.isVerified) {
-        return res.status(403).json({ message: "Cuenta no verificada. Revisa tu correo electrónico para confirmar tu cuenta.", pendingVerification: true, email: user.email });
+        return res.status(403).json({ message: "Cuenta no verificada. Revisa tu correo electrónico para confirmar tu cuenta.", needsVerification: true, email: user.email });
       }
       req.session.userId = user.id;
       res.json(sanitizeUser(user));
@@ -447,26 +448,24 @@ export async function registerRoutes(
       const { token } = req.params;
       const user = await storage.getUserByVerificationToken(token);
       if (!user) {
-        return res.status(400).json({ message: "Token de verificación inválido o expirado." });
+        return res.redirect("/verify/error?reason=invalid");
       }
       if (user.verificationTokenExpiresAt && user.verificationTokenExpiresAt < new Date()) {
-        return res.status(400).json({ message: "El enlace de verificación ha expirado. Solicita uno nuevo." });
+        return res.redirect("/verify/error?reason=expired");
       }
-      if (user.isVerified) {
-        req.session.userId = user.id;
-        return res.json({ message: "Cuenta ya verificada.", alreadyVerified: true });
+      if (!user.isVerified) {
+        await storage.verifyUser(user.id);
       }
-      await storage.verifyUser(user.id);
       req.session.userId = user.id;
-      res.json({ message: "Cuenta verificada exitosamente.", verified: true });
+      res.redirect("/");
     } catch (err) {
       console.error("[verify] Error:", err);
-      res.status(500).json({ message: "Error al verificar la cuenta." });
+      res.redirect("/verify/error?reason=server");
     }
   });
 
-  app.get("/api/auth/verification-status", async (req, res) => {
-    const email = req.query.email as string;
+  app.get("/api/auth/verification-status/:email", async (req, res) => {
+    const email = req.params.email;
     if (!email) {
       return res.status(400).json({ message: "Email requerido." });
     }
@@ -499,7 +498,7 @@ export async function registerRoutes(
 
       const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers["host"] || "localhost:5000";
-      const verificationLink = `${protocol}://${host}/verify/${verificationToken}`;
+      const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
 
       const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL;
       if (webhookUrl) {
@@ -508,6 +507,7 @@ export async function registerRoutes(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              type: "verification",
               email: user.email,
               name: user.name,
               company: user.company || "",
