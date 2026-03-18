@@ -377,6 +377,7 @@ export async function registerRoutes(
       }
 
       res.status(201).json({ 
+        success: true,
         message: "Cuenta creada. Revisa tu correo para verificar tu cuenta.",
         needsVerification: true,
         email: user.email,

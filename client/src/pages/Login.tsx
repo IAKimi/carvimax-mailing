@@ -30,9 +30,7 @@ export default function Login() {
           const data = await res.json();
           if (data.verified) {
             if (pollingRef.current) clearInterval(pollingRef.current);
-            setEmail(pendingEmail);
-            setMode("login");
-            toast({ title: "Cuenta verificada", description: "Tu cuenta ha sido verificada. Inicia sesión para continuar." });
+            window.location.href = "/";
           }
         } catch {}
       }, 3000);
