@@ -354,25 +354,21 @@ export async function registerRoutes(
       const host = req.headers["host"] || "localhost:5000";
       const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
 
-      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL;
-      if (webhookUrl) {
-        try {
-          await fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "verification",
-              email: user.email,
-              name: user.name,
-              company: user.company || "",
-              verificationLink,
-            }),
-          });
-        } catch (webhookErr) {
-          console.error("[register] Failed to call verification webhook:", webhookErr);
-        }
-      } else {
-        console.warn("[register] MAKE_VERIFICATION_WEBHOOK_URL not set, verification email will not be sent.");
+      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.eu2.make.com/0ifmac54kwkvgc85hlyq8nuxdfl15spu";
+      try {
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "verification",
+            email: user.email,
+            name: user.name,
+            company: user.company || "",
+            verificationLink,
+          }),
+        });
+      } catch (webhookErr) {
+        console.error("[register] Failed to call verification webhook:", webhookErr);
       }
 
       res.status(201).json({ 
@@ -500,25 +496,21 @@ export async function registerRoutes(
       const host = req.headers["host"] || "localhost:5000";
       const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
 
-      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL;
-      if (webhookUrl) {
-        try {
-          await fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "verification",
-              email: user.email,
-              name: user.name,
-              company: user.company || "",
-              verificationLink,
-            }),
-          });
-        } catch (webhookErr) {
-          console.error("[resend-verification] Failed to call webhook:", webhookErr);
-        }
-      } else {
-        console.warn("[resend-verification] MAKE_VERIFICATION_WEBHOOK_URL not set, verification email will not be sent.");
+      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.eu2.make.com/0ifmac54kwkvgc85hlyq8nuxdfl15spu";
+      try {
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "verification",
+            email: user.email,
+            name: user.name,
+            company: user.company || "",
+            verificationLink,
+          }),
+        });
+      } catch (webhookErr) {
+        console.error("[resend-verification] Failed to call webhook:", webhookErr);
       }
       res.json({ message: "Si el correo existe, se enviará un nuevo enlace de verificación." });
     } catch (err) {
