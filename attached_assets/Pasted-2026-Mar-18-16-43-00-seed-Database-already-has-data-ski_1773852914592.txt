@@ -1,0 +1,126 @@
+2026-Mar-18 16:43:00
+[seed] Database already has data, skipping seed.
+2026-Mar-18 16:43:00
+[migrations] Running: 008_add_email_verification_columns
+2026-Mar-18 16:43:00
+[migration 008] Added email verification columns and marked existing users as verified
+2026-Mar-18 16:43:00
+[migrations] Applied: 008_add_email_verification_columns
+2026-Mar-18 16:43:00
+[migrations] All migrations up to date.
+2026-Mar-18 16:43:00
+4:43:00 PM [express] serving on port 5000
+2026-Mar-18 16:43:00
+Campaign scheduler started (checking every 60s)
+2026-Mar-18 16:48:59
+4:48:59 PM [express] GET /api/auth/me 200 in 15ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:48:59
+4:48:59 PM [express] GET /api/auth/me 304 in 13ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:48:59
+4:48:59 PM [express] GET /api/onboarding-status 304 in 25ms :: {"hasBrand":true,"hasTemplates":true,"hasContactDatabases":true}
+2026-Mar-18 16:48:59
+4:48:59 PM [express] GET /api/campaigns 304 in 18ms :: [{"id":35,"userId":14,"name":"Posicionar a PostIAlo o Mailing como la mejor opción para campañas de correos electrónicos. Somos una herramienta diseñada para personas que quieren mejorar su publicidad dirigida utilizando campañas ","idea":"Posicionar a PostIAlo o Mailing como la mejor opción para campañas de correos electrónicos. Somos una herramienta diseñada para personas que quieren mejorar su publicidad dirigida utilizando campañas de correo","objective":"\nMostrar todos los beneficios que ofrece la plataforma, desde creación de imágenes inteligentes con inteligencia artificial hasta la creación de una identidad en marca adaptada a tu negocio que generará los textos de los correos","tone":"profesional","status":"sent","layoutPreference":"Hero_Centered","imagePrompt":"Un grupo de jóvenes reunidos en la casa de una persona, debatiendo y discutiendo con caras destrezados, como tiene que ser la campaña de redes sociales y de correo electrónico que tienen que hacer. Ellos se ven visiblemente discutiendo en la parte de atrás de la imagen.\n\nComo protagonista de la imagen tenemos a una mujer salvadoreña de alrededor de 25 años, sosteniendo una computadora en una mano que tiene la pantalla viendo hacia la cámara. En la pantalla podemos ver \"PostIAlo, mailing es tu mejor opción\" y un cheque verde. Y en la otra mano tiene una expresión de thumbs up","targetDatabase":"21","targetAudience":"Personas enfocadas en general en campañas que particularmente son agencias de publicidad pequeñas o jóvenes","templateId":57,"scheduledAt":"2026-03-18T17:00:00.000Z","totalExpectedSends":1,"sentCount":1,"failedCount":0,"textApproved":true,"imageApproved":true,"createdAt":"2026-03-17T16:31:41.717Z"},{"id":36,"userId":14,"name":"Posicionar mis nuevos radios inteligentes boqui toquis que pueden conectarse a sistemas para desarrollar procesos engorrosos para un usuario final o un trabajador de manera automática. Háblale a tu ra","idea":"Posicionar mis nuevos radios inteligentes boqui toquis que pueden conectarse a sistemas para desarrollar procesos engorrosos para un usuario final o un trabajador de manera automática. Háblale a tu radio: suelta el botón PTT y avanza. Permite la inteligencia artificial integrada en nuestro hardware que haga el trabajo por ti","objective":"Crea interés con esta temática para que empresas constructoras de logística, con gobierno, seguridad, hotelería y turismo, estén interesadas","tone":"profesional","status":"draft","layoutPreference":"Hero_Centered","imagePrompt":"Una imagen de una persona de construcción en una obra, sosteniendo un radio boqui toquis, hablando a través de su radio. Aparece una burbuja flotante de texto realista que tiene el texto que dice \"Hola, necesito hacer una compra de materiales para...\". En la escena hacemos alusión de que la persona está retroalimentando a través de su radio una tarea que le causa dolor pero que ahora lo puede hacer a través de su radio y por eso está feliz. ","targetDatabase":"21","targetAudience":"Gerentes de operaciones de:\n- logística\n- seguridad\n- gobierno\n- hotelería y turismo","templateId":60,"scheduledAt":"2026-03-19T15:00:00.000Z","totalExpectedSends":0,"sentCount":0,"failedCount":0,"textApproved":false,"imageApproved":false,"createdAt":"2026-03-18T14:24:32.770Z"}]
+2026-Mar-18 16:48:59
+4:48:59 PM [express] GET /api/dashboard/stats 304 in 26ms :: {"totalSent":1,"byCountry":{},"recentCampaigns":[{"id":36,"userId":14,"name":"Posicionar mis nuevos radios inteligentes boqui toquis que pueden conectarse a sistemas para desarrollar procesos engorrosos para un usuario final o un trabajador de manera automática. Háblale a tu ra","idea":"Posicionar mis nuevos radios inteligentes boqui toquis que pueden conectarse a sistemas para desarrollar procesos engorrosos para un usuario final o un trabajador de manera automática. Háblale a tu radio: suelta el botón PTT y avanza. Permite la inteligencia artificial integrada en nuestro hardware que haga el trabajo por ti","objective":"Crea interés con esta temática para que empresas constructoras de logística, con gobierno, seguridad, hotelería y turismo, estén interesadas","tone":"profesional","status":"draft","layoutPreference":"Hero_Centered","imagePrompt":"Una imagen de una persona de construcción en una obra, sosteniendo un radio boqui toquis, hablando a través de su radio. Aparece una burbuja flotante de texto realista que tiene el texto que dice \"Hola, necesito hacer una compra de materiales para...\". En la escena hacemos alusión de que la persona está retroalimentando a través de su radio una tarea que le causa dolor pero que ahora lo puede hacer a través de su radio y por eso está feliz. ","targetDatabase":"21","selectedImageUrl":"campaign_36_e5d79f9bade9c8a20f7503c6.jpg","targetAudience":"Gerentes de operaciones de:\n- logística\n- seguridad\n- gobierno\n- hotelería y turismo","templateId":60,"scheduledAt":"2026-03-19T15:00:00.000Z","totalExpectedSends":0,"sentCount":0,"failedCount":0,"imageRegenCount":0,"textRegenCount":0,"schedulerRetryCount":0,"schedulerLastError":null,"textApproved":false,"imageApproved":false,"createdAt":"2026-03-18T14:24:32.770Z","subject":"Radios inteligentes que simplifican tu operación diaria"},{"id":35,"userId":14,"name":"Posicionar a PostIAlo o Mailing como la mejor opción para campañas de correos electrónicos. Somos una herramienta diseñada para personas que quieren mejorar su publicidad dirigida utilizando campañas ","idea":"Posicionar a PostIAlo o Mailing como la mejor opción para campañas de correos electrónicos. Somos una herramienta diseñada para personas que quieren mejorar su publicidad dirigida utilizando campañas de correo","objective":"\nMostrar todos los beneficios que ofrece la plataforma, desde creación de imágenes inteligentes con inteligencia artificial hasta la creación de una identidad en marca adaptada a tu negocio que generará los textos de los correos","tone":"profesional","status":"sent","layoutPreference":"Hero_Centered","imagePrompt":"Un grupo de jóvenes reunidos en la casa de una persona, debatiendo y discutiendo con caras destrezados, como tiene que ser la campaña de redes sociales y de correo electrónico que tienen que hacer. Ellos se ven visiblemente discutiendo en la parte de atrás de la imagen.\n\nComo protagonista de la imagen tenemos a una mujer salvadoreña de alrededor de 25 años, sosteniendo una computadora en una mano que tiene la pantalla viendo hacia la cámara. En la pantalla podemos ver \"PostIAlo, mailing es tu mejor opción\" y un cheque verde. Y en la otra mano tiene una expresión de thumbs up","targetDatabase":"21","selectedImageUrl":"campaign_35_2471343ef5509c85fa601e5e.png","targetAudience":"Personas enfocadas en general en campañas que particularmente son agencias de publicidad pequeñas o jóvenes","templateId":57,"scheduledAt":"2026-03-18T17:00:00.000Z","totalExpectedSends":1,"sentCount":1,"failedCount":0,"imageRegenCount":0,"textRegenCount":0,"schedulerRetryCount":0,"schedulerLastError":null,"textApproved":true,"imageApproved":true,"createdAt":"2026-03-17T16:31:41.717Z","subject":"Eleva tus campañas con IA y creatividad única"}]}
+2026-Mar-18 16:49:02
+4:49:02 PM [express] GET /api/brand-identity 200 in 19ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"https://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_ea0f671cb4bc60c2.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-18T14:14:49.821Z"}
+2026-Mar-18 16:49:14
+4:49:14 PM [express] POST /api/auth/logout 200 in 9ms :: {"message":"Sesión cerrada."}
+2026-Mar-18 16:49:15
+4:49:15 PM [express] GET /api/auth/me 401 in 2ms :: {"message":"No autenticado."}
+2026-Mar-18 16:49:17
+4:49:17 PM [express] POST /api/auth/login 200 in 158ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:49:17
+4:49:17 PM [express] GET /api/auth/me 304 in 11ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:49:18
+4:49:18 PM [express] GET /api/admin/stats 304 in 66ms :: {"totalUsers":2,"totalCampaigns":5,"totalCampaignsByStatus":{"sent":4,"draft":1},"totalTemplates":2,"totalContacts":12,"totalDatabases":4}
+2026-Mar-18 16:49:18
+4:49:18 PM [express] GET /api/admin/users 200 in 39ms :: [{"id":2,"name":"PostIAloMailing DEV","email":"demo@postialo.com","company":"Mailing Demo Account","role":"admin","isActive":true,"isVerified":true,"verificationToken":null,"verificationTokenExpiresAt":null,"createdAt":"2026-03-10T20:49:17.449Z","stats":{"campaigns":3,"templates":1,"contacts":6,"databases":2}},{"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"verificationToken":null,"verificationTokenExpiresAt":null,"createdAt":"2026-03-12T20:00:46.557Z","stats":{"campaigns":2,"templates":1,"contacts":6,"databases":2}}]
+2026-Mar-18 16:49:18
+4:49:18 PM [express] GET /api/admin/activity 304 in 55ms :: [{"campaignId":36,"campaignName":"Radios inteligentes que simplifican tu operación diaria","status":"draft","createdAt":"2026-03-18T14:24:32.770Z","userId":14,"userName":"Admin PostIAlo","userEmail":"admin@postialo.com"},{"campaignId":35,"campaignName":"Eleva tus campañas con IA y creatividad única","status":"sent","createdAt":"2026-03-17T16:31:41.717Z","userId":14,"userName":"Admin PostIAlo","userEmail":"admin@postialo.com"},{"campaignId":29,"campaignName":"Quiero posicionar el mensaje de que estoy ofreciendo financiamiento para todas las personas que quieren comprar su primer carro. Me quiero posicionar como una empresa confiable que pone este financiam","status":"sent","createdAt":"2026-03-13T22:56:58.951Z","userId":2,"userName":"PostIAloMailing DEV","userEmail":"demo@postialo.com"},{"campaignId":28,"campaignName":"Impulsa tu negocio con emails que venden solos","status":"sent","createdAt":"2026-03-12T18:03:12.821Z","userId":2,"userName":"PostIAloMailing DEV","userEmail":"demo@postialo.com"},{"campaignId":27,"campaignName":"Impulsa tu negocio con emails que venden solos","status":"sent","createdAt":"2026-03-12T16:49:31.298Z","userId":2,"userName":"PostIAloMailing DEV","userEmail":"demo@postialo.com"}]
+2026-Mar-18 16:49:23
+4:49:23 PM [express] DELETE /api/admin/users/2 200 in 76ms :: {"message":"Usuario eliminado exitosamente."}
+2026-Mar-18 16:49:23
+4:49:23 PM [express] GET /api/admin/stats 200 in 71ms :: {"totalUsers":1,"totalCampaigns":2,"totalCampaignsByStatus":{"sent":1,"draft":1},"totalTemplates":1,"totalContacts":6,"totalDatabases":2}
+2026-Mar-18 16:49:23
+4:49:23 PM [express] GET /api/admin/users 200 in 87ms :: [{"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"verificationToken":null,"verificationTokenExpiresAt":null,"createdAt":"2026-03-12T20:00:46.557Z","stats":{"campaigns":2,"templates":1,"contacts":6,"databases":2}}]
+2026-Mar-18 16:49:42
+4:49:42 PM [express] POST /api/auth/logout 200 in 6ms :: {"message":"Sesión cerrada."}
+2026-Mar-18 16:49:42
+4:49:42 PM [express] GET /api/auth/me 401 in 1ms :: {"message":"No autenticado."}
+2026-Mar-18 16:50:09
+4:50:09 PM [express] POST /api/auth/register 201 in 667ms :: {"success":true,"message":"Cuenta creada. Revisa tu correo para verificar tu cuenta.","needsVerification":true,"email":"angelmachucav@hotmail.com"}
+2026-Mar-18 16:50:12
+4:50:12 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 200 in 3ms :: {"verified":false}
+2026-Mar-18 16:50:15
+4:50:15 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 4ms :: {"verified":false}
+2026-Mar-18 16:50:18
+4:50:18 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 4ms :: {"verified":false}
+2026-Mar-18 16:50:21
+4:50:21 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 3ms :: {"verified":false}
+2026-Mar-18 16:50:24
+4:50:24 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 4ms :: {"verified":false}
+2026-Mar-18 16:50:27
+4:50:27 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 4ms :: {"verified":false}
+2026-Mar-18 16:50:30
+4:50:30 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 6ms :: {"verified":false}
+2026-Mar-18 16:50:33
+4:50:33 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 4ms :: {"verified":false}
+2026-Mar-18 16:50:36
+4:50:36 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 5ms :: {"verified":false}
+2026-Mar-18 16:50:39
+4:50:39 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 304 in 5ms :: {"verified":false}
+2026-Mar-18 16:50:40
+4:50:40 PM [express] GET /api/auth/verify/7ada8833-4bca-4e60-94c0-c8f21ead1112 302 in 23ms
+2026-Mar-18 16:50:40
+4:50:40 PM [express] GET /api/auth/me 200 in 12ms :: {"id":21,"name":"Angel Machuca","email":"angelmachucav@hotmail.com","company":"Testing","role":"user","isActive":true,"isVerified":true,"createdAt":"2026-03-18T16:50:08.606Z"}
+2026-Mar-18 16:50:40
+4:50:40 PM [express] GET /api/auth/me 304 in 10ms :: {"id":21,"name":"Angel Machuca","email":"angelmachucav@hotmail.com","company":"Testing","role":"user","isActive":true,"isVerified":true,"createdAt":"2026-03-18T16:50:08.606Z"}
+2026-Mar-18 16:50:40
+4:50:40 PM [express] GET /api/onboarding-status 200 in 17ms :: {"hasBrand":false,"hasTemplates":false,"hasContactDatabases":false}
+2026-Mar-18 16:50:40
+4:50:40 PM [express] GET /api/campaigns 200 in 17ms :: []
+2026-Mar-18 16:50:40
+4:50:40 PM [express] GET /api/dashboard/stats 200 in 20ms :: {"totalSent":0,"byCountry":{},"recentCampaigns":[]}
+2026-Mar-18 16:50:42
+4:50:42 PM [express] GET /api/auth/verification-status/angelmachucav%40hotmail.com 200 in 14ms :: {"verified":true}
+2026-Mar-18 16:50:42
+4:50:42 PM [express] GET /api/auth/me 304 in 7ms :: {"id":21,"name":"Angel Machuca","email":"angelmachucav@hotmail.com","company":"Testing","role":"user","isActive":true,"isVerified":true,"createdAt":"2026-03-18T16:50:08.606Z"}
+2026-Mar-18 16:50:42
+4:50:42 PM [express] GET /api/auth/me 304 in 6ms :: {"id":21,"name":"Angel Machuca","email":"angelmachucav@hotmail.com","company":"Testing","role":"user","isActive":true,"isVerified":true,"createdAt":"2026-03-18T16:50:08.606Z"}
+2026-Mar-18 16:50:42
+4:50:42 PM [express] GET /api/onboarding-status 304 in 15ms :: {"hasBrand":false,"hasTemplates":false,"hasContactDatabases":false}
+2026-Mar-18 16:50:42
+4:50:42 PM [express] GET /api/dashboard/stats 304 in 15ms :: {"totalSent":0,"byCountry":{},"recentCampaigns":[]}
+2026-Mar-18 16:50:42
+4:50:42 PM [express] GET /api/campaigns 304 in 17ms :: []
+2026-Mar-18 16:50:48
+4:50:48 PM [express] POST /api/auth/logout 200 in 5ms :: {"message":"Sesión cerrada."}
+2026-Mar-18 16:50:48
+4:50:48 PM [express] GET /api/auth/me 401 in 1ms :: {"message":"No autenticado."}
+2026-Mar-18 16:54:07
+4:54:07 PM [express] POST /api/auth/login 200 in 200ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:54:07
+4:54:07 PM [express] GET /api/auth/me 200 in 8ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:54:11
+4:54:11 PM [express] POST /api/auth/logout 200 in 9ms :: {"message":"Sesión cerrada."}
+2026-Mar-18 16:54:11
+4:54:11 PM [express] GET /api/auth/me 401 in 1ms :: {"message":"No autenticado."}
+2026-Mar-18 16:54:15
+4:54:15 PM [express] POST /api/auth/login 200 in 131ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:54:15
+4:54:15 PM [express] GET /api/auth/me 304 in 9ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:54:18
+4:54:18 PM [express] POST /api/auth/logout 200 in 8ms :: {"message":"Sesión cerrada."}
+2026-Mar-18 16:54:18
+4:54:18 PM [express] GET /api/auth/me 401 in 1ms :: {"message":"No autenticado."}
+2026-Mar-18 16:54:30
+4:54:30 PM [express] POST /api/auth/login 200 in 173ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:54:30
+4:54:30 PM [express] GET /api/auth/me 304 in 15ms :: {"id":14,"name":"Admin PostIAlo","email":"admin@postialo.com","company":"PostIAlo Mailing","role":"superadmin","isActive":true,"isVerified":true,"createdAt":"2026-03-12T20:00:46.557Z"}
+2026-Mar-18 16:54:33
+4:54:33 PM [express] GET /api/brand-identity 304 in 14ms :: {"id":3,"userId":14,"companyName":"PostIAlo Mail","industry":"Software as a Service (SaaS) / Inteligencia Artificial y Automatización de Marketing.","website":"https://www.postialo.com","whatsapp":"+503 7987 0006","mission":"Democratizar el acceso al marketing de alta conversión mediante el uso de inteligencia artificial, permitiendo que cualquier emprendedor o empresa comunique su valor de forma profesional, automatizada y efectiva sin necesidad de ser un experto en tecnología.","vision":"Convertirnos en la plataforma líder en Latinoamérica para la gestión inteligente de comunicación directa, siendo el estándar de eficiencia donde la creatividad humana y la IA se fusionan para potenciar las ventas de nuestros usuarios.","products":"PostIAlo Mail es un portal SaaS diseñado para la creación, redacción y programación de campañas de email marketing potenciadas por IA. La plataforma permite configurar la identidad de marca una sola vez y generar flujos de correos, newsletters y correos transaccionales en minutos. Incluye herramientas de regeneración de texto con IA, edición asistida y programación inteligente para asegurar que cada mensaje llegue en el momento óptimo con el tono exacto de la marca.","history":"Nacimos de la evolución de PostIAlo (RRSS), al darnos cuenta de que los emprendedores perdían demasiado tiempo redactando correos que nadie abría. Tras el éxito de nuestra herramienta de redes sociales, decidimos aplicar nuestra propia metodología de Prompt Engineering y estructuras de datos al mundo del Mailing. PostIAlo Mail nace como la solución definitiva para cerrar la brecha entre tener una base de datos y generar ventas reales a través de ella.","styleGuide":"Guías y Estilos de Contenido: 1.  Directo y accionable: Cada correo debe tener un objetivo claro y un llamado a la acción (CTA) evidente.\n2.  Estructura Escaneable: Uso de frases cortas, viñetas y párrafos de no más de 3 líneas.\n3.  Personalización Inteligente: El contenido debe sentirse como si fuera escrito de uno a uno, evitando el lenguaje corporativo robótico y frío.\n4.  Enfoque en Beneficios: No hablamos de \"características\", hablamos de cómo le resolvemos la vida al usuario.","targetAudience":"Dueños de pequeñas y medianas empresas (PyMEs), emprendedores digitales, consultores y encargados de marketing en edificios corporativos o complejos de oficinas que buscan optimizar su tiempo. Personas que tienen una base de datos de clientes pero no tienen el tiempo ni el conocimiento técnico para redactar campañas de seguimiento o venta de forma constante.","tone":"profesional","primaryColor":"#002073","secondaryColor":"#e3001b","accentColor":"#ffffff","headingFont":"Inter","bodyFont":"Plus Jakarta Sans","logoUrl":"https://d48o8wgckw4wkog008gk0sko.66.94.102.76.sslip.io/uploads/logos/14_ea0f671cb4bc60c2.png","visualStyle":"moderno","senderName":"PostIAlo Mailing","senderEmail":"amachuca@postialo.com","updatedAt":"2026-03-18T14:14:49.821Z"}
+2026-Mar-18 16:54:36
+4:54:36 PM [express] POST /api/auth/logout 200 in 4ms :: {"message":"Sesión cerrada."}
+2026-Mar-18 16:54:36
+4:54:36 PM [express] GET /api/auth/me 401 in 1ms :: {"message":"No autenticado."}
