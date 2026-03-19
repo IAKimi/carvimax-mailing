@@ -30,3 +30,9 @@ id = "VXE48JHmCua0AMn84622k"
 uri = "file://postialo-db-backup.sql.gz"
 type = "unspecified"
 title = "PostIAlo Database Backup (respaldo completo) — 11KB"
+
+[[outputs]]
+id = "s30WQNa85OLng-_qfBJtl"
+uri = "file://Matriz_Pruebas_PostIAlo_Mailing_v2.md"
+type = "text"
+title = "Matriz de Pruebas QA — PostIAlo Mailing v2"
