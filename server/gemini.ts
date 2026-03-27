@@ -32,6 +32,35 @@ interface GeminiImageResponse {
   };
 }
 
+async function fetchGeminiWithRetry(url: string, body: Record<string, unknown>, maxRetries: number = 3): Promise<Response> {
+  const RETRYABLE_STATUS_CODES = [500, 502, 503, 429];
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (response.ok || !RETRYABLE_STATUS_CODES.includes(response.status) || attempt === maxRetries) {
+        return response;
+      }
+      const delayMs = Math.pow(2, attempt) * 1000;
+      console.warn(`Gemini API returned ${response.status}, retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    } catch (err: any) {
+      lastError = err;
+      if (attempt === maxRetries) {
+        throw new Error(`Error de red al contactar Gemini tras ${maxRetries} intentos: ${err.message}`);
+      }
+      const delayMs = Math.pow(2, attempt) * 1000;
+      console.warn(`Gemini network error (${err.message}), retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError || new Error("Gemini: reintentos agotados.");
+}
+
 export async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -58,11 +87,7 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
     },
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetchGeminiWithRetry(url, body);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -155,11 +180,7 @@ export async function editImage(base64Image: string, editPrompt: string, aspectR
     },
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetchGeminiWithRetry(url, body);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -322,11 +343,7 @@ export async function editImageAdvanced(params: EditImageAdvancedParams): Promis
     },
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetchGeminiWithRetry(url, body);
 
   if (!response.ok) {
     const errorText = await response.text();

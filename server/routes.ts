@@ -602,6 +602,12 @@ export async function registerRoutes(
         }
       }
       Object.assign(updates, input);
+      if (updates.imageApproved === true) {
+        const currentImageUrl = existing.selectedImageUrl || "";
+        if (currentImageUrl.includes("placehold.co")) {
+          return res.status(400).json({ message: "No se puede aprobar una imagen placeholder. Regenere o cargue una imagen real primero." });
+        }
+      }
       if (input.scheduledAt) {
         const newDate = new Date(input.scheduledAt);
         if (isNaN(newDate.getTime())) {
@@ -1878,6 +1884,10 @@ export async function registerRoutes(
     if (!campaign.textApproved || !campaign.imageApproved) {
       return res.status(400).json({ message: "Ambas aprobaciones (texto e imagen) son requeridas antes de enviar." });
     }
+    const sendImageUrl = campaign.selectedImageUrl || "";
+    if (sendImageUrl.includes("placehold.co")) {
+      return res.status(400).json({ message: "No se puede enviar con una imagen placeholder. Regenere o cargue una imagen real primero." });
+    }
     if (campaign.status !== "scheduled" && campaign.status !== "draft") {
       return res.status(400).json({ message: "Solo campañas en estado programado o borrador pueden enviarse." });
     }
@@ -2281,6 +2291,11 @@ export async function registerRoutes(
               console.warn(`Scheduler: campaign #${campaign.id} skipped — missing approvals (text: ${campaign.textApproved}, image: ${campaign.imageApproved}). Keeping status "scheduled".`);
               continue;
             }
+            const schedulerImageUrl = campaign.selectedImageUrl || "";
+            if (schedulerImageUrl.includes("placehold.co")) {
+              console.warn(`Scheduler: campaign #${campaign.id} skipped — placeholder image detected. Keeping status "scheduled".`);
+              continue;
+            }
             const retryCount = campaign.schedulerRetryCount || 0;
             if (retryCount >= MAX_SCHEDULER_RETRIES) {
               console.error(`Scheduler: campaign #${campaign.id} exceeded ${MAX_SCHEDULER_RETRIES} retries, marking as failed.`);
@@ -2336,6 +2351,13 @@ export async function registerRoutes(
       }
     }, 60 * 1000);
   }
+
+  app.all("/api", (_req, res) => {
+    res.status(404).json({ message: "Ruta no encontrada." });
+  });
+  app.all("/api/{*path}", (_req, res) => {
+    res.status(404).json({ message: "Ruta no encontrada." });
+  });
 
   return { httpServer, startCampaignScheduler };
 }
