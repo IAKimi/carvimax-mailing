@@ -31,7 +31,7 @@ The application is built with a modern web stack, featuring a React frontend and
 - **Template Versioning**: Allows up to 3 versions per template for comparison, with a `isConfirmed` flag.
 - **AI Integration**:
     - **OpenAI**: Uses `gpt-4.1-mini` for text generation with Structured Outputs, leveraging `brand_identity` and conversational history. Includes retry logic and refusal handling.
-    - **Gemini**: Uses `gemini-3.1-flash-image-preview` for image generation (16:9 aspect ratio) and advanced multimodal image editing (Nano Banana) with micro-prompts.
+    - **Gemini**: Uses `gemini-3.1-flash-image-preview` as modelo principal para generación de imágenes (16:9 aspect ratio) y edición multimodal avanzada (Nano Banana) con micro-prompts. Failsafe automático: si el modelo principal falla tras 3 reintentos (500/502/503/429), cambia automáticamente a `gemini-2.0-flash` como respaldo (2 reintentos adicionales). Logging con prefijo `[FAILSAFE]`.
 - **Contacts System**: Manages `name`, `email`, `position`, `segment` fields, with validation and deduplication on import.
 - **Admin Panel**: Provides user management (create, edit, delete, activate, role changes), activity logs, platform statistics, and impersonation functionality, protected by `requireAdmin` middleware.
 

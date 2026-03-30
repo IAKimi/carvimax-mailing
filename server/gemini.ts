@@ -1,5 +1,14 @@
+const PRIMARY_MODEL = "gemini-3.1-flash-image-preview";
+const FALLBACK_MODEL = "gemini-2.0-flash";
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const RETRYABLE_STATUS_CODES = [500, 502, 503, 429];
+
 function getApiKey(): string | undefined {
   return process.env.GEMINI_API_KEY;
+}
+
+function buildModelUrl(model: string, apiKey: string): string {
+  return `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`;
 }
 
 interface SafetyRating {
@@ -32,8 +41,7 @@ interface GeminiImageResponse {
   };
 }
 
-async function fetchGeminiWithRetry(url: string, body: Record<string, unknown>, maxRetries: number = 3): Promise<Response> {
-  const RETRYABLE_STATUS_CODES = [500, 502, 503, 429];
+async function fetchWithRetries(url: string, body: Record<string, unknown>, maxRetries: number): Promise<Response> {
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -51,7 +59,7 @@ async function fetchGeminiWithRetry(url: string, body: Record<string, unknown>, 
     } catch (err: any) {
       lastError = err;
       if (attempt === maxRetries) {
-        throw new Error(`Error de red al contactar Gemini tras ${maxRetries} intentos: ${err.message}`);
+        throw err;
       }
       const delayMs = Math.pow(2, attempt) * 1000;
       console.warn(`Gemini network error (${err.message}), retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxRetries})...`);
@@ -61,13 +69,37 @@ async function fetchGeminiWithRetry(url: string, body: Record<string, unknown>, 
   throw lastError || new Error("Gemini: reintentos agotados.");
 }
 
+async function fetchGeminiWithFailsafe(body: Record<string, unknown>, apiKey: string): Promise<Response> {
+  const primaryUrl = buildModelUrl(PRIMARY_MODEL, apiKey);
+  try {
+    const response = await fetchWithRetries(primaryUrl, body, 3);
+    if (response.ok || !RETRYABLE_STATUS_CODES.includes(response.status)) {
+      return response;
+    }
+    console.warn(`[FAILSAFE] Modelo principal (${PRIMARY_MODEL}) agotó reintentos con status ${response.status}. Intentando con modelo de respaldo (${FALLBACK_MODEL})...`);
+  } catch (err: any) {
+    console.warn(`[FAILSAFE] Modelo principal (${PRIMARY_MODEL}) falló tras reintentos: ${err.message}. Intentando con modelo de respaldo (${FALLBACK_MODEL})...`);
+  }
+
+  const fallbackUrl = buildModelUrl(FALLBACK_MODEL, apiKey);
+  try {
+    const fallbackResponse = await fetchWithRetries(fallbackUrl, body, 2);
+    if (fallbackResponse.ok) {
+      console.info(`[FAILSAFE] Modelo de respaldo (${FALLBACK_MODEL}) respondió exitosamente.`);
+    } else {
+      console.error(`[FAILSAFE] Modelo de respaldo (${FALLBACK_MODEL}) también falló con status ${fallbackResponse.status}.`);
+    }
+    return fallbackResponse;
+  } catch (err: any) {
+    throw new Error(`Error de red al contactar Gemini tras agotar modelo principal (${PRIMARY_MODEL}) y respaldo (${FALLBACK_MODEL}): ${err.message}`);
+  }
+}
+
 export async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
   }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
 
   const body = {
     contents: [
@@ -87,7 +119,7 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
     },
   };
 
-  const response = await fetchGeminiWithRetry(url, body);
+  const response = await fetchGeminiWithFailsafe(body, apiKey);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -153,8 +185,6 @@ export async function editImage(base64Image: string, editPrompt: string, aspectR
   const imageData = base64Image.includes(",") ? base64Image.split(",")[1] : base64Image;
   const mimeType = base64Image.match(/data:(.*?);/)?.[1] || "image/png";
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
-
   const body = {
     contents: [
       {
@@ -180,7 +210,7 @@ export async function editImage(base64Image: string, editPrompt: string, aspectR
     },
   };
 
-  const response = await fetchGeminiWithRetry(url, body);
+  const response = await fetchGeminiWithFailsafe(body, apiKey);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -326,8 +356,6 @@ export async function editImageAdvanced(params: EditImageAdvancedParams): Promis
     });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
-
   const body = {
     contents: [
       {
@@ -343,7 +371,7 @@ export async function editImageAdvanced(params: EditImageAdvancedParams): Promis
     },
   };
 
-  const response = await fetchGeminiWithRetry(url, body);
+  const response = await fetchGeminiWithFailsafe(body, apiKey);
 
   if (!response.ok) {
     const errorText = await response.text();
