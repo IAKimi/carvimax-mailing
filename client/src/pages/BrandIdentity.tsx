@@ -620,7 +620,11 @@ export default function BrandIdentity() {
                               const res = await apiRequest("POST", "/api/brand/logo-upload", { base64 });
                               const data = await res.json();
                               setBrand(b => ({ ...b, logoUrl: data.logoUrl }));
-                              toast({ title: "Logo subido correctamente" });
+                              if (data.converted) {
+                                toast({ title: "Logo convertido a PNG", description: "Se convirtió automáticamente para mejor compatibilidad con plantillas de email." });
+                              } else {
+                                toast({ title: "Logo subido correctamente" });
+                              }
                             } catch (err: any) {
                               setBrand(b => ({ ...b, logoUrl: base64 }));
                               toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });

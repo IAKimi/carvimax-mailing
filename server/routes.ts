@@ -1446,9 +1446,9 @@ export async function registerRoutes(
       if (!match) {
         return res.status(400).json({ message: "Formato de imagen inválido." });
       }
-      const ext = match[2] === "jpeg" || match[2] === "jpg" ? "jpg" : match[2];
-      const buffer = Buffer.from(match[3], "base64");
-      if (buffer.length > 2 * 1024 * 1024) {
+      const originalFormat = match[2];
+      const originalBuffer = Buffer.from(match[3], "base64");
+      if (originalBuffer.length > 2 * 1024 * 1024) {
         return res.status(400).json({ message: "La imagen no puede exceder 2MB." });
       }
       const existingBrand = await storage.getBrandIdentity(req.session.userId!);
@@ -1456,17 +1456,26 @@ export async function registerRoutes(
         deleteLogoFile(existingBrand.logoUrl);
       }
 
-      const filename = `${req.session.userId}_${crypto.randomBytes(8).toString("hex")}.${ext}`;
+      const needsConversion = originalFormat !== "png";
+      let finalBuffer: Buffer;
+      if (needsConversion) {
+        const sharp = (await import("sharp")).default;
+        finalBuffer = await sharp(originalBuffer).png().toBuffer();
+      } else {
+        finalBuffer = originalBuffer;
+      }
+
+      const filename = `${req.session.userId}_${crypto.randomBytes(8).toString("hex")}.png`;
       const uploadsDir = path.resolve(process.cwd(), "uploads", "logos");
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      fs.writeFileSync(path.join(uploadsDir, filename), buffer);
+      fs.writeFileSync(path.join(uploadsDir, filename), finalBuffer);
       const protocol = req.headers["x-forwarded-proto"] || req.protocol;
       const host = req.headers["x-forwarded-host"] || req.headers.host;
       const logoUrl = `${protocol}://${host}/uploads/logos/${filename}`;
       await storage.upsertBrandIdentity(req.session.userId!, { logoUrl });
-      res.json({ logoUrl });
+      res.json({ logoUrl, converted: needsConversion });
     } catch (err: any) {
       console.error("Error uploading logo:", err.message);
       return res.status(500).json({ message: "Error al subir el logo." });
