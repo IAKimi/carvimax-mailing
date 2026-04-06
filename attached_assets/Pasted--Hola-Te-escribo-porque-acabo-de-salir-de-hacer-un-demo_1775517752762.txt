@@ -1,0 +1,16 @@
+¡Hola! Te escribo porque acabo de salir de hacer un demo de la plataforma de PostIAlo Mailing y tuvimos varios detalles en vivo y observaciones de seguridad. Necesito que revisemos esto para arreglarlo:
+Mira, estuve haciendo el demo y me falló la generación de imágenes. Al momento de darle clic a "generar correo", la API de Gemini (o Nano Banana) me dio un error y no renderizó nada en el lado izquierdo de la previsualización
+.
+También, al inicio de la demostración, subí un logotipo que no estaba en formato PNG y la plantilla se vio toda fea y desconfigurada
+. Creo que aquí deberíamos de incluir una validación en el frontend para que solo acepte archivos PNG transparentes, o quizás integrar un convertidor automático al momento de la subida, ¿qué me recomiendas tú que podríamos hacer con esto?
+Adicionalmente, nos acompañó el equipo técnico de Sertrasen y nos auditaron la plataforma. Salieron estos puntos críticos que tenemos que trabajar sí o sí:
+Nuestras APIs están completamente públicas y sin seguridad. Nos hicieron ver que no tenemos ni JWT (JSON Web Tokens) ni autenticación básica configurada
+. Ahorita cualquier persona podría inspeccionar la aplicación, sacar los endpoints e irse a Postman a hacernos un POST para enviar correos masivos saltándose nuestro login
+.
+Les comenté que actualmente no tenemos ninguna restricción en el tamaño del payload; es decir, los prompts no tienen tope de caracteres cuando se mandan a las APIs de inteligencia artificial
+. Tenemos que ponerle un límite urgente para evitar abusos.
+Nos recomendaron fuertemente implementar una autenticación federada. Sugirieron que revisáramos Keycloak para asegurarnos de que quien consuma la API tenga una sesión válida y legítima iniciada
+. ¿Has trabajado con Keycloak o ves alguna otra alternativa más rápida de implementar para asegurar las sesiones?
+A raíz de que se nos cayó Gemini en vivo, nos hicieron notar que no tenemos un mecanismo de respaldo o "failover"
+. Si falla la API principal de imágenes, el sistema se queda trabado. Creo que aquí deberíamos de incluir una lógica para que, si Gemini falla, automáticamente intente hacer la petición a otra herramienta como ChatGPT
+.
