@@ -351,7 +351,7 @@ export default function Login() {
                       onClick={() => setMode("register")}
                       className="text-[#002073] font-semibold hover:underline"
                     >
-                      Regístrate
+                      Regístrate ✅
                     </button>
                   </p>
                 ) : (
