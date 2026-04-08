@@ -58,7 +58,9 @@ The application is built with a modern web stack, featuring a React frontend and
 - **Guided Tutorial Mode (Bombillo)**: Interactive, step-by-step guidance for new users, highlighting UI elements and providing tips, persisted in local storage.
 - **Logo Hosting**: `POST /api/brand/logo-upload` saves uploaded logos (PNG/JPG/WebP only, no SVG) to `uploads/logos/` and returns a public URL. Static serving via `app.use("/uploads", express.static(...))`.
 - **Sender Configuration**: `senderName` and `senderEmail` fields in brand identity, used as email sender info when dispatching campaigns.
-- **Make.com Integration**: Campaigns are sent via `sendCampaignToWebhook()` which POSTs rendered HTML + contacts to `MAKE_WEBHOOK_URL`. HTML is cleaned before sending (no XHTML xmlns, no self-closing non-void tags). Status lifecycle: draft → sending → sent (with rollback on failure). Background scheduler checks every 60s for scheduled campaigns with retry limit (3 attempts max, then marks as "failed"). Callback endpoint at `POST /api/webhooks/make-callback` updates campaign status and supports optional `MAKE_WEBHOOK_SECRET` env var for authentication.
+- **Direct Brevo Send**: Campaigns are sent via `sendCampaignDirect()` which uses the user's own Brevo API key (encrypted in `email_providers` table). Sends use `messageVersions` batch API (up to 1,000 per call) with tag `postialo_campaign_{id}` for tracking. Status lifecycle: draft → sending → sent/partial/failed. Handles 402 (no credits) by stopping remaining chunks and marking as "partial". Background scheduler checks every 60s for scheduled campaigns with retry limit (3 attempts max, then marks as "failed"). Scheduler also verifies user has an active email provider before attempting send. If no provider is configured, campaign is immediately marked as "failed" with descriptive error.
+- **Brevo Webhook Tracking**: `POST /api/webhooks/brevo` (public, rate-limited) receives delivery notifications from Brevo. Handles events: delivered, hard_bounce, soft_bounce, opened, click. Uses `postialo_campaign_{id}` tag to identify campaign. Updates `campaign_sends` records and broadcasts progress via WebSocket. Bounces adjust sent/failed counters.
+- **Make.com Registration Webhook**: The registration verification webhook (`POST /api/webhooks/make-callback`) remains for email verification flow only. The campaign send webhook has been removed.
 - **Image Hosting**: Generated/edited images are saved as files in `uploads/campaigns/` (not base64 in DB). API responses resolve filenames to public URLs. Webhook HTML uses clean `<img src="https://...">` URLs instead of multi-MB base64. Helper functions: `saveBase64Image()` saves to disk, `getImagePublicUrl()` resolves filenames (supports `APP_URL` env var for production domains), `loadImageAsBase64()` reads back for Gemini editing.
 - **Same-Day Scheduling**: When selecting today in the calendar, the default time is set to the next full hour. Frontend converts datetime-local to ISO string with `toISOString()` to avoid timezone mismatches with the server.
 - **Editor Persistence**: Mutation dialogs (Regenerar Texto, Regenerar Imagen, Nano Banana) cannot be closed while a mutation is pending — `onOpenChange`, `onInteractOutside`, and `onEscapeKeyDown` are blocked during isPending.
@@ -80,7 +82,8 @@ The application is built with a modern web stack, featuring a React frontend and
 - **PostgreSQL**: Primary database.
 - **OpenAI API**: For AI text generation, regeneration, and template analysis.
 - **Google Gemini API**: For AI image generation and advanced image editing.
-- **Make.com Webhook**: Campaign distribution via hardcoded webhook URL.
+- **Brevo API**: Direct campaign email sending via user's own API key (per-user provider integration).
+- **Make.com Webhook**: Registration email verification only (campaign sending removed).
 - **bcryptjs**: Password hashing.
 - **express-session**: Session management.
 - **connect-pg-simple**: PostgreSQL session store.

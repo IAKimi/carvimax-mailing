@@ -14,6 +14,8 @@ import { validateTemplatePlaceholders, validateTemplateStructure, renderTemplate
 import { campaigns as campaignsTable } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
+import { decryptApiKey } from "./encryption";
+import { sendBatchEmails } from "./providers/brevo";
 
 let wss: WebSocketServer | null = null;
 
@@ -156,12 +158,13 @@ const updateTemplateSchema = z.object({
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   draft: ["scheduled", "cancelled"],
   scheduled: ["cancelled", "sending", "sent"],
-  sending: ["sent", "cancelled"],
+  sending: ["sent", "partial", "failed", "cancelled"],
   sent: [],
+  partial: [],
+  failed: ["draft", "scheduled"],
   cancelled: [],
 };
 
-const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/zmq7ppo7dusjmowvqznkbc6etvqvonr4";
 
 function deleteUploadedFile(filePath: string): void {
   try {
@@ -1937,9 +1940,22 @@ export async function registerRoutes(
     res.json({ html: result.html, missingFields: result.missingFields, templateName: template.name });
   });
 
-  async function sendCampaignToWebhook(campaignId: number, userId: number): Promise<{ success: boolean; error?: string }> {
+  async function sendCampaignDirect(campaignId: number, userId: number): Promise<{ success: boolean; error?: string }> {
     let previousStatus = "draft";
     try {
+      const providers = await storage.getEmailProviders(userId);
+      const activeProvider = providers.find(p => p.isActive);
+      if (!activeProvider) {
+        return { success: false, error: "No tienes un proveedor de email configurado. Ve a Configuración > Proveedor de Email para conectar tu cuenta de Brevo." };
+      }
+
+      let apiKey: string;
+      try {
+        apiKey = decryptApiKey(activeProvider.encryptedApiKey, activeProvider.iv, activeProvider.authTag);
+      } catch {
+        return { success: false, error: "Error al descifrar la API key del proveedor. Reconecta tu proveedor de email." };
+      }
+
       const campaign = await storage.getCampaign(campaignId);
       if (!campaign || campaign.userId !== userId) {
         return { success: false, error: "Campaña no encontrada." };
@@ -1967,7 +1983,7 @@ export async function registerRoutes(
 
       const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl) : null;
 
-      let renderedHtml = renderTemplateWithContent(
+      const renderedHtml = renderTemplateWithContent(
         template.html,
         resolved.contentJson,
         imagePublicUrl,
@@ -1996,20 +2012,8 @@ export async function registerRoutes(
 
       const subject = (resolved.contentJson?.asunto as string) || campaign.name || "Sin asunto";
 
-      const senderName = brandData?.senderName || brandData?.companyName || "PostIAlo Mailing";
-      const senderEmail = brandData?.senderEmail || "noreply@postialo.com";
-
-      const payload = {
-        subject,
-        html_content: cleanHtmlForEmail(renderedHtml),
-        sender_name: senderName,
-        sender_email: senderEmail,
-        campaign_id: String(campaignId),
-        contacts: contactsList.map(c => ({
-          name: c.name || "",
-          email: c.email,
-        })),
-      };
+      const senderName = activeProvider.senderName || brandData?.senderName || brandData?.companyName || "PostIAlo Mailing";
+      const senderEmail = activeProvider.senderEmail || brandData?.senderEmail || "noreply@postialo.com";
 
       await storage.deleteCampaignSends(campaignId);
       const sendRecords = contactsList.map(c => ({
@@ -2038,27 +2042,84 @@ export async function registerRoutes(
         status: "sending",
       });
 
-      const webhookRes = await fetch(MAKE_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const campaignTag = `postialo_campaign_${campaignId}`;
+      const brevoContacts = contactsList.map(c => ({
+        name: c.name || "",
+        email: c.email,
+      }));
 
-      if (!webhookRes.ok) {
-        const errText = await webhookRes.text().catch(() => "Error desconocido");
-        console.error(`Make webhook error (${webhookRes.status}):`, errText);
-        await storage.updateCampaign(campaignId, { status: previousStatus as any });
-        return { success: false, error: `Error al enviar al webhook: ${webhookRes.status}` };
+      const batchResult = await sendBatchEmails(
+        apiKey,
+        { name: senderName, email: senderEmail },
+        subject,
+        cleanHtmlForEmail(renderedHtml),
+        brevoContacts,
+        campaignTag
+      );
+
+      for (const contact of contactsList) {
+        const failedEntry = batchResult.errors.find(e => e.email === contact.email);
+        if (failedEntry) {
+          await storage.updateCampaignSend(campaignId, contact.email, {
+            status: "failed",
+            errorMessage: failedEntry.error,
+          });
+        } else {
+          await storage.updateCampaignSend(campaignId, contact.email, {
+            status: "sent",
+          });
+        }
       }
 
-      // No cambiar a "sent" aquí — solo el callback de Make.com debe hacerlo
+      await db.update(campaignsTable).set({
+        sentCount: batchResult.sent,
+        failedCount: batchResult.failed,
+      }).where(eq(campaignsTable.id, campaignId));
+
+      let finalStatus: string;
+      if (batchResult.noCredits && batchResult.sent > 0) {
+        finalStatus = "partial";
+      } else if (batchResult.noCredits && batchResult.sent === 0) {
+        finalStatus = "failed";
+      } else if (batchResult.failed === 0) {
+        finalStatus = "sent";
+      } else if (batchResult.sent === 0) {
+        finalStatus = "failed";
+      } else {
+        finalStatus = "partial";
+      }
+
+      await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+
+      broadcastWs("campaign-progress", {
+        campaignId,
+        totalExpectedSends: contactsList.length,
+        sentCount: batchResult.sent,
+        failedCount: batchResult.failed,
+        status: finalStatus,
+        completed: true,
+      });
+
+      if (batchResult.noCredits) {
+        return { success: false, error: `Sin créditos en Brevo. Se enviaron ${batchResult.sent} de ${contactsList.length} correos.` };
+      }
+
+      if (batchResult.failed > 0 && batchResult.sent > 0) {
+        return { success: true };
+      }
+
+      if (batchResult.sent === 0) {
+        return { success: false, error: "No se pudo enviar ningún correo. Verifica tu configuración de Brevo." };
+      }
+
       return { success: true };
-    } catch (err: any) {
-      console.error("Error sending campaign to webhook:", err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error interno al enviar.";
+      console.error("Error sending campaign directly:", message);
       try {
         await storage.updateCampaign(campaignId, { status: previousStatus as any });
       } catch {}
-      return { success: false, error: err.message || "Error interno al enviar." };
+      return { success: false, error: message };
     }
   }
 
@@ -2082,7 +2143,7 @@ export async function registerRoutes(
     if (campaign.status !== "scheduled" && campaign.status !== "draft") {
       return res.status(400).json({ message: "Solo campañas en estado programado o borrador pueden enviarse." });
     }
-    const result = await sendCampaignToWebhook(id, req.session.userId!);
+    const result = await sendCampaignDirect(id, req.session.userId!);
     if (!result.success) {
       return res.status(400).json({ message: result.error });
     }
@@ -2209,6 +2270,118 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error processing Make callback:", err.message);
       return res.status(500).json({ message: "Error procesando callback." });
+    }
+  });
+
+  const brevoWebhookLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 5000,
+    message: { message: "Demasiadas solicitudes." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.post("/api/webhooks/brevo", brevoWebhookLimiter, async (req, res) => {
+    try {
+      const { event, email, tags } = req.body || {};
+
+      if (!event || !email) {
+        return res.status(400).json({ message: "event y email son requeridos." });
+      }
+
+      if (!Array.isArray(tags) || tags.length === 0) {
+        return res.status(400).json({ message: "tags es requerido." });
+      }
+
+      const campaignTag = tags.find((t: unknown) => typeof t === "string" && t.startsWith("postialo_campaign_"));
+      if (!campaignTag) {
+        return res.json({ received: true, ignored: true, reason: "no postialo tag" });
+      }
+
+      const campaignIdStr = campaignTag.replace("postialo_campaign_", "");
+      const campaignId = parseInt(campaignIdStr, 10);
+      if (isNaN(campaignId)) {
+        return res.status(400).json({ message: "campaign_id inválido en tag." });
+      }
+
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return res.json({ received: true, ignored: true, reason: "campaign not found" });
+      }
+
+      const existingSend = await storage.getCampaignSendByEmail(campaignId, email);
+      if (!existingSend) {
+        console.log(`[Brevo webhook] Unknown contact ${email} for campaign ${campaignId}, ignoring`);
+        return res.json({ received: true, ignored: true });
+      }
+
+      const brevoEvent = String(event).toLowerCase();
+
+      if (brevoEvent === "delivered") {
+        if (existingSend.status === "pending" || existingSend.status === "sent") {
+          await storage.updateCampaignSend(campaignId, email, {
+            status: "sent",
+            messageId: req.body["message-id"] || existingSend.messageId || null,
+          });
+        }
+      } else if (brevoEvent === "hard_bounce" || brevoEvent === "hardbounce") {
+        await storage.updateCampaignSend(campaignId, email, {
+          status: "failed",
+          errorMessage: `Hard bounce: ${req.body.reason || "dirección inválida"}`,
+        });
+        if (existingSend.status === "sent") {
+          await db.update(campaignsTable).set({
+            sentCount: Math.max(0, (campaign.sentCount || 0) - 1),
+            failedCount: (campaign.failedCount || 0) + 1,
+          }).where(eq(campaignsTable.id, campaignId));
+        } else if (existingSend.status === "pending") {
+          await storage.incrementCampaignSendCount(campaignId, "failedCount");
+        }
+      } else if (brevoEvent === "soft_bounce" || brevoEvent === "softbounce") {
+        await storage.updateCampaignSend(campaignId, email, {
+          status: "failed",
+          errorMessage: `Soft bounce: ${req.body.reason || "error temporal"}`,
+        });
+        if (existingSend.status === "sent") {
+          await db.update(campaignsTable).set({
+            sentCount: Math.max(0, (campaign.sentCount || 0) - 1),
+            failedCount: (campaign.failedCount || 0) + 1,
+          }).where(eq(campaignsTable.id, campaignId));
+        } else if (existingSend.status === "pending") {
+          await storage.incrementCampaignSendCount(campaignId, "failedCount");
+        }
+      } else if (brevoEvent === "opened" || brevoEvent === "open") {
+        await storage.updateCampaignSend(campaignId, email, {
+          status: "sent",
+          messageId: req.body["message-id"] || existingSend.messageId || null,
+        });
+      } else if (brevoEvent === "click") {
+        await storage.updateCampaignSend(campaignId, email, {
+          status: "sent",
+          messageId: req.body["message-id"] || existingSend.messageId || null,
+        });
+      } else {
+        console.log(`[Brevo webhook] Unhandled event type: ${event} for campaign ${campaignId}`);
+        return res.json({ received: true, ignored: true, reason: "unhandled event" });
+      }
+
+      const updatedCampaign = await storage.getCampaign(campaignId);
+      if (updatedCampaign) {
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: updatedCampaign.totalExpectedSends || 0,
+          sentCount: updatedCampaign.sentCount || 0,
+          failedCount: updatedCampaign.failedCount || 0,
+          status: updatedCampaign.status,
+        });
+      }
+
+      console.log(`[Brevo webhook] event=${event} email=${email} campaign=${campaignId}`);
+      res.json({ received: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      console.error("[Brevo webhook] Error:", message);
+      return res.status(500).json({ message: "Error procesando webhook de Brevo." });
     }
   });
 
@@ -2503,8 +2676,23 @@ export async function registerRoutes(
               });
               continue;
             }
+            const providerList = await storage.getEmailProviders(campaign.userId);
+            const hasProvider = providerList.some(p => p.isActive);
+            if (!hasProvider) {
+              console.error(`Scheduler: campaign #${campaign.id} skipped — user ${campaign.userId} has no email provider configured.`);
+              await storage.updateCampaign(campaign.id, { status: "failed" } as any);
+              await db.update(campaignsTable).set({
+                schedulerLastError: "No hay proveedor de email configurado. Configura tu cuenta de Brevo antes de programar campañas.",
+              }).where(eq(campaignsTable.id, campaign.id));
+              broadcastWs("campaign-progress", {
+                campaignId: campaign.id,
+                status: "failed",
+                completed: true,
+              });
+              continue;
+            }
             console.log(`Scheduler: firing campaign #${campaign.id} (scheduled for ${campaign.scheduledAt}, attempt ${retryCount + 1}/${MAX_SCHEDULER_RETRIES})`);
-            const result = await sendCampaignToWebhook(campaign.id, campaign.userId);
+            const result = await sendCampaignDirect(campaign.id, campaign.userId);
             if (!result.success) {
               const newRetryCount = retryCount + 1;
               console.error(`Scheduler: failed to send campaign #${campaign.id}: ${result.error} (attempt ${newRetryCount}/${MAX_SCHEDULER_RETRIES})`);
