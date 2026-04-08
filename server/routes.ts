@@ -12,7 +12,7 @@ import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type A
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, validateTemplateStructure, renderTemplateWithContent } from "./templates";
 import { campaigns as campaignsTable } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { decryptApiKey } from "./encryption";
 import { sendBatchEmails } from "./providers/brevo";
@@ -2057,60 +2057,59 @@ export async function registerRoutes(
         campaignTag
       );
 
-      for (const contact of contactsList) {
-        const failedEntry = batchResult.errors.find(e => e.email === contact.email);
-        if (failedEntry) {
-          await storage.updateCampaignSend(campaignId, contact.email, {
-            status: "failed",
-            errorMessage: failedEntry.error,
-          });
-        } else {
-          await storage.updateCampaignSend(campaignId, contact.email, {
-            status: "sent",
-          });
-        }
+      for (const errEntry of batchResult.errors) {
+        await storage.updateCampaignSend(campaignId, errEntry.email, {
+          status: "failed",
+          errorMessage: errEntry.error,
+        });
+        await storage.incrementCampaignSendCount(campaignId, "failedCount");
       }
 
-      await db.update(campaignsTable).set({
-        sentCount: batchResult.sent,
-        failedCount: batchResult.failed,
-      }).where(eq(campaignsTable.id, campaignId));
+      if (batchResult.noCredits && batchResult.sent === 0) {
+        await storage.updateCampaign(campaignId, { status: "failed" } as any);
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: contactsList.length,
+          sentCount: 0,
+          failedCount: batchResult.failed,
+          status: "failed",
+          completed: true,
+        });
+        return { success: false, error: "Sin créditos en Brevo. No se pudo enviar ningún correo." };
+      }
 
-      let finalStatus: string;
       if (batchResult.noCredits && batchResult.sent > 0) {
-        finalStatus = "partial";
-      } else if (batchResult.noCredits && batchResult.sent === 0) {
-        finalStatus = "failed";
-      } else if (batchResult.failed === 0) {
-        finalStatus = "sent";
-      } else if (batchResult.sent === 0) {
-        finalStatus = "failed";
-      } else {
-        finalStatus = "partial";
+        await storage.updateCampaign(campaignId, { status: "partial" } as any);
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: contactsList.length,
+          sentCount: 0,
+          failedCount: batchResult.failed,
+          status: "partial",
+        });
+        return { success: false, error: `Sin créditos en Brevo. Se encolaron ${batchResult.sent} de ${contactsList.length} correos. Los restantes fallaron.` };
       }
 
-      await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+      if (batchResult.sent === 0) {
+        await storage.updateCampaign(campaignId, { status: "failed" } as any);
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: contactsList.length,
+          sentCount: 0,
+          failedCount: batchResult.failed,
+          status: "failed",
+          completed: true,
+        });
+        return { success: false, error: "No se pudo enviar ningún correo. Verifica tu configuración de Brevo." };
+      }
 
       broadcastWs("campaign-progress", {
         campaignId,
         totalExpectedSends: contactsList.length,
-        sentCount: batchResult.sent,
+        sentCount: 0,
         failedCount: batchResult.failed,
-        status: finalStatus,
-        completed: true,
+        status: "sending",
       });
-
-      if (batchResult.noCredits) {
-        return { success: false, error: `Sin créditos en Brevo. Se enviaron ${batchResult.sent} de ${contactsList.length} correos.` };
-      }
-
-      if (batchResult.failed > 0 && batchResult.sent > 0) {
-        return { success: true };
-      }
-
-      if (batchResult.sent === 0) {
-        return { success: false, error: "No se pudo enviar ningún correo. Verifica tu configuración de Brevo." };
-      }
 
       return { success: true };
     } catch (err: unknown) {
@@ -2170,102 +2169,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Token de webhook inválido." });
       }
 
-      const { campaign_id, status, message_id, contact_email, error_message } = req.body || {};
-      if (!campaign_id) {
-        return res.status(400).json({ message: "campaign_id es requerido." });
-      }
-      const campaignId = parseInt(campaign_id, 10);
-      if (isNaN(campaignId)) {
-        return res.status(400).json({ message: "campaign_id inválido." });
-      }
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
-        return res.status(404).json({ message: "Campaña no encontrada." });
-      }
-
-      const sendStatus = (status === "success" || status === "sent") ? "sent" : (status === "error" || status === "failed") ? "failed" : "sent";
-
-      if (contact_email) {
-        const existingSend = await storage.getCampaignSendByEmail(campaignId, contact_email);
-        if (!existingSend) {
-          console.log(`Make callback: unknown contact ${contact_email} for campaign ${campaignId}, ignoring`);
-          return res.json({ received: true, ignored: true });
-        }
-
-        if (existingSend.status !== "pending") {
-          console.log(`Make callback: duplicate for ${contact_email} campaign ${campaignId} (already ${existingSend.status}), ignoring`);
-          return res.json({ received: true, duplicate: true });
-        }
-
-        await storage.updateCampaignSend(campaignId, contact_email, {
-          status: sendStatus,
-          messageId: message_id || null,
-          errorMessage: error_message || null,
-        });
-
-        const field = sendStatus === "sent" ? "sentCount" : "failedCount";
-        const updatedCampaign = await storage.incrementCampaignSendCount(campaignId, field);
-
-        if (updatedCampaign) {
-          const sent = updatedCampaign.sentCount || 0;
-          const failed = updatedCampaign.failedCount || 0;
-          const total = updatedCampaign.totalExpectedSends || 0;
-
-          broadcastWs("campaign-progress", {
-            campaignId,
-            totalExpectedSends: total,
-            sentCount: sent,
-            failedCount: failed,
-            status: updatedCampaign.status,
-          });
-
-          if (total > 0 && (sent + failed) >= total) {
-            const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
-            await storage.updateCampaign(campaignId, { status: finalStatus } as any);
-            broadcastWs("campaign-progress", {
-              campaignId,
-              totalExpectedSends: total,
-              sentCount: sent,
-              failedCount: failed,
-              status: finalStatus,
-              completed: true,
-            });
-          }
-        }
-      } else {
-        const allSends = await storage.getCampaignSends(campaignId);
-        const pendingSends = allSends.filter(s => s.status === "pending");
-
-        for (const send of pendingSends) {
-          await storage.updateCampaignSend(campaignId, send.contactEmail, {
-            status: sendStatus,
-            messageId: message_id || null,
-            errorMessage: error_message || null,
-          });
-          const field = sendStatus === "sent" ? "sentCount" : "failedCount";
-          await storage.incrementCampaignSendCount(campaignId, field);
-        }
-
-        const updatedCampaign = await storage.getCampaign(campaignId);
-        if (updatedCampaign) {
-          const sent = updatedCampaign.sentCount || 0;
-          const failed = updatedCampaign.failedCount || 0;
-          const total = updatedCampaign.totalExpectedSends || 0;
-          const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
-
-          await storage.updateCampaign(campaignId, { status: finalStatus } as any);
-          broadcastWs("campaign-progress", {
-            campaignId,
-            totalExpectedSends: total,
-            sentCount: sent,
-            failedCount: failed,
-            status: finalStatus,
-            completed: true,
-          });
-        }
-      }
-
-      console.log(`Make callback: campaign=${campaign_id} contact=${contact_email || "N/A"} status=${status} messageId=${message_id || "N/A"}`);
+      const { type, user_id, status } = req.body || {};
+      console.log(`Make callback: type=${type || "unknown"} user_id=${user_id || "N/A"} status=${status || "N/A"}`);
       res.json({ received: true });
     } catch (err: any) {
       console.error("Error processing Make callback:", err.message);
@@ -2309,6 +2214,13 @@ export async function registerRoutes(
         return res.json({ received: true, ignored: true, reason: "campaign not found" });
       }
 
+      const userProviders = await storage.getEmailProviders(campaign.userId);
+      const brevoProvider = userProviders.find(p => p.provider === "brevo" && p.isActive);
+      if (!brevoProvider) {
+        console.warn(`[Brevo webhook] Campaign ${campaignId} owner has no active Brevo provider, rejecting`);
+        return res.status(403).json({ message: "Proveedor no configurado para este usuario." });
+      }
+
       const existingSend = await storage.getCampaignSendByEmail(campaignId, email);
       if (!existingSend) {
         console.log(`[Brevo webhook] Unknown contact ${email} for campaign ${campaignId}, ignoring`);
@@ -2318,37 +2230,53 @@ export async function registerRoutes(
       const brevoEvent = String(event).toLowerCase();
 
       if (brevoEvent === "delivered") {
-        if (existingSend.status === "pending" || existingSend.status === "sent") {
+        if (existingSend.status === "pending") {
           await storage.updateCampaignSend(campaignId, email, {
             status: "sent",
-            messageId: req.body["message-id"] || existingSend.messageId || null,
+            messageId: req.body["message-id"] || null,
           });
+          await storage.incrementCampaignSendCount(campaignId, "sentCount");
+
+          const updatedAfterDelivered = await storage.getCampaign(campaignId);
+          if (updatedAfterDelivered) {
+            const sent = updatedAfterDelivered.sentCount || 0;
+            const failed = updatedAfterDelivered.failedCount || 0;
+            const total = updatedAfterDelivered.totalExpectedSends || 0;
+            if (total > 0 && (sent + failed) >= total) {
+              const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
+              await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+            }
+          }
         }
       } else if (brevoEvent === "hard_bounce" || brevoEvent === "hardbounce") {
-        await storage.updateCampaignSend(campaignId, email, {
-          status: "failed",
-          errorMessage: `Hard bounce: ${req.body.reason || "dirección inválida"}`,
-        });
-        if (existingSend.status === "sent") {
-          await db.update(campaignsTable).set({
-            sentCount: Math.max(0, (campaign.sentCount || 0) - 1),
-            failedCount: (campaign.failedCount || 0) + 1,
-          }).where(eq(campaignsTable.id, campaignId));
-        } else if (existingSend.status === "pending") {
-          await storage.incrementCampaignSendCount(campaignId, "failedCount");
+        if (existingSend.status !== "failed") {
+          await storage.updateCampaignSend(campaignId, email, {
+            status: "failed",
+            errorMessage: `Hard bounce: ${req.body.reason || "dirección inválida"}`,
+          });
+          if (existingSend.status === "sent") {
+            await db.update(campaignsTable).set({
+              sentCount: sql`GREATEST(COALESCE(${campaignsTable.sentCount}, 0) - 1, 0)`,
+              failedCount: sql`COALESCE(${campaignsTable.failedCount}, 0) + 1`,
+            }).where(eq(campaignsTable.id, campaignId));
+          } else {
+            await storage.incrementCampaignSendCount(campaignId, "failedCount");
+          }
         }
       } else if (brevoEvent === "soft_bounce" || brevoEvent === "softbounce") {
-        await storage.updateCampaignSend(campaignId, email, {
-          status: "failed",
-          errorMessage: `Soft bounce: ${req.body.reason || "error temporal"}`,
-        });
-        if (existingSend.status === "sent") {
-          await db.update(campaignsTable).set({
-            sentCount: Math.max(0, (campaign.sentCount || 0) - 1),
-            failedCount: (campaign.failedCount || 0) + 1,
-          }).where(eq(campaignsTable.id, campaignId));
-        } else if (existingSend.status === "pending") {
-          await storage.incrementCampaignSendCount(campaignId, "failedCount");
+        if (existingSend.status !== "failed") {
+          await storage.updateCampaignSend(campaignId, email, {
+            status: "failed",
+            errorMessage: `Soft bounce: ${req.body.reason || "error temporal"}`,
+          });
+          if (existingSend.status === "sent") {
+            await db.update(campaignsTable).set({
+              sentCount: sql`GREATEST(COALESCE(${campaignsTable.sentCount}, 0) - 1, 0)`,
+              failedCount: sql`COALESCE(${campaignsTable.failedCount}, 0) + 1`,
+            }).where(eq(campaignsTable.id, campaignId));
+          } else {
+            await storage.incrementCampaignSendCount(campaignId, "failedCount");
+          }
         }
       } else if (brevoEvent === "opened" || brevoEvent === "open") {
         await storage.updateCampaignSend(campaignId, email, {
