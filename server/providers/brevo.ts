@@ -81,6 +81,17 @@ export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; 
       return { valid: false, error: "API key inválida. Verifica que la key sea correcta." };
     }
 
+    if (res.status === 403) {
+      const errText = await res.text().catch(() => "");
+      if (errText.includes("account_under_validation")) {
+        return { valid: false, error: "Tu cuenta de Brevo está en proceso de validación. Intenta más tarde." };
+      }
+      if (errText.includes("permission_denied")) {
+        return { valid: false, error: "La API key no tiene permisos suficientes. Genera una nueva key con permisos completos." };
+      }
+      return { valid: false, error: "Acceso denegado por Brevo. Verifica el estado de tu cuenta." };
+    }
+
     const errText = await res.text().catch(() => "Error desconocido");
     return { valid: false, error: `Error de Brevo (${res.status}): ${errText}` };
   } catch (err: unknown) {
@@ -132,6 +143,7 @@ export async function createTrackingWebhook(
         events: ["delivered", "hardBounce", "softBounce", "opened", "click"],
         url: callbackUrl,
         description: "PostIAlo Mailing Tracking Webhook",
+        batched: true,
       }),
     });
 
@@ -248,6 +260,20 @@ export async function sendBatchEmails(
           result.sent += chunk.length;
         } else {
           markChunkFailed(result, chunk, "Límite de tasa excedido en Brevo");
+        }
+      } else if (res.status === 403) {
+        const errText = await res.text().catch(() => "");
+        if (errText.includes("account_under_validation")) {
+          console.error("[Brevo] 403 — account under validation");
+          result.noCredits = true;
+          markChunkFailed(result, chunk, "Cuenta de Brevo en proceso de validación");
+        } else if (errText.includes("permission_denied")) {
+          console.error("[Brevo] 403 — permission denied");
+          result.noCredits = true;
+          markChunkFailed(result, chunk, "Permisos insuficientes en la cuenta de Brevo");
+        } else {
+          console.error(`[Brevo] 403 Forbidden: ${errText}`);
+          markChunkFailed(result, chunk, "Acceso denegado por Brevo");
         }
       } else {
         const errText = await res.text().catch(() => "Error desconocido");

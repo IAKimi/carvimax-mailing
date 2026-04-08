@@ -1,0 +1,34 @@
+¡Qué gran avance con PostIAlo Mailing! La arquitectura que planteas para el manejo multi-proveedor, encriptación y control de estados mediante webhooks es robusta y muy profesional.
+A continuación, respondo directamente a las cuatro consultas estratégicas que tienes para Brevo, basándome en su documentación oficial:
+1. Programas de Partners e Integraciones
+Sí, Brevo cuenta oficialmente con un Programa de Partners (Partner Programs) y opciones para agencias certificadas (Certified Brevo Agency partner)
+. Tienen secciones dedicadas a "Soluciones Enterprise" e integraciones
+.
+Nota: Aunque las fuentes proporcionadas confirman la existencia del programa, no detallan los requisitos técnicos o legales específicos para plataformas SaaS de marca blanca. Te sugiero aplicar directamente en su portal de Partners para explorar los beneficios comerciales y técnicos que podrían ofrecer a PostIAlo.
+2. Límites de rate en Webhooks a escala
+Para aplicaciones SaaS con alto volumen de envíos, Brevo tiene una solución específica para que tu backend no se sature de peticiones concurrentes: los Webhooks por Lotes (Batched Webhooks)
+.
+En lugar de recibir un POST individual por cada apertura o clic, puedes habilitar el agrupamiento enviando el parámetro booleano "batched": true al momento de crear el webhook mediante POST /v3/webhooks
+.
+¿Cómo funcionan a escala?
+Brevo acumulará los eventos generados en ventanas de 5 minutos
+.
+Finalizado ese tiempo, enviará un solo request a tu backend con un payload que contiene por defecto hasta 500 eventos
+.
+Si en esos 5 minutos se generaron más de 500 eventos, Brevo enviará múltiples lotes de 500 de forma ordenada
+.
+Consideración importante: Ten en cuenta que Brevo impone un límite estricto de creación de máximo 40 webhooks por cuenta
+. Como crearás un webhook por cada usuario que conecte su cuenta, este límite afectará cuántos endpoints distintos puedes registrar dentro de una misma cuenta de Brevo, pero no será un problema si cada usuario conecta su propia cuenta y configuras un solo webhook general para los eventos de esa cuenta.
+3. Endpoints de salud de la cuenta (Créditos y Dominios)
+Créditos restantes: La documentación actual no expone un endpoint público dedicado a consultar el saldo exacto de créditos restantes de forma proactiva. La arquitectura definida por Brevo para esto es reactiva: debes capturar el código de estado HTTP 402 Payment Required y verificar si el cuerpo del error contiene el código específico not_enough_credits
+.
+Salud general de la cuenta: Puedes enfrentarte a casos donde la cuenta del usuario esté pausada o bajo revisión de cumplimiento. Para esto, tu plataforma debe estar preparada para capturar el error account_under_validation (la cuenta está pendiente de validación manual) o permission_denied (la cuenta carece de permisos)
+.
+Verificación de Dominios y Remitentes: Para confirmar la autenticidad, la plataforma requiere que tanto el email del remitente como el dominio estén autenticados
+. El endpoint ideal para auditar esto proactivamente es listar los remitentes mediante GET /v3/senders
+.
+4. Entorno de pruebas (Sandbox)
+Sí, la API de Brevo cuenta con un Modo Sandbox (Sandbox mode) específicamente diseñado para el envío de correos transaccionales
+. Esta funcionalidad te permitirá enviar peticiones de prueba a la API de mensajería para simular y depurar los envíos desde PostIAlo Mailing durante el desarrollo, sin afectar los créditos reales de la cuenta o la entregabilidad.
+Nota: Los extractos de la documentación actual solo confirman la existencia del "Sandbox mode" en el índice de la API de mensajería
+. Para activarlo, generalmente requerirás pasar un parámetro o usar credenciales específicas indicadas en su portal de desarrolladores.
