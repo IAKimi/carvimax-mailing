@@ -191,6 +191,13 @@ export async function sendBatchEmails(
 
       if (res.ok) {
         result.sent += chunk.length;
+      } else if (res.status === 401) {
+        console.error("[Brevo] 401 Unauthorized — API key is invalid or revoked");
+        result.failed += chunk.length;
+        result.noCredits = true;
+        for (const c of chunk) {
+          result.errors.push({ email: c.email, error: "API key inválida o revocada" });
+        }
       } else if (res.status === 402) {
         result.noCredits = true;
         result.failed += chunk.length;
@@ -198,6 +205,26 @@ export async function sendBatchEmails(
           result.errors.push({ email: c.email, error: "Sin créditos en Brevo" });
         }
         console.error("[Brevo] 402 Payment Required — no credits remaining");
+      } else if (res.status === 429) {
+        console.error("[Brevo] 429 Too Many Requests — rate limit exceeded, will retry after delay");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retryRes = await fetch(`${BREVO_API_BASE}/smtp/email`, {
+          method: "POST",
+          headers: {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "api-key": apiKey,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (retryRes.ok) {
+          result.sent += chunk.length;
+        } else {
+          result.failed += chunk.length;
+          for (const c of chunk) {
+            result.errors.push({ email: c.email, error: "Límite de tasa excedido en Brevo" });
+          }
+        }
       } else {
         const errText = await res.text().catch(() => "Error desconocido");
         console.error(`[Brevo] Send error (${res.status}): ${errText}`);

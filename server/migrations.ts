@@ -229,7 +229,16 @@ const migrations: Migration[] = [
         CREATE UNIQUE INDEX IF NOT EXISTS idx_email_providers_user_provider
         ON email_providers (user_id, provider)
       `);
-      console.log("[migration 009] Created email_providers table with unique index");
+      await client.query(`
+        ALTER TABLE email_providers
+        DROP CONSTRAINT IF EXISTS chk_email_providers_provider
+      `);
+      await client.query(`
+        ALTER TABLE email_providers
+        ADD CONSTRAINT chk_email_providers_provider
+        CHECK (provider IN ('brevo', 'mailchimp'))
+      `);
+      console.log("[migration 009] Created email_providers table with unique index and provider check constraint");
     },
   },
 ];
