@@ -163,7 +163,11 @@ export const insertContactSchema = createInsertSchema(contacts).omit({ id: true,
 export const insertBrandIdentitySchema = createInsertSchema(brandIdentity).omit({ id: true, updatedAt: true });
 export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
 export const insertCampaignSendSchema = createInsertSchema(campaignSends).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertEmailProviderSchema = createInsertSchema(emailProviders).omit({ id: true, createdAt: true });
+export const EMAIL_PROVIDER_TYPES = ["brevo", "mailchimp"] as const;
+export type EmailProviderType = typeof EMAIL_PROVIDER_TYPES[number];
+export const insertEmailProviderSchema = createInsertSchema(emailProviders).omit({ id: true, createdAt: true }).extend({
+  provider: z.enum(EMAIL_PROVIDER_TYPES),
+});
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
