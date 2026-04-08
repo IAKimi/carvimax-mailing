@@ -1,0 +1,77 @@
+Para integrar directamente las cuentas de Mailchimp de tus usuarios en PostIAlo Mailing, aquí tienes las definiciones técnicas y los flujos basados en la documentación oficial de la API de Marketing de Mailchimp:
+1. Tipo de cuenta y obtención de credenciales
+Tipo de cuenta: Cualquier cuenta de Mailchimp (incluida la gratuita) tiene acceso a la API de Marketing, pero las capacidades y límites de envío dependerán del plan que tenga el usuario (Gratuito, Essentials, Standard, Premium)
+.
+Obtención de la API Key: Si decides usar API Keys manuales, el usuario debe ir a la sección "API Keys" de su cuenta, hacer clic en "Create New Key" y copiarla
+.
+Permisos y Mejores Prácticas: Mailchimp advierte que las API Keys otorgan acceso total a la cuenta. Para integraciones SaaS de terceros, se recomienda estrictamente utilizar OAuth 2 en lugar de pedir la API Key directamente al usuario, ya que es más seguro y permite que tu aplicación actúe en su nombre sin exponer credenciales críticas
+.
+2. Validación de la API Key (Endpoint de "Test") Para verificar que la API Key funciona sin enviar correos, puedes llamar al endpoint /ping. Es un "health check" que confirma la conexión
+.
+URL del endpoint: https://<dc>.api.mailchimp.com/3.0/ping
+. El prefijo <dc> (Data Center) se extrae del final de la API Key del usuario (por ejemplo, si la clave es 123456789-us19, el <dc> es us19)
+.
+Método HTTP: GET
+.
+Ejemplo en Node.js (Fetch):
+const apiKey = 'API_KEY_DEL_USUARIO';
+const dc = apiKey.split('-')[8]; // Extrae "us19"
+
+fetch(`https://${dc}.api.mailchimp.com/3.0/ping`, {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Basic ' + Buffer.from(`anystring:${apiKey}`).toString('base64')
+  }
+})
+.then(res => res.json())
+.then(data => console.log(data)); // Si es correcta, retorna un mensaje de éxito.
+3. Flujo correcto para enviar campañas masivas Nota importante sobre iteración: Iterar sobre una lista de contactos y hacer una llamada a la API por cada correo individual no es el flujo adecuado en la API de Marketing de Mailchimp y provocará que alcances rápidamente su límite de limitación de tasa (máximo de 10 conexiones simultáneas)
+. En su lugar, tu backend debe utilizar el flujo de "Campañas" (Campaigns), que consiste en enviar el correo masivo a una lista o audiencia (list_id) en una sola acción
+.
+Paso A: Crear la campaña
+Endpoint: https://<dc>.api.mailchimp.com/3.0/campaigns
+Método: POST
+.
+Body JSON:
+{
+  "type": "regular",
+  "recipients": {
+    "list_id": "ID_DE_LA_LISTA_DE_CONTACTOS"
+  },
+  "settings": {
+    "subject_line": "Asunto del correo",
+    "reply_to": "sender@email.com",
+    "from_name": "Nombre del Remitente"
+  }
+}
+Paso B: Insertar el contenido HTML
+Endpoint: https://<dc>.api.mailchimp.com/3.0/campaigns/{campaign_id}/content
+Método: PUT
+.
+Body JSON:
+{
+  "html": "<html><body><h1>El contenido completo renderizado</h1></body></html>"
+}
+Paso C: Enviar la campaña
+Endpoint: https://<dc>.api.mailchimp.com/3.0/campaigns/{campaign_id}/actions/send
+Método: POST
+. (Este endpoint envía inmediatamente el correo a todos los contactos de la lista y devuelve un código de estado 204 si es exitoso
+).
+Nota: Si los contactos de tu CSV no existen previamente en la cuenta de Mailchimp del usuario, deberás subirlos primero a su Audiencia (Lista) utilizando endpoints como el de Operaciones en Lote (/batches) o /lists/{list_id}/members
+.
+4. Verificación del dominio del remitente El correo del remitente debe pertenecer a un dominio verificado en la cuenta del usuario. Puedes consultarlo programáticamente.
+Endpoint: GET https://<dc>.api.mailchimp.com/3.0/verified-domains
+. Esto retornará una lista de dominios verificados desde los cuales el usuario tiene permitido enviar correos
+. Si no está verificado, puedes iniciar el proceso de verificación mediante la API con un POST a /verified-domains/{domain_name}/actions/verify
+.
+5. Consulta del estado del email (Reportes en tiempo real) Mailchimp no genera webhooks uno-a-uno para cada estado individual de forma nativa en su API básica en tiempo real, pero cuenta con endpoints de reportes exhaustivos que tu backend puede consultar de forma asíncrona.
+Estado general de la campaña: GET /reports/{campaign_id} te dará las métricas generales (entregados, clics, aperturas, etc.)
+.
+Actividad detallada por contacto: GET /reports/{campaign_id}/email-activity devolverá una lista detallada de la actividad de los miembros que recibieron la campaña, incluyendo eventos como entregas (sends), aperturas (opens), clics y rebotes (bounces)
+.
+6. Límites de envío
+Límites de la API: Hay un límite estricto de máximo 10 conexiones concurrentes. Superar esto generará errores HTTP 429 o 403
+.
+Límites de envíos por cuenta: Dependen del plan comercial de tu usuario. Por ejemplo, las cuentas en periodo de prueba gratuita pueden estar limitadas a 100 envíos
+. En el plan Standard, el límite de envío mensual es generalmente 12 veces el tamaño máximo de la base de datos permitida (ej. 6,000 correos al mes si su límite son 500 contactos)
+.

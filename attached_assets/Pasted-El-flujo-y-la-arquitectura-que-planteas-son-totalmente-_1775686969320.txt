@@ -1,0 +1,89 @@
+El flujo y la arquitectura que planteas son totalmente viables y representan el diseño ideal para una plataforma SaaS escalable.
+A continuación, te respondo cada una de tus dudas técnicas basándome en la documentación de la API de Brevo:
+1. Batch sending con messageVersions
+Para enviar el mismo correo a múltiples destinatarios usando una sola llamada, Brevo utiliza la estructura messageVersions.
+Privacidad: Cada destinatario recibe un correo individual. Al usar messageVersions, Brevo procesa cada bloque como un envío independiente, por lo que los destinatarios no ven a los demás (no es un BCC masivo)
+.
+Regla de oro: ¡No debes incluir el parámetro to en el nivel principal (afuera)! Si lo haces, la petición fallará
+.
+Más de 1,000 contactos: Si tu base tiene más de 1,000 contactos, efectivamente deberás dividir tu lista en "chunks" de 1,000 y hacer múltiples llamadas. La API soporta ejecutar este endpoint hasta 6,000 veces por hora (100 veces por minuto), lo que te permite enviar hasta 6 millones de correos por hora
+.
+Ejemplo del payload JSON:
+{
+  "sender": {
+    "name": "PostIAlo",
+    "email": "hola@empresa.com"
+  },
+  "subject": "Asunto global de la campaña",
+  "htmlContent": "<html><body>Hola {{params.nombre}}, este es el contenido.</body></html>",
+  "messageVersions": [
+    {
+      "to": [{"email": "contacto1@ejemplo.com", "name": "Juan"}],
+      "params": {"nombre": "Juan"}
+    },
+    {
+      "to": [{"email": "contacto2@ejemplo.com", "name": "María"}],
+      "params": {"nombre": "María"}
+    }
+  ]
+}
+2. Webhooks de tracking
+Sí, puedes y deberías crear el webhook de forma automática (programáticamente) justo después de que el usuario conecte su cuenta exitosamente
+. Solo debes tener en cuenta que cada cuenta de Brevo tiene un límite máximo de 40 webhooks en total
+.
+Payload exacto para POST /v3/webhooks:
+{
+  "type": "transactional",
+  "events": [
+    "delivered",
+    "opened",
+    "click",
+    "hard_bounce",
+    "soft_bounce"
+  ],
+  "url": "https://tu-backend-postialo.com/api/webhooks/brevo",
+  "description": "PostIAlo Tracking Webhook"
+}
+(Nota: El evento de clic se llama exactamente "click" según la documentación de Brevo
+).
+3. Tags para identificar campañas
+En el envío (POST /v3/smtp/email): Agregas un array de strings llamado tags a nivel raíz en tu JSON. Por ejemplo: "tags": ["campana_postialo_8472"]
+,
+.
+En la respuesta del webhook: Cuando Brevo haga el POST hacia tu backend notificando un evento, el payload incluirá ese mismo tag dentro de un array "tags". También puede incluir una versión convertida a string en la propiedad "tag"
+. Ejemplo de cómo llega:
+{
+  "event": "delivered",
+  "email": "contacto@ejemplo.com",
+  "tags": ["campana_postialo_8472"]
+}
+4. Sobre errores y reintentos
+Hay dos capas de errores distintos en Brevo:
+Errores Inmediatos (HTTP Codes): Si el JSON está mal formado, falta la API key, envías un parámetro inválido o excedes un límite, Brevo no enviará nada y te responderá inmediatamente en la petición de envío. Debes manejar principalmente:
+400 Bad Request: Parámetros inválidos o faltantes
+,
+.
+401 Unauthorized: API key inválida
+.
+402 Payment Required: Falta de saldo/cuota. El código interno será not_enough_credits
+,
+.
+429 Too Many Requests: Has superado el Rate Limit de peticiones por segundo/hora
+.
+Errores Asíncronos (vía Webhook): Si el correo es válido y aceptado por Brevo, tu petición responderá un éxito inmediato 201 o 202 (Accepted) devolviendo el messageId
+,
+. Si posteriormente la entrega falla (buzón lleno, email inexistente), la notificación de error llegará de manera diferida solo a través del webhook en forma de evento "hard_bounce" o "soft_bounce", junto con la propiedad "reason" explicando el motivo exacto del fallo
+,
+,
+-
+.
+5. Sender email vs. Sender domain
+Brevo requiere que el remitente confirme su autenticidad
+. El proceso técnico indica que se debe crear el objeto "Sender" (remitente). Si el dominio de ese correo no ha sido previamente autenticado en Brevo (mediante registros DNS), Brevo enviará automáticamente un correo de verificación a esa dirección específica para validarla individualmente
+. Si el dominio ya estuviera completamente autenticado, la dirección heredará la confianza, pero la buena práctica es utilizar el endpoint de lectura de remitentes (como propusiste) para garantizar que usen aquellos que ya están en estado "verificado".
+6. Consultar cuota restante
+La API de Brevo permite consultar la información del plan usando el endpoint GET /v3/account, el cual valida la cuenta y te devuelve detalles de la misma
+. Sin embargo, la documentación oficial provista no detalla un endpoint específico para visualizar el número exacto de envíos restantes antes de enviar.
+La forma recomendada de protegerte de esto a nivel de código es capturar proactivamente el código de error 402 Payment Required y revisar si el cuerpo de la respuesta contiene el código de error específico not_enough_credits al intentar hacer el envío de la campaña
+,
+. Si lo capturas, puedes detener el lote de envíos y notificar en la interfaz de PostIAlo: "Se ha alcanzado el límite de envíos de tu plan de Brevo".

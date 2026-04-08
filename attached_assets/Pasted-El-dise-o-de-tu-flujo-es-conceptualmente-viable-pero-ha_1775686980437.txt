@@ -1,0 +1,49 @@
+El diseño de tu flujo es conceptualmente viable, pero hay detalles críticos de la API de Mailchimp y sus políticas que debes tener en cuenta. Aquí tienes la validación técnica de cada una de tus dudas basada en la documentación oficial:
+1. Sobre la sincronización de contactos
+¿Nueva audiencia o existente? Técnicamente puedes crear una nueva audiencia por cada envío (POST /lists
+), pero Mailchimp está optimizado para tener un número reducido de audiencias principales y segmentar internamente con "Tags" (etiquetas)
+.
+El endpoint más eficiente: Para sincronizar múltiples contactos de golpe, tienes dos opciones:
+Llamada síncrona: POST /lists/{list_id} permite hacer "Batch subscribe or unsubscribe" (Suscripción o desuscripción por lotes) de miembros de una lista
+.
+Llamada asíncrona (Para listas grandes): Debes usar el endpoint de Operaciones por Lotes (POST /batches), el cual ejecuta peticiones en segundo plano y te ayuda a evitar los límites de la API si estás procesando una gran cantidad de datos
+.
+2. Sobre OAuth2 vs API Key
+Limitaciones y Riesgos: Mailchimp es muy claro en sus directrices: "Si alguna vez necesitas acceder a los datos de la cuenta de Mailchimp de otra persona, debes usar OAuth 2"
+. Usar API Keys está reservado estrictamente para conectar tu propia aplicación con tu propia cuenta
+.
+¿Se puede arrancar con API key? Físicamente tu código funcionará si el usuario pega su API key, pero estás violando sus mejores prácticas y podrías tener problemas si solicitas entrar al Integration Partner Program (Marketplace de Mailchimp), donde soportar OAuth2 es un requisito estricto
+.
+Registro de App: Sí, el flujo de OAuth 2 requiere que registres tu aplicación en Mailchimp para obtener las credenciales de cliente
+.
+3. Sobre la API Transaccional (Mandrill / Mailchimp Transactional)
+¿Es adecuado para campañas? No. Mailchimp Transactional (anteriormente Mandrill) está diseñado para "enviar correos transaccionales a escala" y "mensajes dirigidos basados en eventos", como confirmaciones de compra o reseteo de contraseñas
+. Para marketing masivo (campañas de tus usuarios), debes seguir utilizando la Marketing API
+.
+Credenciales: Es un servicio con su propia infraestructura y requiere que el usuario cree/habilite una cuenta transaccional separada o como add-on
+.
+4. Sobre los reportes de tracking y Webhooks
+Frecuencia de consulta: Mailchimp tiene un límite estricto de 10 conexiones simultáneas
+. Si superas este límite haciendo polling (consultas constantes) al endpoint /reports/{campaign_id}
+, recibirás un error HTTP 429
+.
+Webhooks: Mailchimp ofrece webhooks, pero la documentación de la Marketing API los enfoca principalmente en "mantener tu base de datos sincronizada con tu audiencia de Mailchimp" (cambios en listas, suscripciones/desuscripciones)
+. Para rastrear la actividad detallada de emails (aperturas, clics), la API Transaccional sí menciona webhooks específicos de actividad
+, pero en la Marketing API probablemente dependas de consultar asíncronamente los reportes.
+5. Sobre la verificación del dominio del remitente
+¿Podemos consultar el estado? Sí. Utilizando el endpoint GET /verified-domains/{domain_name}, la API te devolverá los detalles de un único dominio en la cuenta del usuario
+, lo que te permitirá confirmar si está validado para hacer envíos antes de intentar despachar la campaña.
+6. El flujo de secuencia de llamadas (Ejemplo de 2,000 contactos) Tu lógica es correcta, pero requerirá 5 llamadas a la API (no 4):
+POST /lists: Crear la audiencia
+.
+POST /lists/{list_id} (o POST /batches): Subir los 2,000 contactos
+.
+POST /campaigns: Crear la campaña asociada a esa audiencia
+.
+PUT /campaigns/{campaign_id}/content: Insertar el HTML generado por tu IA
+.
+POST /campaigns/{campaign_id}/actions/send: Disparar el envío masivo
+.
+7. Consultar los límites de envío restantes
+Endpoint raíz: Haciendo una llamada GET / al directorio raíz de la API, Mailchimp devuelve enlaces a otros recursos y "detalles sobre la cuenta de usuario de Mailchimp"
+. Es aquí donde se exponen habitualmente los datos generales del plan y el estado de la cuenta, aunque deberás inspeccionar el payload exacto para ver los envíos restantes según el plan de cada usuario.
