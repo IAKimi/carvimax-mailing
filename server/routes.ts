@@ -2272,15 +2272,31 @@ export async function registerRoutes(
           countersChanged = true;
         }
       } else if (brevoEvent === "opened" || brevoEvent === "open") {
-        await storage.updateCampaignSend(campaignId, email, {
-          status: "sent",
-          messageId: req.body["message-id"] || existingSend.messageId || null,
-        });
+        if (existingSend.status === "pending") {
+          await storage.updateCampaignSend(campaignId, email, {
+            status: "sent",
+            messageId: req.body["message-id"] || null,
+          });
+          await storage.incrementCampaignSendCount(campaignId, "sentCount");
+          countersChanged = true;
+        } else if (existingSend.status === "sent") {
+          await storage.updateCampaignSend(campaignId, email, {
+            messageId: req.body["message-id"] || existingSend.messageId || null,
+          });
+        }
       } else if (brevoEvent === "click") {
-        await storage.updateCampaignSend(campaignId, email, {
-          status: "sent",
-          messageId: req.body["message-id"] || existingSend.messageId || null,
-        });
+        if (existingSend.status === "pending") {
+          await storage.updateCampaignSend(campaignId, email, {
+            status: "sent",
+            messageId: req.body["message-id"] || null,
+          });
+          await storage.incrementCampaignSendCount(campaignId, "sentCount");
+          countersChanged = true;
+        } else if (existingSend.status === "sent") {
+          await storage.updateCampaignSend(campaignId, email, {
+            messageId: req.body["message-id"] || existingSend.messageId || null,
+          });
+        }
       } else {
         console.log(`[Brevo webhook] Unhandled event type: ${event} for campaign ${campaignId}`);
         return res.json({ received: true, ignored: true, reason: "unhandled event" });
