@@ -577,7 +577,7 @@ export default function CalendarView() {
   });
 
   interface EmailProviderInfo { id: number; provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
-  const { data: allEmailProviders = [] } = useQuery<EmailProviderInfo[]>({
+  const { data: rawProviders } = useQuery<EmailProviderInfo[]>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
       const res = await fetch("/api/email-provider/status", { credentials: "include" });
@@ -587,6 +587,7 @@ export default function CalendarView() {
       return [];
     },
   });
+  const allEmailProviders: EmailProviderInfo[] = Array.isArray(rawProviders) ? rawProviders : [];
   const emailProviderStatus = allEmailProviders.length > 0 ? allEmailProviders[0] : null;
 
   function handlePublishNow() {

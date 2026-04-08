@@ -1,0 +1,21 @@
+¡Felicitaciones por lograr esa conexión! Que la validación, la creación del webhook y la obtención del remitente funcionen a la primera es una excelente señal de que la arquitectura base de PostIAlo Mailing está bien construida.
+Dado que vas a realizar tu primer envío real con una cuenta de Brevo "virgen", aquí tienes las respuestas directas sobre lo que debes tener en cuenta en la plataforma:
+1. ¿Necesito verificar mi dominio de envío o con el sender detectado es suficiente? Técnicamente, con el sender que ya detectó es suficiente para realizar envíos de prueba
+. Ese remitente suele ser el correo con el que registraste la cuenta y Brevo ya lo reconoce como validado. Sin embargo, para garantizar la entregabilidad (que los correos no lleguen a la carpeta de spam), es una práctica recomendada que posteriormente autentiques tu dominio configurando los registros DNS (Brevo code, DKIM, DMARC)
+. Para esta primera prueba técnica, puedes avanzar solo con el sender validado.
+2. ¿Necesito crear listas o contactos manualmente en Brevo? No, no necesitas crear nada en Brevo. Como PostIAlo está diseñado para usar el endpoint transaccional (POST /v3/smtp/email) enviando el contenido HTML directamente y usando la estructura messageVersions, Brevo actuará únicamente como motor de envío
+. Toda la información de los destinatarios (email, nombre) y las variables personalizadas (a través del objeto params) se envían de forma dinámica en el payload de tu petición, sin necesidad de que esos contactos existan en la base de datos de Brevo
+.
+3. ¿Hay algún paso de verificación de cuenta que Brevo exija? Sí, este es el punto más crítico para las cuentas nuevas. Brevo cuenta con un proceso de cumplimiento por el cual las cuentas nuevas suelen estar bajo validación manual
+.
+Es muy probable que necesites completar la información de tu perfil en Brevo (dirección de la empresa, industria, etc.) si aún no lo has hecho.
+Al intentar enviar tu primera campaña, estate atento a los logs de tu backend. Si la cuenta aún no está aprobada para hacer envíos, Brevo bloqueará la petición y te devolverá un error HTTP con el código interno account_under_validation (Account is pending validation)
+. Si esto ocurre, deberás contactar al soporte de Brevo desde tu panel para que aprueben la cuenta.
+4. ¿El plan gratuito tiene alguna restricción adicional para la API? Para el endpoint de envíos transaccionales (POST /v3/smtp/email), no hay restricciones de funcionalidades en el plan gratuito
+.
+Límites de tasa (Rate Limits): Tienes acceso a los límites generales de la API, que son extremadamente generosos: hasta 1,000 peticiones por segundo (RPS) y 3,600,000 peticiones por hora (RPH) en ese endpoint específico
+.
+El único cuello de botella real será tu cuota de la plataforma de 300 correos por día. Si superas ese volumen, el endpoint te devolverá un error 402 Payment Required con el código not_enough_credits
+.
+En resumen para tu prueba: No tienes que configurar nada más en Brevo. Puedes ir directamente a PostIAlo, crear tu campaña y darle a enviar. Solo asegúrate de capturar bien los errores en tu código por si te enfrentas al estado de account_under_validation
+. ¡Mucho éxito con ese primer envío!
