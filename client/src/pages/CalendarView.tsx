@@ -171,7 +171,7 @@ export default function CalendarView() {
   const [textApproved, setTextApprovedLocal] = useState(false);
   const [imageApproved, setImageApprovedLocal] = useState(false);
   const [approvedImageUrl, setApprovedImageUrl] = useState<string | null>(null);
-  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "" });
+  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "", providerId: "" });
   const [showTargetAudience, setShowTargetAudience] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
@@ -486,7 +486,7 @@ export default function CalendarView() {
         defaultTime = "23:59";
       }
     }
-    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "" });
+    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "", providerId: emailProviderStatus?.isActive ? String(emailProviderStatus.id) : "" });
     setShowTargetAudience(false);
     setImageSourceMode(null);
     setUploadedImageFile(null);
@@ -576,7 +576,7 @@ export default function CalendarView() {
     },
   });
 
-  interface EmailProviderInfo { provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
+  interface EmailProviderInfo { id: number; provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
   const { data: emailProviderStatus } = useQuery<EmailProviderInfo | null>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
@@ -660,6 +660,7 @@ export default function CalendarView() {
       targetDatabase: form.targetDatabase || null,
       targetAudience: showTargetAudience && form.targetAudience.trim() ? form.targetAudience.trim() : null,
       templateId: form.templateId ? parseInt(form.templateId) : null,
+      providerId: form.providerId ? parseInt(form.providerId) : null,
       scheduledAt,
     });
   }

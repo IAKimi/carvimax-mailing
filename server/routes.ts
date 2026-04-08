@@ -87,6 +87,7 @@ const createCampaignSchema = z.object({
   targetDatabase: z.string().max(200).nullable().optional(),
   targetAudience: z.string().max(1000, "El público objetivo no puede exceder 1000 caracteres").nullable().optional(),
   templateId: z.number().int().positive().nullable().optional(),
+  providerId: z.number().int().positive().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
 });
 

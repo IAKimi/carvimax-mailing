@@ -36,6 +36,7 @@ export const campaigns = pgTable("campaigns", {
   failedCount: integer("failed_count").default(0),
   imageRegenCount: integer("image_regen_count").default(0),
   textRegenCount: integer("text_regen_count").default(0),
+  providerId: integer("provider_id"),
   schedulerRetryCount: integer("scheduler_retry_count").default(0),
   schedulerLastError: text("scheduler_last_error"),
   textApproved: boolean("text_approved").default(false),
