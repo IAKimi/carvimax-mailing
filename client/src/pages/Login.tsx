@@ -344,14 +344,14 @@ export default function Login() {
               <div className="mt-6 text-center">
                 {mode === "login" ? (
                   <p className="text-sm text-gray-500">
-                    ¿No tienes cuenta? 🤔{" "}
+                    ¿No tienes cuenta?{" "}
                     <button
                       data-testid="button-switch-to-register"
                       type="button"
                       onClick={() => setMode("register")}
                       className="text-[#002073] font-semibold hover:underline"
                     >
-                      Regístrate ✅
+                      Regístrate
                     </button>
                   </p>
                 ) : (
