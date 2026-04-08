@@ -1,5 +1,13 @@
 const BREVO_API_BASE = "https://api.brevo.com/v3";
 
+interface BrevoAccountResponse {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  plan?: Array<{ type?: string; credits?: number }>;
+}
+
 interface BrevoAccountInfo {
   email: string;
   firstName: string;
@@ -15,10 +23,12 @@ interface BrevoSender {
   active: boolean;
 }
 
-interface BrevoSendResult {
-  messageId?: string;
-  error?: string;
-  statusCode?: number;
+interface BrevoSendersResponse {
+  senders?: Array<{ id?: number; name?: string; email?: string; active?: boolean }>;
+}
+
+interface BrevoWebhookResponse {
+  id?: number;
 }
 
 interface BrevoBatchResult {
@@ -26,6 +36,30 @@ interface BrevoBatchResult {
   failed: number;
   errors: Array<{ email: string; error: string }>;
   noCredits: boolean;
+}
+
+function parseAccountResponse(data: unknown): BrevoAccountInfo {
+  const obj = (data && typeof data === "object" ? data : {}) as BrevoAccountResponse;
+  return {
+    email: obj.email || "",
+    firstName: obj.firstName || "",
+    lastName: obj.lastName || "",
+    companyName: obj.companyName || "",
+    plan: Array.isArray(obj.plan)
+      ? obj.plan.map(p => ({ type: p.type || "", credits: p.credits || 0 }))
+      : [],
+  };
+}
+
+function parseSendersResponse(data: unknown): BrevoSender[] {
+  const obj = (data && typeof data === "object" ? data : {}) as BrevoSendersResponse;
+  if (!Array.isArray(obj.senders)) return [];
+  return obj.senders.map(s => ({
+    id: s.id || 0,
+    name: s.name || "",
+    email: s.email || "",
+    active: s.active !== false,
+  }));
 }
 
 export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; account?: BrevoAccountInfo; error?: string }> {
@@ -39,17 +73,8 @@ export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; 
     });
 
     if (res.ok) {
-      const data = await res.json() as any;
-      return {
-        valid: true,
-        account: {
-          email: data.email || "",
-          firstName: data.firstName || "",
-          lastName: data.lastName || "",
-          companyName: data.companyName || "",
-          plan: data.plan || [],
-        },
-      };
+      const data: unknown = await res.json();
+      return { valid: true, account: parseAccountResponse(data) };
     }
 
     if (res.status === 401) {
@@ -58,8 +83,9 @@ export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; 
 
     const errText = await res.text().catch(() => "Error desconocido");
     return { valid: false, error: `Error de Brevo (${res.status}): ${errText}` };
-  } catch (err: any) {
-    return { valid: false, error: `Error de conexión con Brevo: ${err.message}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    return { valid: false, error: `Error de conexión con Brevo: ${message}` };
   }
 }
 
@@ -78,17 +104,14 @@ export async function getSenders(apiKey: string): Promise<{ senders: BrevoSender
       return { senders: [], error: `Error al consultar senders (${res.status}): ${errText}` };
     }
 
-    const data = await res.json() as any;
-    const senders: BrevoSender[] = (data.senders || []).map((s: any) => ({
-      id: s.id,
-      name: s.name || "",
-      email: s.email,
-      active: s.active !== false,
-    }));
+    const data: unknown = await res.json();
+    const allSenders = parseSendersResponse(data);
+    const activeSenders = allSenders.filter(s => s.active);
 
-    return { senders };
-  } catch (err: any) {
-    return { senders: [], error: `Error de conexión: ${err.message}` };
+    return { senders: activeSenders };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    return { senders: [], error: `Error de conexión: ${message}` };
   }
 }
 
@@ -118,11 +141,13 @@ export async function createTrackingWebhook(
       return { webhookId: null, error: `Error al crear webhook (${res.status})` };
     }
 
-    const data = await res.json() as any;
-    return { webhookId: String(data.id || "") };
-  } catch (err: any) {
-    console.error("[Brevo] Webhook creation error:", err.message);
-    return { webhookId: null, error: `Error de conexión: ${err.message}` };
+    const data: unknown = await res.json();
+    const webhookData = (data && typeof data === "object" ? data : {}) as BrevoWebhookResponse;
+    return { webhookId: webhookData.id ? String(webhookData.id) : null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    console.error("[Brevo] Webhook creation error:", message);
+    return { webhookId: null, error: `Error de conexión: ${message}` };
   }
 }
 
@@ -134,12 +159,39 @@ export async function deleteWebhook(apiKey: string, webhookId: string): Promise<
         "api-key": apiKey,
       },
     });
-  } catch (err: any) {
-    console.error("[Brevo] Webhook deletion error:", err.message);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    console.error("[Brevo] Webhook deletion error:", message);
   }
 }
 
 const BATCH_SIZE = 1000;
+
+async function sendChunk(
+  apiKey: string,
+  payload: Record<string, unknown>
+): Promise<Response> {
+  return fetch(`${BREVO_API_BASE}/smtp/email`, {
+    method: "POST",
+    headers: {
+      "accept": "application/json",
+      "content-type": "application/json",
+      "api-key": apiKey,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+function markChunkFailed(
+  result: BrevoBatchResult,
+  chunk: Array<{ name: string; email: string }>,
+  errorMsg: string
+): void {
+  result.failed += chunk.length;
+  for (const c of chunk) {
+    result.errors.push({ email: c.email, error: errorMsg });
+  }
+}
 
 export async function sendBatchEmails(
   apiKey: string,
@@ -158,10 +210,7 @@ export async function sendBatchEmails(
 
   for (const chunk of chunks) {
     if (result.noCredits) {
-      result.failed += chunk.length;
-      for (const c of chunk) {
-        result.errors.push({ email: c.email, error: "Sin créditos en Brevo" });
-      }
+      markChunkFailed(result, chunk, "Sin créditos en Brevo");
       continue;
     }
 
@@ -179,66 +228,36 @@ export async function sendBatchEmails(
         tags: [campaignTag],
       };
 
-      const res = await fetch(`${BREVO_API_BASE}/smtp/email`, {
-        method: "POST",
-        headers: {
-          "accept": "application/json",
-          "content-type": "application/json",
-          "api-key": apiKey,
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await sendChunk(apiKey, payload);
 
       if (res.ok) {
         result.sent += chunk.length;
       } else if (res.status === 401) {
         console.error("[Brevo] 401 Unauthorized — API key is invalid or revoked");
-        result.failed += chunk.length;
         result.noCredits = true;
-        for (const c of chunk) {
-          result.errors.push({ email: c.email, error: "API key inválida o revocada" });
-        }
+        markChunkFailed(result, chunk, "API key inválida o revocada");
       } else if (res.status === 402) {
-        result.noCredits = true;
-        result.failed += chunk.length;
-        for (const c of chunk) {
-          result.errors.push({ email: c.email, error: "Sin créditos en Brevo" });
-        }
         console.error("[Brevo] 402 Payment Required — no credits remaining");
+        result.noCredits = true;
+        markChunkFailed(result, chunk, "Sin créditos en Brevo");
       } else if (res.status === 429) {
-        console.error("[Brevo] 429 Too Many Requests — rate limit exceeded, will retry after delay");
+        console.error("[Brevo] 429 Too Many Requests — rate limit exceeded, retrying after delay");
         await new Promise(resolve => setTimeout(resolve, 2000));
-        const retryRes = await fetch(`${BREVO_API_BASE}/smtp/email`, {
-          method: "POST",
-          headers: {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "api-key": apiKey,
-          },
-          body: JSON.stringify(payload),
-        });
+        const retryRes = await sendChunk(apiKey, payload);
         if (retryRes.ok) {
           result.sent += chunk.length;
         } else {
-          result.failed += chunk.length;
-          for (const c of chunk) {
-            result.errors.push({ email: c.email, error: "Límite de tasa excedido en Brevo" });
-          }
+          markChunkFailed(result, chunk, "Límite de tasa excedido en Brevo");
         }
       } else {
         const errText = await res.text().catch(() => "Error desconocido");
         console.error(`[Brevo] Send error (${res.status}): ${errText}`);
-        result.failed += chunk.length;
-        for (const c of chunk) {
-          result.errors.push({ email: c.email, error: `Error ${res.status}` });
-        }
+        markChunkFailed(result, chunk, `Error ${res.status}`);
       }
-    } catch (err: any) {
-      console.error("[Brevo] Send batch error:", err.message);
-      result.failed += chunk.length;
-      for (const c of chunk) {
-        result.errors.push({ email: c.email, error: err.message });
-      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      console.error("[Brevo] Send batch error:", message);
+      markChunkFailed(result, chunk, message);
     }
   }
 
