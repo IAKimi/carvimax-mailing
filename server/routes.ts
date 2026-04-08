@@ -1594,17 +1594,26 @@ export async function registerRoutes(
   app.get("/api/email-provider/status", requireAuth, async (req, res) => {
     try {
       const providers = await storage.getEmailProviders(req.session.userId!);
-      const safe = providers.map(p => ({
-        id: p.id,
-        provider: p.provider,
-        isActive: p.isActive,
-        senderEmail: p.senderEmail,
-        senderName: p.senderName,
-        accountEmail: p.accountEmail,
-        accountPlan: p.accountPlan,
-        webhookConfigured: !!p.webhookId,
-        createdAt: p.createdAt,
-      }));
+      const { decryptApiKey } = await import("./encryption");
+      const safe = providers.map(p => {
+        let maskedKey = "";
+        try {
+          const fullKey = decryptApiKey(p.encryptedApiKey, p.iv, p.authTag);
+          maskedKey = fullKey.slice(-4);
+        } catch {}
+        return {
+          id: p.id,
+          provider: p.provider,
+          isActive: p.isActive,
+          senderEmail: p.senderEmail,
+          senderName: p.senderName,
+          accountEmail: p.accountEmail,
+          accountPlan: p.accountPlan,
+          webhookConfigured: !!p.webhookId,
+          maskedKey,
+          createdAt: p.createdAt,
+        };
+      });
       res.json(safe);
     } catch (err: any) {
       console.error("Error fetching email provider status:", err.message);

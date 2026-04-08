@@ -576,8 +576,30 @@ export default function CalendarView() {
     },
   });
 
+  const { data: emailProviderStatus } = useQuery<{ provider: string; isActive: boolean } | null>({
+    queryKey: ["/api/email-provider/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/email-provider/status", { credentials: "include" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data.find((p: any) => p.isActive) || null;
+      }
+      if (!data || !data.provider) return null;
+      return data;
+    },
+  });
+
   function handlePublishNow() {
     if (!editingCampaignId) return;
+    if (!emailProviderStatus?.isActive) {
+      toast({
+        title: "Proveedor de email no configurado",
+        description: "Debe conectar un proveedor de email (Brevo) antes de enviar campañas. Vaya a Proveedor de Email en el menú lateral.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!editingCampaign?.templateId) {
       toast({ title: "Plantilla requerida", description: "Debe seleccionar una plantilla antes de enviar el correo.", variant: "destructive" });
       return;

@@ -16,6 +16,7 @@ import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
 import AdminUsers from "@/pages/AdminUsers";
 import Dashboard from "@/pages/Dashboard";
+import EmailProvider from "@/pages/EmailProvider";
 import VerifyEmail from "@/pages/VerifyEmail";
 import { getOnboardingLevel, type OnboardingStatus } from "@/components/Layout";
 
@@ -23,6 +24,7 @@ const ROUTE_LEVELS: Record<string, number> = {
   "/": 0,
   "/brand": 0,
   "/templates": 1,
+  "/email-provider": 1,
   "/contacts": 2,
   "/calendar": 3,
   "/emails": 3,
@@ -136,6 +138,7 @@ function Router() {
       <Route path="/brand">{() => <ProtectedRoute component={BrandIdentity} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={CalendarView} />}</Route>
       <Route path="/templates">{() => <ProtectedRoute component={Templates} />}</Route>
+      <Route path="/email-provider">{() => <ProtectedRoute component={EmailProvider} />}</Route>
       <Route path="/emails">{() => <ProtectedRoute component={MyEmails} />}</Route>
       <Route path="/contacts">{() => <ProtectedRoute component={Contacts} />}</Route>
       <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>

@@ -1,7 +1,7 @@
 # PostIAlo Mailing - SaaS de Email Marketing con IA
 
 ## Overview
-PostIAlo Mail is an AI-powered email marketing automation SaaS platform designed to streamline email campaign creation and management. It leverages AI for content and image generation, offering a comprehensive tool for users to efficiently design, generate, and manage their email marketing efforts. The project aims to empower users with advanced AI capabilities to create engaging and effective email campaigns.
+PostIAlo Mail is an AI-powered email marketing automation SaaS platform designed to streamline email campaign creation and management. It leverages AI for content and image generation, offering a comprehensive tool for users to efficiently design, generate, and manage their email marketing efforts. The project aims to empower users with advanced AI capabilities to create engaging and effective email campaigns, simplifying the marketing process and boosting efficiency.
 
 ## User Preferences
 I want to prioritize iterative development, receiving detailed explanations for complex features. I prefer clear, concise language in all communications. For coding, I favor a modular and clean architecture. Before making any significant architectural changes or introducing new dependencies, please ask for my approval. Ensure all user-facing text and documentation are in Spanish.
@@ -11,86 +11,69 @@ The application is built with a modern web stack, featuring a React frontend and
 
 ### Frontend
 - **Framework & Styling**: React with TypeScript, Vite, and Tailwind CSS.
-- **UI Components**: Shadcn UI, Lucide React, React Icons, Framer Motion for animations.
+- **UI Components**: Utilizes Shadcn UI, Lucide React, React Icons, and Framer Motion for animations.
 - **WYSIWYG Editor**: TipTap for rich text editing.
-- **Visual Theme**: Light mode only, using Primary #002073 and Accent #e3001b. Layouts are full-width (`w-full`) with dynamic padding and a collapsible sidebar.
-- **UI/UX Decisions**: Unified campaign card layouts, always-editable text fields, preview via iframe dialog, instant version switching, and a database selector card in the campaign editor.
-- **Placeholder System**: Standardized placeholders (`{{ASUNTO}}`, `{{PREHEADER}}`, `{{CONTENIDO}}`, `{{CTA_TEXTO}}`, `{{CTA_URL}}`, `{{IMAGEN_URL}}`) are used for dynamic content injection in templates.
+- **Visual Theme**: Light mode only, using Primary #002073 and Accent #e3001b. Layouts are full-width with dynamic padding and a collapsible sidebar.
+- **UI/UX Decisions**: Emphasizes unified campaign card layouts, always-editable text fields, iframe dialog for previews, instant version switching, and a database selector card in the campaign editor.
+- **Placeholder System**: Standardized placeholders (`{{ASUNTO}}`, `{{PREHEADER}}`, `{{CONTENIDO}}`, `{{CTA_TEXTO}}`, `{{CTA_URL}}`, `{{IMAGEN_URL}}`) for dynamic content.
 
 ### Backend
 - **Framework**: Express.js (Node.js).
 - **Authentication**: `bcryptjs` for hashing and `express-session` with `connect-pg-simple` for session management.
-- **API Design**: RESTful API with Zod-based validation for all endpoints, covering authentication, CRUD operations for campaigns, contacts, brand identity, and templates, as well as AI-driven generation and editing.
-- **Security**: Rate limiting on auth and AI routes, HTML sanitization, input validation, and data ownership checks.
+- **API Design**: RESTful API with Zod-based validation for all endpoints. Covers authentication, CRUD operations, and AI-driven generation/editing.
+- **Security**: Implements rate limiting, HTML sanitization, input validation, and data ownership checks.
 - **Concurrency**: OpenAI (text) and Gemini (image) generation run in parallel.
 
 ### Data Management
 - **Database**: PostgreSQL with Drizzle ORM.
-- **Schema**: Includes `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity`, and `templates` tables.
-- **Campaign Versioning**: Supports up to 3 versions per campaign, storing `contentJson` and `imageUrl`.
-- **Template Versioning**: Allows up to 3 versions per template for comparison, with a `isConfirmed` flag.
+- **Schema**: Includes tables for `users`, `campaigns`, `campaign_versions`, `contact_databases`, `contacts`, `brand_identity`, and `templates`.
+- **Versioning**: Supports up to 3 versions per campaign and template for comparison.
 - **AI Integration**:
-    - **OpenAI**: Uses `gpt-4.1-mini` for text generation with Structured Outputs, leveraging `brand_identity` and conversational history. Includes retry logic and refusal handling.
-    - **Gemini**: Uses `gemini-3.1-flash-image-preview` as modelo principal para generación de imágenes (16:9 aspect ratio) y edición multimodal avanzada (Nano Banana) con micro-prompts. Failsafe automático: si el modelo principal falla tras 3 reintentos (500/502/503/429), cambia automáticamente a `gemini-2.0-flash` como respaldo (2 reintentos adicionales). Logging con prefijo `[FAILSAFE]`.
-- **Contacts System**: Manages `name`, `email`, `position`, `segment` fields, with validation and deduplication on import.
-- **Admin Panel**: Provides user management (create, edit, delete, activate, role changes), activity logs, platform statistics, and impersonation functionality, protected by `requireAdmin` middleware.
+    - **OpenAI**: Uses `gpt-4.1-mini` for text generation with Structured Outputs, leveraging brand identity and conversational history. Includes retry logic and refusal handling.
+    - **Gemini**: Uses `gemini-3.1-flash-image-preview` for image generation (16:9 aspect ratio) and multimodal editing. Features automatic failsafe to `gemini-2.0-flash` upon primary model failure.
+- **Contacts System**: Manages contact data with validation and deduplication on import.
+- **Admin Panel**: Provides user management, activity logs, platform statistics, and impersonation functionality.
 
-### Features
-- **Calendar**: Displays campaigns with status indicators (emerald=sent, blue=scheduled, gray=draft, red=cancelled) and image thumbnails on hover. Optimized for performance with memoized components and bulk image fetching.
-- **CSV/XLSX Import**: Supports importing contact data with automatic delimiter detection, English/Spanish column header mapping, and deduplication.
-- **Smart Template Analysis**: AI-powered analysis for uploaded HTML templates. Uses intelligent detection: identifies existing elements (logo, image, CTA button, footer) and only inserts `{{CONTENIDO}}` where content is truly variable. Returns `lockedFields` array indicating which elements are fixed. Upload dialog is a full-screen split-view (form left, live preview right) with no technical jargon — uses "Adaptar con Inteligencia Artificial" button. Endpoint: `POST /api/templates/analyze-html`.
-- **Locked Fields System**: Templates store `lockedFields` (jsonb) indicating which elements come pre-built (values: "imagen", "cta", "cta_url", "footer"). In the campaign editor (CalendarView), locked fields show a lock icon and are disabled. AI text generation (`generateEmailContent`, `regenerateEmailContent`) receives `lockedFields` to focus creativity on dynamic fields only.
-- **Single Template Generation**: Generates 1 template per request with standardized naming ("Plantilla N"). Users can create new AI versions (up to 3 total including original) before confirming. Manual text editing available for all AI templates.
-- **Standardized Template Structure**: All AI-generated templates follow a fixed block order: Header/Banner (logo top-left + {{ASUNTO}} centered) → Hero Image → Content → CTA Button → Footer. `buildBaseTemplateHtml()` generates a parameterized base HTML template using brand colors/fonts/logo. The AI can only customize cosmetic aspects (colors, fonts, text styles, content formatting, image dimensions) but NEVER the block order. UI disclaimers in both "Create with AI" and "Edit with AI" dialogs inform users of the standard structure.
-- **Optimized AI Prompts**: Template generation (`buildTemplateInstructions`) passes the base HTML template + brand identity data and instructs the AI to adapt cosmetically. Campaign content (`buildInstructions`) uses copywriting-only data (company, industry, mission, vision, products, history, styleGuide, tone, targetAudience). Gemini receives only user prompt + action.
-- **Manual Text Editing**: AI-generated templates support inline text editing — groups text nodes by nearest block parent (TD, DIV, P, etc.) into labeled sections (e.g., "Sección 1", "Párrafo 2") for a cleaner editing experience.
-- **Confirmed Template Lockdown**: Once a template is confirmed (`isConfirmed=true`), AI editing buttons are hidden. Only preview, rename, text edit, and delete remain.
-- **Email Verification**: New users must verify their email before accessing the platform. Registration generates a token, fires a webhook to Make.com (`MAKE_VERIFICATION_WEBHOOK_URL`), which sends a welcome email via Brevo. Clicking the link verifies the account and auto-logs in. Polling on the waiting screen detects verification. Resend option available. Existing users auto-marked as verified via migration.
-- **Logo Auto-Conversion**: Logo upload endpoint automatically converts JPEG/WebP to PNG using `sharp` for transparency compatibility in email templates. Always saves as `.png`. Frontend shows conversion notification toast.
-- **Email Provider Infrastructure**: Each user can connect their own Brevo (and future Mailchimp) account via API key. Table `email_providers` stores encrypted credentials (AES-256-GCM). Endpoints: `POST /api/email-provider/connect`, `DELETE /api/email-provider/:provider`, `GET /api/email-provider/status`, `GET /api/email-provider/:provider/senders`, `PATCH /api/email-provider/:provider/sender`. Brevo module at `server/providers/brevo.ts` handles key validation (`GET /v3/account`), sender listing (`GET /v3/senders`), webhook creation (`POST /v3/webhooks`), and batch email sending with `messageVersions` (chunks of 1,000). Encryption utility at `server/encryption.ts`.
-- **Security Headers (helmet)**: All HTTP responses include security headers via `helmet`: `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`, `X-DNS-Prefetch-Control`, `X-Download-Options`, `Referrer-Policy: no-referrer`, `X-XSS-Protection`, `Cross-Origin-Opener-Policy`. CSP, frameguard, and cross-origin embed/resource policies are disabled to allow email preview iframes and external image loading.
-- **Validation & Security**: Enforces content approval, prevents modification of sent campaigns, and includes various input validations (e.g., website field auto-prepends `https://`). Backend blocks approving placeholder images (`placehold.co` URLs). Send endpoint and scheduler also reject placeholder images.
-- **API 404 Catch-All**: Unknown `/api/*` routes return 404 JSON instead of serving frontend HTML, preventing false positives from security scanners.
-- **Gemini Retry**: All Gemini API calls (generate, edit, advanced edit) use automatic retry with exponential backoff (2s, 4s, 8s) for HTTP 500/502/503/429 and network errors, up to 3 attempts.
-- **Target Audience**: Optional `targetAudience` field in campaigns, which is passed to AI prompts to tailor content.
-- **Historial de Correos**: Collapsible cards show campaign details, with client-side date range filtering. Selection mode with checkboxes for selective deletion. "Vaciar Todo" for clearing entire history. Both features moved from Calendar to MyEmails page.
-- **Dashboard (Analytics)**: Displays user-specific metrics (total campaigns, timeline, top databases/templates, contacts reached) using Recharts, with brand color schemes.
-- **Guided Tutorial Mode (Bombillo)**: Interactive, step-by-step guidance for new users, highlighting UI elements and providing tips, persisted in local storage.
-- **Logo Hosting**: `POST /api/brand/logo-upload` saves uploaded logos (PNG/JPG/WebP only, no SVG) to `uploads/logos/` and returns a public URL. Static serving via `app.use("/uploads", express.static(...))`.
-- **Sender Configuration**: `senderName` and `senderEmail` fields in brand identity, used as email sender info when dispatching campaigns.
-- **Direct Brevo Send**: Campaigns are sent via `sendCampaignDirect()` which uses the user's own Brevo API key (encrypted in `email_providers` table). Sends use `messageVersions` batch API (up to 1,000 per call) with tag `postialo_campaign_{id}` for tracking. Status lifecycle: draft → sending → sent/partial/failed. Handles 402 (no credits) by stopping remaining chunks and marking as "partial". Background scheduler checks every 60s for scheduled campaigns with retry limit (3 attempts max, then marks as "failed"). Scheduler also verifies user has an active email provider before attempting send. If no provider is configured, campaign is immediately marked as "failed" with descriptive error.
-- **Brevo Webhook Tracking**: `POST /api/webhooks/brevo` (public, rate-limited) receives delivery notifications from Brevo. Handles events: delivered, hard_bounce, soft_bounce, opened, click. Uses `postialo_campaign_{id}` tag to identify campaign. Updates `campaign_sends` records and broadcasts progress via WebSocket. Bounces adjust sent/failed counters.
-- **Make.com Registration Webhook**: The registration verification webhook (`POST /api/webhooks/make-callback`) remains for email verification flow only. The campaign send webhook has been removed.
-- **Image Hosting**: Generated/edited images are saved as files in `uploads/campaigns/` (not base64 in DB). API responses resolve filenames to public URLs. Webhook HTML uses clean `<img src="https://...">` URLs instead of multi-MB base64. Helper functions: `saveBase64Image()` saves to disk, `getImagePublicUrl()` resolves filenames (supports `APP_URL` env var for production domains), `loadImageAsBase64()` reads back for Gemini editing.
-- **Same-Day Scheduling**: When selecting today in the calendar, the default time is set to the next full hour. Frontend converts datetime-local to ISO string with `toISOString()` to avoid timezone mismatches with the server.
-- **Editor Persistence**: Mutation dialogs (Regenerar Texto, Regenerar Imagen, Nano Banana) cannot be closed while a mutation is pending — `onOpenChange`, `onInteractOutside`, and `onEscapeKeyDown` are blocked during isPending.
-- **Image Prompt Limits**: All image-related prompts (regeneration, editing, Nano Banana) accept up to 1200 characters (frontend maxLength + backend validation).
-- **Campaign Send Tracking**: Per-contact tracking via `campaign_sends` table. Pre-registers all contacts as "pending" before webhook dispatch. Callback endpoint accepts per-contact status updates (`campaign_id`, `contact_email`, `status`, `message_id`, `error_message`). Campaign auto-transitions to "sent"/"partial"/"failed" when all callbacks received. Real-time progress via WebSocket (`/ws` path) broadcasting `campaign-progress` events. API endpoints: `GET /api/campaigns/:id/sends` (full log), `GET /api/campaigns/:id/send-stats` (summary counts).
-- **Ownership Checks**: Target database ownership is verified before sending to prevent cross-tenant data leakage.
-- **Progressive Onboarding**: Sidebar sections unlock progressively as the user completes steps. `GET /api/onboarding-status` returns `{hasBrand, hasTemplates, hasContactDatabases}`. Locked sidebar items show a lock icon and toast on click. Route protection redirects users who try to access locked sections via URL. "Siguiente" navigation buttons guide users through the flow: Brand → Templates → Contacts → Calendar.
+### Core Features
+- **Calendar**: Displays campaigns with status indicators and image thumbnails.
+- **CSV/XLSX Import**: Supports contact data import with automatic delimiter detection and column mapping.
+- **Smart Template Analysis**: AI-powered analysis for uploaded HTML templates, identifying existing elements and inserting `{{CONTENIDO}}` intelligently.
+- **Locked Fields System**: Templates store `lockedFields` to disable editing of pre-built elements in the campaign editor, guiding AI generation.
+- **Standardized Template Structure**: All AI-generated templates follow a fixed block order (Header, Hero Image, Content, CTA Button, Footer), ensuring consistent design. AI can only customize cosmetic aspects.
+- **Optimized AI Prompts**: Prompts are tailored for template generation and campaign content, utilizing brand identity and copywriting data.
+- **Manual Text Editing**: Supports inline text editing within AI-generated templates, grouping text nodes for a cleaner experience.
+- **Confirmed Template Lockdown**: AI editing buttons are hidden once a template is confirmed.
+- **Email Verification**: New users verify email via a webhook to Brevo before platform access.
+- **Logo Auto-Conversion**: Uploaded logos (JPEG/WebP) are automatically converted to PNG for transparency.
+- **Email Provider Infrastructure**: Users connect their own Brevo (and future Mailchimp) accounts via API key, with encrypted credentials.
+- **Security Headers**: `helmet` is used for HTTP security headers, with specific policies disabled to allow email preview iframes.
+- **Validation & Security**: Enforces content approval, prevents modification of sent campaigns, and includes input validations.
+- **API 404 Catch-All**: Unknown `/api/*` routes return 404 JSON.
+- **Gemini Retry**: All Gemini API calls include automatic retry with exponential backoff.
+- **Campaign Send Tracking**: Per-contact tracking for campaigns, updating status via Brevo webhooks and broadcasting progress via WebSocket.
+- **Progressive Onboarding**: Sidebar sections unlock progressively as users complete steps, guided by "Siguiente" navigation buttons.
 
 ### Deployment & Production
-- **Deployment Target**: VM (always-running) for WebSocket and campaign scheduler support.
-- **Build**: `npm run build` → esbuild bundles server to `dist/index.cjs`, Vite builds frontend to `dist/public/`.
+- **Deployment Target**: VM for WebSocket and campaign scheduler support.
+- **Build Process**: `esbuild` for backend, `Vite` for frontend.
 - **Production Run**: `node ./dist/index.cjs` serves both API and static frontend.
-- **Database Seed**: `server/seed.ts` auto-seeds production DB on first boot if empty. Reads from `server/seed-data.json` (copied to `dist/server/` during build). Exports all tables with sequence resets.
-- **Uploads**: Campaign images and logos stored in `uploads/` directory, served via `express.static`.
-- **Admin User**: `admin@postialo.com` (role: admin).
-- **Session Security**: Secure cookies in production, `trust proxy` enabled for Replit's reverse proxy.
+- **Database Seed**: `server/seed.ts` auto-seeds production DB on first boot.
+- **Uploads**: Campaign images and logos stored in `uploads/` and served statically.
+- **Session Security**: Secure cookies and `trust proxy` enabled for Replit.
 
 ## External Dependencies
 - **PostgreSQL**: Primary database.
-- **OpenAI API**: For AI text generation, regeneration, and template analysis.
-- **Google Gemini API**: For AI image generation and advanced image editing.
-- **Brevo API**: Direct campaign email sending via user's own API key (per-user provider integration).
-- **Make.com Webhook**: Registration email verification only (campaign sending removed).
+- **OpenAI API**: AI text generation and template analysis.
+- **Google Gemini API**: AI image generation and advanced image editing.
+- **Brevo API**: Direct campaign email sending and delivery tracking.
+- **Make.com Webhook**: User registration email verification.
 - **bcryptjs**: Password hashing.
 - **express-session**: Session management.
 - **connect-pg-simple**: PostgreSQL session store.
 - **TipTap**: WYSIWYG editor.
 - **Framer Motion**: Frontend animations.
 - **Wouter**: Client-side routing.
-- **Recharts**: Charting library for dashboard.
+- **Recharts**: Dashboard charting library.
 - **Lucide React / React Icons**: Icon libraries.
 - **express-rate-limit**: API rate limiting.
 - **Drizzle ORM**: PostgreSQL ORM.

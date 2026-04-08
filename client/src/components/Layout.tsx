@@ -15,7 +15,8 @@ import {
   Eye,
   BarChart3,
   Lightbulb,
-  Lock
+  Lock,
+  Link2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ interface OnboardingStatus {
 const NAV_ITEMS = [
   { icon: Home, label: "Inicio", href: "/", requiresLevel: 0 },
   { icon: Palette, label: "Identidad de Marca", href: "/brand", requiresLevel: 0 },
+  { icon: Link2, label: "Proveedor de Email", href: "/email-provider", requiresLevel: 1 },
   { icon: LayoutTemplate, label: "Plantillas", href: "/templates", requiresLevel: 1 },
   { icon: Database, label: "Base de Datos", href: "/contacts", requiresLevel: 2 },
   { icon: CalendarDays, label: "Calendario", href: "/calendar", requiresLevel: 3 },
