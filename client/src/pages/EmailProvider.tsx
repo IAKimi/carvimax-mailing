@@ -65,9 +65,9 @@ export default function EmailProvider() {
         if (res.status === 404) return null;
         throw new Error("Error cargando estado del proveedor");
       }
-      const data = await res.json();
+      const data = await res.json() as ProviderStatus[] | ProviderStatus;
       if (Array.isArray(data)) {
-        const active = data.find((p: any) => p.provider === "brevo" && p.isActive);
+        const active = data.find((p) => p.provider === "brevo" && p.isActive);
         return active || null;
       }
       if (!data || !data.provider) return null;

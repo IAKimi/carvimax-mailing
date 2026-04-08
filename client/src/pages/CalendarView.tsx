@@ -576,14 +576,15 @@ export default function CalendarView() {
     },
   });
 
-  const { data: emailProviderStatus } = useQuery<{ provider: string; isActive: boolean } | null>({
+  interface EmailProviderInfo { provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
+  const { data: emailProviderStatus } = useQuery<EmailProviderInfo | null>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
       const res = await fetch("/api/email-provider/status", { credentials: "include" });
       if (!res.ok) return null;
-      const data = await res.json();
+      const data = await res.json() as EmailProviderInfo[] | EmailProviderInfo;
       if (Array.isArray(data)) {
-        return data.find((p: any) => p.isActive) || null;
+        return data.find((p) => p.isActive) || null;
       }
       if (!data || !data.provider) return null;
       return data;
@@ -1232,6 +1233,22 @@ export default function CalendarView() {
               )}
             </div>
           </div>
+
+          {!emailProviderStatus?.isActive && !isCancelled && !isSending && !isSent && (
+            <div data-testid="banner-no-provider" className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800">Proveedor de email no configurado</p>
+                <p className="text-xs text-amber-600 mt-0.5">Debe conectar un proveedor de email para poder enviar campañas.</p>
+              </div>
+              <Link href="/email-provider">
+                <Button data-testid="link-configure-provider" variant="outline" size="sm" className="rounded-xl gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100">
+                  <Link2 className="w-3.5 h-3.5" />
+                  Configurar
+                </Button>
+              </Link>
+            </div>
+          )}
 
           {isCancelled && (
             <div data-testid="banner-cancelled" className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -2785,6 +2802,28 @@ export default function CalendarView() {
                 />
               </div>
             </TutorialHighlight>
+            {emailProviderStatus?.isActive ? (
+              <div data-testid="info-provider-connected" className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
+                <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="text-emerald-700">
+                  Proveedor: <strong className="capitalize">{emailProviderStatus.provider}</strong>
+                  {emailProviderStatus.senderEmail && <> · {emailProviderStatus.senderEmail}</>}
+                </span>
+              </div>
+            ) : (
+              <div data-testid="info-provider-missing" className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="text-amber-700">Sin proveedor de email configurado.</span>
+                </div>
+                <Link href="/email-provider">
+                  <Button data-testid="link-setup-provider" variant="ghost" size="sm" className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 gap-1 h-7 text-xs">
+                    <Link2 className="w-3 h-3" />
+                    Configurar
+                  </Button>
+                </Link>
+              </div>
+            )}
             <Button
               data-testid="button-generate-email"
               onClick={handleGenerate}
