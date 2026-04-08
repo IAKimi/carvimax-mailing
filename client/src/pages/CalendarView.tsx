@@ -577,19 +577,17 @@ export default function CalendarView() {
   });
 
   interface EmailProviderInfo { id: number; provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
-  const { data: emailProviderStatus } = useQuery<EmailProviderInfo | null>({
+  const { data: allEmailProviders = [] } = useQuery<EmailProviderInfo[]>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
       const res = await fetch("/api/email-provider/status", { credentials: "include" });
-      if (!res.ok) return null;
-      const data = await res.json() as EmailProviderInfo[] | EmailProviderInfo;
-      if (Array.isArray(data)) {
-        return data.find((p) => p.isActive) || null;
-      }
-      if (!data || !data.provider) return null;
-      return data;
+      if (!res.ok) return [];
+      const data = await res.json() as EmailProviderInfo[];
+      if (Array.isArray(data)) return data.filter((p) => p.isActive);
+      return [];
     },
   });
+  const emailProviderStatus = allEmailProviders.length > 0 ? allEmailProviders[0] : null;
 
   function handlePublishNow() {
     if (!editingCampaignId) return;
@@ -2815,15 +2813,7 @@ export default function CalendarView() {
                 />
               </div>
             </TutorialHighlight>
-            {emailProviderStatus?.isActive ? (
-              <div data-testid="info-provider-connected" className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span className="text-emerald-700">
-                  Proveedor: <strong className="capitalize">{emailProviderStatus.provider}</strong>
-                  {emailProviderStatus.senderEmail && <> · {emailProviderStatus.senderEmail}</>}
-                </span>
-              </div>
-            ) : (
+            {allEmailProviders.length === 0 ? (
               <div data-testid="info-provider-missing" className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
                 <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
                 <div className="flex-1">
@@ -2835,6 +2825,34 @@ export default function CalendarView() {
                     Configurar
                   </Button>
                 </Link>
+              </div>
+            ) : allEmailProviders.length === 1 ? (
+              <div data-testid="info-provider-connected" className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
+                <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="text-emerald-700">
+                  Proveedor: <strong className="capitalize">{allEmailProviders[0].provider}</strong>
+                  {allEmailProviders[0].senderEmail && <> · {allEmailProviders[0].senderEmail}</>}
+                </span>
+              </div>
+            ) : (
+              <div data-testid="select-provider-container" className="space-y-2">
+                <Label>Proveedor de Envío</Label>
+                <Select
+                  value={form.providerId}
+                  onValueChange={(v) => setForm(f => ({ ...f, providerId: v }))}
+                >
+                  <SelectTrigger data-testid="select-campaign-provider" className="rounded-xl">
+                    <SelectValue placeholder="Seleccione un proveedor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allEmailProviders.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        <span className="capitalize">{p.provider}</span>
+                        {p.senderEmail && <span className="text-muted-foreground ml-2">· {p.senderEmail}</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             <Button
