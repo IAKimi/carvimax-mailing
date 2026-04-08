@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import helmet from "helmet";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -28,6 +29,15 @@ declare module "express-session" {
 }
 
 const PgStore = connectPgSimple(session);
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    frameguard: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+  }),
+);
 
 app.use(
   express.json({
