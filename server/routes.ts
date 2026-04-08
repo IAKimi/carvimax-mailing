@@ -1944,9 +1944,9 @@ export async function registerRoutes(
     let previousStatus = "draft";
     try {
       const providers = await storage.getEmailProviders(userId);
-      const activeProvider = providers.find(p => p.isActive);
+      const activeProvider = providers.find(p => p.provider === "brevo" && p.isActive);
       if (!activeProvider) {
-        return { success: false, error: "No tienes un proveedor de email configurado. Ve a Configuración > Proveedor de Email para conectar tu cuenta de Brevo." };
+        return { success: false, error: "No tienes Brevo configurado. Ve a Configuración > Proveedor de Email para conectar tu cuenta de Brevo." };
       }
 
       let apiKey: string;
@@ -2228,6 +2228,7 @@ export async function registerRoutes(
       }
 
       const brevoEvent = String(event).toLowerCase();
+      let countersChanged = false;
 
       if (brevoEvent === "delivered") {
         if (existingSend.status === "pending") {
@@ -2236,17 +2237,7 @@ export async function registerRoutes(
             messageId: req.body["message-id"] || null,
           });
           await storage.incrementCampaignSendCount(campaignId, "sentCount");
-
-          const updatedAfterDelivered = await storage.getCampaign(campaignId);
-          if (updatedAfterDelivered) {
-            const sent = updatedAfterDelivered.sentCount || 0;
-            const failed = updatedAfterDelivered.failedCount || 0;
-            const total = updatedAfterDelivered.totalExpectedSends || 0;
-            if (total > 0 && (sent + failed) >= total) {
-              const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
-              await storage.updateCampaign(campaignId, { status: finalStatus } as any);
-            }
-          }
+          countersChanged = true;
         }
       } else if (brevoEvent === "hard_bounce" || brevoEvent === "hardbounce") {
         if (existingSend.status !== "failed") {
@@ -2262,6 +2253,7 @@ export async function registerRoutes(
           } else {
             await storage.incrementCampaignSendCount(campaignId, "failedCount");
           }
+          countersChanged = true;
         }
       } else if (brevoEvent === "soft_bounce" || brevoEvent === "softbounce") {
         if (existingSend.status !== "failed") {
@@ -2277,6 +2269,7 @@ export async function registerRoutes(
           } else {
             await storage.incrementCampaignSendCount(campaignId, "failedCount");
           }
+          countersChanged = true;
         }
       } else if (brevoEvent === "opened" || brevoEvent === "open") {
         await storage.updateCampaignSend(campaignId, email, {
@@ -2295,13 +2288,39 @@ export async function registerRoutes(
 
       const updatedCampaign = await storage.getCampaign(campaignId);
       if (updatedCampaign) {
-        broadcastWs("campaign-progress", {
-          campaignId,
-          totalExpectedSends: updatedCampaign.totalExpectedSends || 0,
-          sentCount: updatedCampaign.sentCount || 0,
-          failedCount: updatedCampaign.failedCount || 0,
-          status: updatedCampaign.status,
-        });
+        if (countersChanged) {
+          const sent = updatedCampaign.sentCount || 0;
+          const failed = updatedCampaign.failedCount || 0;
+          const total = updatedCampaign.totalExpectedSends || 0;
+          if (total > 0 && (sent + failed) >= total && updatedCampaign.status === "sending") {
+            const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
+            await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+            broadcastWs("campaign-progress", {
+              campaignId,
+              totalExpectedSends: total,
+              sentCount: sent,
+              failedCount: failed,
+              status: finalStatus,
+              completed: true,
+            });
+          } else {
+            broadcastWs("campaign-progress", {
+              campaignId,
+              totalExpectedSends: total,
+              sentCount: sent,
+              failedCount: failed,
+              status: updatedCampaign.status,
+            });
+          }
+        } else {
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: updatedCampaign.totalExpectedSends || 0,
+            sentCount: updatedCampaign.sentCount || 0,
+            failedCount: updatedCampaign.failedCount || 0,
+            status: updatedCampaign.status,
+          });
+        }
       }
 
       console.log(`[Brevo webhook] event=${event} email=${email} campaign=${campaignId}`);
