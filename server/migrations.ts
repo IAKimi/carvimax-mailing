@@ -205,6 +205,33 @@ const migrations: Migration[] = [
       console.log("[migration 008] Added email verification columns and marked existing users as verified");
     },
   },
+  {
+    name: "009_create_email_providers_table",
+    up: async (client) => {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS email_providers (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          provider TEXT NOT NULL,
+          encrypted_api_key TEXT NOT NULL,
+          iv TEXT NOT NULL,
+          auth_tag TEXT NOT NULL,
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          sender_email TEXT,
+          sender_name TEXT,
+          webhook_id TEXT,
+          account_email TEXT,
+          account_plan TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_email_providers_user_provider
+        ON email_providers (user_id, provider)
+      `);
+      console.log("[migration 009] Created email_providers table with unique index");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

@@ -1,7 +1,7 @@
 import { eq, and, ne, gte, lt, isNull, or, sql, inArray, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends,
+  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends, emailProviders,
   type User, type InsertUser,
   type Campaign, type InsertCampaign,
   type CampaignVersion, type InsertCampaignVersion,
@@ -9,7 +9,8 @@ import {
   type ContactDatabase, type InsertContactDatabase,
   type BrandIdentity, type InsertBrandIdentity,
   type Template, type InsertTemplate,
-  type CampaignSend, type InsertCampaignSend
+  type CampaignSend, type InsertCampaignSend,
+  type EmailProvider, type InsertEmailProvider
 } from "@shared/schema";
 
 type CampaignListItem = Omit<Campaign, "selectedImageUrl">;
@@ -73,6 +74,12 @@ export interface IStorage {
   getCampaignSendStats(campaignId: number): Promise<{ total: number; sent: number; failed: number; pending: number }>;
   incrementCampaignSendCount(campaignId: number, field: "sentCount" | "failedCount"): Promise<Campaign | undefined>;
   deleteCampaignSends(campaignId: number): Promise<void>;
+
+  createEmailProvider(data: InsertEmailProvider): Promise<EmailProvider>;
+  getEmailProvider(userId: number, provider: string): Promise<EmailProvider | undefined>;
+  getEmailProviders(userId: number): Promise<EmailProvider[]>;
+  updateEmailProvider(id: number, updates: Partial<InsertEmailProvider>): Promise<EmailProvider | undefined>;
+  deleteEmailProvider(id: number): Promise<void>;
 
   getAllUsers(): Promise<User[]>;
   updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string; isActive: boolean }>): Promise<User | undefined>;
@@ -534,7 +541,32 @@ export class DatabaseStorage implements IStorage {
     await db.delete(contactDatabases).where(eq(contactDatabases.userId, id));
     await db.delete(templates).where(eq(templates.userId, id));
     await db.delete(brandIdentity).where(eq(brandIdentity.userId, id));
+    await db.delete(emailProviders).where(eq(emailProviders.userId, id));
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  async createEmailProvider(data: InsertEmailProvider): Promise<EmailProvider> {
+    const [created] = await db.insert(emailProviders).values(data).returning();
+    return created;
+  }
+
+  async getEmailProvider(userId: number, provider: string): Promise<EmailProvider | undefined> {
+    const [result] = await db.select().from(emailProviders)
+      .where(and(eq(emailProviders.userId, userId), eq(emailProviders.provider, provider)));
+    return result;
+  }
+
+  async getEmailProviders(userId: number): Promise<EmailProvider[]> {
+    return db.select().from(emailProviders).where(eq(emailProviders.userId, userId));
+  }
+
+  async updateEmailProvider(id: number, updates: Partial<InsertEmailProvider>): Promise<EmailProvider | undefined> {
+    const [updated] = await db.update(emailProviders).set(updates).where(eq(emailProviders.id, id)).returning();
+    return updated;
+  }
+
+  async deleteEmailProvider(id: number): Promise<void> {
+    await db.delete(emailProviders).where(eq(emailProviders.id, id));
   }
 
   async getAdminStats(): Promise<{ totalUsers: number; totalCampaigns: number; totalCampaignsByStatus: Record<string, number>; totalTemplates: number; totalContacts: number; totalDatabases: number }> {

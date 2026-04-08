@@ -1482,6 +1482,188 @@ export async function registerRoutes(
     }
   });
 
+  // ── Email Provider Configuration ──
+
+  app.post("/api/email-provider/connect", requireAuth, async (req, res) => {
+    try {
+      const { provider, apiKey } = req.body;
+      if (!provider || !apiKey) {
+        return res.status(400).json({ message: "Proveedor y API key son requeridos." });
+      }
+      if (!["brevo", "mailchimp"].includes(provider)) {
+        return res.status(400).json({ message: "Proveedor no soportado. Use 'brevo' o 'mailchimp'." });
+      }
+
+      if (provider === "brevo") {
+        const { validateApiKey: validateBrevo, getSenders: getBrevoSenders, createTrackingWebhook } = await import("./providers/brevo");
+        const validation = await validateBrevo(apiKey);
+        if (!validation.valid) {
+          return res.status(400).json({ message: validation.error || "API key inválida." });
+        }
+
+        const existing = await storage.getEmailProvider(req.session.userId!, provider);
+        if (existing) {
+          if (existing.webhookId) {
+            const { deleteWebhook } = await import("./providers/brevo");
+            const { decryptApiKey } = await import("./encryption");
+            try {
+              const oldKey = decryptApiKey(existing.encryptedApiKey, existing.iv, existing.authTag);
+              await deleteWebhook(oldKey, existing.webhookId);
+            } catch {}
+          }
+          await storage.deleteEmailProvider(existing.id);
+        }
+
+        const { encryptApiKey } = await import("./encryption");
+        const encrypted = encryptApiKey(apiKey);
+
+        const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+        const host = req.headers["x-forwarded-host"] || req.headers.host;
+        const callbackUrl = `${protocol}://${host}/api/webhooks/brevo`;
+        const webhookResult = await createTrackingWebhook(apiKey, callbackUrl);
+
+        const sendersResult = await getBrevoSenders(apiKey);
+        const defaultSender = sendersResult.senders.find(s => s.active) || sendersResult.senders[0];
+
+        const planInfo = validation.account?.plan?.map(p => `${p.type}`).join(", ") || "N/A";
+
+        const created = await storage.createEmailProvider({
+          userId: req.session.userId!,
+          provider,
+          encryptedApiKey: encrypted.encrypted,
+          iv: encrypted.iv,
+          authTag: encrypted.authTag,
+          isActive: true,
+          senderEmail: defaultSender?.email || null,
+          senderName: defaultSender?.name || null,
+          webhookId: webhookResult.webhookId,
+          accountEmail: validation.account?.email || null,
+          accountPlan: planInfo,
+        });
+
+        res.status(201).json({
+          id: created.id,
+          provider: created.provider,
+          isActive: created.isActive,
+          senderEmail: created.senderEmail,
+          senderName: created.senderName,
+          accountEmail: created.accountEmail,
+          accountPlan: created.accountPlan,
+          webhookConfigured: !!webhookResult.webhookId,
+          senders: sendersResult.senders,
+        });
+      } else {
+        return res.status(400).json({ message: "La integración con Mailchimp estará disponible próximamente." });
+      }
+    } catch (err: any) {
+      console.error("Error connecting email provider:", err.message);
+      return res.status(500).json({ message: "Error al conectar el proveedor." });
+    }
+  });
+
+  app.delete("/api/email-provider/:provider", requireAuth, async (req, res) => {
+    try {
+      const { provider } = req.params;
+      const existing = await storage.getEmailProvider(req.session.userId!, provider);
+      if (!existing) {
+        return res.status(404).json({ message: "Proveedor no encontrado." });
+      }
+
+      if (existing.webhookId && provider === "brevo") {
+        try {
+          const { decryptApiKey } = await import("./encryption");
+          const { deleteWebhook } = await import("./providers/brevo");
+          const apiKey = decryptApiKey(existing.encryptedApiKey, existing.iv, existing.authTag);
+          await deleteWebhook(apiKey, existing.webhookId);
+        } catch (err: any) {
+          console.error("Error deleting webhook during disconnect:", err.message);
+        }
+      }
+
+      await storage.deleteEmailProvider(existing.id);
+      res.json({ message: "Proveedor desconectado exitosamente." });
+    } catch (err: any) {
+      console.error("Error disconnecting email provider:", err.message);
+      return res.status(500).json({ message: "Error al desconectar el proveedor." });
+    }
+  });
+
+  app.get("/api/email-provider/status", requireAuth, async (req, res) => {
+    try {
+      const providers = await storage.getEmailProviders(req.session.userId!);
+      const safe = providers.map(p => ({
+        id: p.id,
+        provider: p.provider,
+        isActive: p.isActive,
+        senderEmail: p.senderEmail,
+        senderName: p.senderName,
+        accountEmail: p.accountEmail,
+        accountPlan: p.accountPlan,
+        webhookConfigured: !!p.webhookId,
+        createdAt: p.createdAt,
+      }));
+      res.json(safe);
+    } catch (err: any) {
+      console.error("Error fetching email provider status:", err.message);
+      return res.status(500).json({ message: "Error al obtener el estado de proveedores." });
+    }
+  });
+
+  app.get("/api/email-provider/:provider/senders", requireAuth, async (req, res) => {
+    try {
+      const { provider } = req.params;
+      const existing = await storage.getEmailProvider(req.session.userId!, provider);
+      if (!existing) {
+        return res.status(404).json({ message: "Proveedor no configurado." });
+      }
+
+      const { decryptApiKey } = await import("./encryption");
+      const apiKey = decryptApiKey(existing.encryptedApiKey, existing.iv, existing.authTag);
+
+      if (provider === "brevo") {
+        const { getSenders } = await import("./providers/brevo");
+        const result = await getSenders(apiKey);
+        if (result.error) {
+          return res.status(502).json({ message: result.error });
+        }
+        res.json({ senders: result.senders });
+      } else {
+        return res.status(400).json({ message: "Proveedor no soportado." });
+      }
+    } catch (err: any) {
+      console.error("Error fetching senders:", err.message);
+      return res.status(500).json({ message: "Error al obtener los remitentes." });
+    }
+  });
+
+  app.patch("/api/email-provider/:provider/sender", requireAuth, async (req, res) => {
+    try {
+      const { provider } = req.params;
+      const { senderEmail, senderName } = req.body;
+      if (!senderEmail) {
+        return res.status(400).json({ message: "Email del remitente es requerido." });
+      }
+
+      const existing = await storage.getEmailProvider(req.session.userId!, provider);
+      if (!existing) {
+        return res.status(404).json({ message: "Proveedor no configurado." });
+      }
+
+      const updated = await storage.updateEmailProvider(existing.id, { senderEmail, senderName: senderName || null });
+      res.json({
+        id: updated!.id,
+        provider: updated!.provider,
+        senderEmail: updated!.senderEmail,
+        senderName: updated!.senderName,
+      });
+    } catch (err: any) {
+      console.error("Error updating sender:", err.message);
+      return res.status(500).json({ message: "Error al actualizar el remitente." });
+    }
+  });
+
+  // ── Templates ──
+
   app.get("/api/templates", requireAuth, async (req, res) => {
     const tpls = await storage.getTemplates(req.session.userId!);
     res.json(tpls);

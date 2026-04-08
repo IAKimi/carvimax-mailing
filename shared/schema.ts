@@ -128,6 +128,22 @@ export const campaignSends = pgTable("campaign_sends", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const emailProviders = pgTable("email_providers", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  provider: text("provider").notNull(),
+  encryptedApiKey: text("encrypted_api_key").notNull(),
+  iv: text("iv").notNull(),
+  authTag: text("auth_tag").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  senderEmail: text("sender_email"),
+  senderName: text("sender_name"),
+  webhookId: text("webhook_id"),
+  accountEmail: text("account_email"),
+  accountPlan: text("account_plan"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const TEMPLATE_PLACEHOLDERS = {
   ASUNTO: { key: "{{ASUNTO}}", field: "asunto", label: "Asunto del correo", description: "Línea de asunto que aparece en la bandeja de entrada" },
   PREHEADER: { key: "{{PREHEADER}}", field: "preheader", label: "Vista previa (Preheader)", description: "Texto que aparece después del asunto en la bandeja" },
@@ -147,6 +163,7 @@ export const insertContactSchema = createInsertSchema(contacts).omit({ id: true,
 export const insertBrandIdentitySchema = createInsertSchema(brandIdentity).omit({ id: true, updatedAt: true });
 export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
 export const insertCampaignSendSchema = createInsertSchema(campaignSends).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEmailProviderSchema = createInsertSchema(emailProviders).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -171,3 +188,6 @@ export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
 
 export type CampaignSend = typeof campaignSends.$inferSelect;
 export type InsertCampaignSend = z.infer<typeof insertCampaignSendSchema>;
+
+export type EmailProvider = typeof emailProviders.$inferSelect;
+export type InsertEmailProvider = z.infer<typeof insertEmailProviderSchema>;
