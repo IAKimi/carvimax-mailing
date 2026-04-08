@@ -925,6 +925,14 @@ export default function CalendarView() {
     if (!editingCampaignId || !editingCampaign) return;
     if (editingCampaign.status !== "draft") return;
     if (!editingCampaign.scheduledAt) return;
+    if (!emailProviderStatus?.isActive) {
+      toast({
+        title: "Proveedor de email no configurado",
+        description: "Debe conectar un proveedor de email antes de programar campañas.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const scheduledTime = new Date(editingCampaign.scheduledAt).getTime();
     const now = Date.now();
@@ -950,6 +958,10 @@ export default function CalendarView() {
 
   function handleReschedule() {
     if (!editingCampaignId || !rescheduleDate) return;
+    if (!emailProviderStatus?.isActive) {
+      toast({ title: "Proveedor de email no configurado", description: "Debe conectar un proveedor de email antes de programar campañas.", variant: "destructive" });
+      return;
+    }
     const newDate = new Date(rescheduleDate);
     const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
     if (newDate.getTime() < fifteenMinFromNow) {

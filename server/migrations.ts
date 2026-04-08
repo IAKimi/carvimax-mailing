@@ -241,6 +241,13 @@ const migrations: Migration[] = [
       console.log("[migration 009] Created email_providers table with unique index and provider check constraint");
     },
   },
+  {
+    name: "010_add_provider_id_to_campaigns",
+    up: async (client) => {
+      await client.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS provider_id INTEGER`);
+      console.log("[migration 010] Added provider_id column to campaigns");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
