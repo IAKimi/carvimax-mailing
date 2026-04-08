@@ -2624,7 +2624,7 @@ export async function registerRoutes(
               continue;
             }
             const providerList = await storage.getEmailProviders(campaign.userId);
-            const hasProvider = providerList.some(p => p.isActive);
+            const hasProvider = providerList.some(p => p.provider === "brevo" && p.isActive);
             if (!hasProvider) {
               console.error(`Scheduler: campaign #${campaign.id} skipped — user ${campaign.userId} has no email provider configured.`);
               await storage.updateCampaign(campaign.id, { status: "failed" } as any);
