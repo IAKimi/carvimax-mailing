@@ -1,0 +1,85 @@
+**¡Perfecto!** Aquí tenés **todos los prompts redefinidos 100 % para Replit Agent** (el que usó tu amigo).  
+
+Los adapté específicamente para **asegurar la plataforma que tu amigo ya construyó** en Replit. Es decir: no empezamos de cero, sino que le pedimos al Agent que **audite, revise y endurezca** el código existente (login, base de datos, endpoints API, etc.) para que quede production-ready y seguro.
+
+### Bloque de seguridad OBLIGATORIO (úsalo al final de TODOS los prompts)
+Copia y pega siempre este bloque al final de cada prompt grande:
+
+```
+Hazlo seguro y production-ready para Replit:
+- Valida y sanitiza TODOS los inputs con Zod o similar.
+- Usa prepared statements / ORM seguro (nunca queries raw SQL).
+- Implementa rate limiting en todos los endpoints públicos y API routes.
+- Protege contra SQL injection, XSS, CSRF y ataques comunes.
+- Usa auth bien hecha con Clerk (clerkMiddleware para proteger TODAS las rutas /api/* y el dashboard).
+- Nunca hardcodees secrets; usa variables de entorno de Replit.
+- Agrega logging básico de errores y rate-limit exceeded.
+- Incluye CORS correcto y headers de seguridad.
+- Revisa el código existente y corrige cualquier vulnerabilidad que encuentres.
+```
+
+### 1. Prompt principal para **asegurar la plataforma existente** (el que tu amigo ya tiene)
+Este es el que debés usar primero en el Agent de Replit para que revise todo lo que ya está hecho:
+
+```
+Revisa y asegura toda la plataforma SaaS que ya está construida en este Replit.
+
+Audita el código actual (frontend, backend, base de datos, autenticación y todos los endpoints API) y aplícale las siguientes mejoras de seguridad:
+
+- Valida y sanitiza TODOS los inputs con Zod o similar.
+- Usa prepared statements / ORM seguro (nunca queries raw SQL).
+- Implementa rate limiting en todos los endpoints públicos y API routes.
+- Protege contra SQL injection, XSS, CSRF y ataques comunes.
+- Usa auth bien hecha con Clerk (clerkMiddleware para proteger TODAS las rutas /api/* y el dashboard). Si no está Clerk, instálalo y configúralo.
+- Nunca hardcodees secrets; usa variables de entorno de Replit.
+- Agrega logging básico de errores y rate-limit exceeded.
+- Incluye CORS correcto y headers de seguridad.
+
+Mantén toda la funcionalidad que ya existe, solo mejora la seguridad. Genera los cambios necesarios, crea o actualiza los archivos middleware.ts, y asegúrate de que todo siga funcionando después de los cambios. Explica brevemente qué cambios hiciste para que mi amigo pueda revisarlos.
+```
+
+### 2. Prompt adicional solo para **proteger los endpoints API** (el famoso “cli-clock” = Clerk)
+
+```
+En el proyecto actual de Replit, protege todas las API routes con Clerk:
+
+- Crea o actualiza el archivo middleware.ts con clerkMiddleware() para que proteja TODAS las rutas /api/* y el dashboard.
+- En cada route handler de API usa auth() o protect() para verificar el usuario.
+- Si alguien intenta acceder sin estar logueado, devuelve 401 o redirige.
+- Agrega rate limiting a las rutas API con un middleware simple.
+- Revisa el código existente y aplica los cambios sin romper nada.
+
+Haz que quede completamente seguro y listo para producción.
+```
+
+### 3. Prompt para **replicar el método en un nuevo SaaS** (el que vas a usar las 10 veces)
+
+Una vez que el primero esté asegurado, usás este para crear los siguientes (cada uno diferente):
+
+```
+Toma la plataforma base segura que ya tenemos en este Replit (con Clerk, rate limiting, validaciones, etc.) y adáptala a un nuevo SaaS que hace lo siguiente: [AQUÍ DESCRIBÍ EN DETALLE LA NUEVA IDEA: qué funcionalidad principal, qué datos guarda, etc.].
+
+Mantén toda la seguridad anterior:
+- Valida y sanitiza TODOS los inputs con Zod o similar.
+- Usa prepared statements / ORM seguro.
+- Implementa rate limiting en todos los endpoints.
+- Protege contra SQL injection, XSS, CSRF.
+- Usa Clerk con clerkMiddleware para proteger todas las rutas API y dashboard.
+- Mantén Stripe para suscripciones.
+
+Agrega las tablas nuevas que necesite este SaaS y modifica el dashboard y lógica según la descripción. No clones exactamente el anterior, solo reutiliza la estructura segura. Genera todo lo necesario y asegúrate de que quede listo para deploy en Coolify.
+```
+
+### Cómo usarlos en Replit (paso a paso rápido)
+1. Abrí el proyecto de tu amigo en Replit.
+2. Andá al chat del **Replit Agent**.
+3. Pegá primero el **Prompt principal para asegurar** (el #1).
+4. Después del Agent termine, probá la app y luego pegá el #2 para reforzar los endpoints.
+5. Una vez que todo quede blindado, cloná el Replit (o exportá a GitHub) y usá el prompt #3 para cada nuevo SaaS.
+
+Con estos prompts el Agent de Replit va a **cerciorarse** de que todo quede cubierto: auth fuerte, rate limiting, validaciones, protección de APIs, etc. Es exactamente lo que necesitás para no repetir los $500 de tu amigo y que cada SaaS salga seguro desde el principio.
+
+¿Querés que adapte alguno de estos prompts con más detalle de la idea de tu primer SaaS? O si preferís, decime qué funcionalidad tiene la app de tu amigo y te lo personalizo aún más.  
+
+¡Listo para que lo copies y pegues ya mismo en Replit! 🚀
+
