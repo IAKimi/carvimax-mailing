@@ -18,6 +18,8 @@ export interface MailchimpAudience {
   id: string;
   name: string;
   memberCount: number;
+  defaultFromName?: string;
+  defaultFromEmail?: string;
 }
 
 function extractDataCenter(apiKey: string): string {
@@ -98,10 +100,13 @@ export async function getAudiences(
     const rawLists = Array.isArray(data.lists) ? data.lists : [];
     const audiences: MailchimpAudience[] = rawLists.map((l: Record<string, unknown>) => {
       const stats = l.stats as Record<string, unknown> | undefined;
+      const defaults = l.campaign_defaults as Record<string, unknown> | undefined;
       return {
         id: String(l.id || ""),
         name: String(l.name || ""),
         memberCount: Number(stats?.member_count || 0),
+        defaultFromName: defaults?.from_name ? String(defaults.from_name) : undefined,
+        defaultFromEmail: defaults?.from_email ? String(defaults.from_email) : undefined,
       };
     });
 

@@ -1574,8 +1574,10 @@ export async function registerRoutes(
         const encrypted = encryptApiKey(apiKey);
 
         let autoAudienceId: string | null = null;
-        let audiencesList: Array<{ id: string; name: string; memberCount: number }> = [];
+        let audiencesList: Array<{ id: string; name: string; memberCount: number; defaultFromName?: string; defaultFromEmail?: string }> = [];
         let audienceWarning: string | null = null;
+        let autoSenderEmail: string | null = null;
+        let autoSenderName: string | null = null;
         if (validation.dataCenter) {
           const audiencesResult = await getAudiences(apiKey, validation.dataCenter);
           if (audiencesResult.error) {
@@ -1584,8 +1586,14 @@ export async function registerRoutes(
             audiencesList = audiencesResult.audiences;
             if (audiencesList.length === 1) {
               autoAudienceId = audiencesList[0].id;
+              autoSenderEmail = audiencesList[0].defaultFromEmail || null;
+              autoSenderName = audiencesList[0].defaultFromName || null;
             }
           }
+        }
+        if (!autoSenderEmail && validation.account?.email) {
+          autoSenderEmail = validation.account.email;
+          autoSenderName = autoSenderName || `${validation.account.firstName || ""} ${validation.account.lastName || ""}`.trim() || validation.account.accountName || null;
         }
 
         const created = await storage.createEmailProvider({
@@ -1595,8 +1603,8 @@ export async function registerRoutes(
           iv: encrypted.iv,
           authTag: encrypted.authTag,
           isActive: true,
-          senderEmail: null,
-          senderName: null,
+          senderEmail: autoSenderEmail,
+          senderName: autoSenderName,
           webhookId: null,
           accountEmail: validation.account?.email || null,
           accountPlan: `${validation.account?.totalSubscribers || 0} suscriptores`,
@@ -1608,6 +1616,8 @@ export async function registerRoutes(
           id: created.id,
           provider: created.provider,
           isActive: created.isActive,
+          senderEmail: created.senderEmail,
+          senderName: created.senderName,
           accountEmail: created.accountEmail,
           accountPlan: created.accountPlan,
           accountName: validation.account?.accountName || null,
@@ -1699,13 +1709,18 @@ export async function registerRoutes(
         }
         res.json({ senders: result.senders });
       } else if (provider === "mailchimp") {
-        const { getVerifiedDomains } = await import("./providers/mailchimp");
+        const { getVerifiedDomains, getAudiences } = await import("./providers/mailchimp");
         const dc = existing.mailchimpDataCenter || "";
-        const result = await getVerifiedDomains(apiKey, dc);
-        if (result.error) {
-          return res.status(502).json({ message: result.error });
-        }
-        res.json({ domains: result.domains });
+        const domainsResult = await getVerifiedDomains(apiKey, dc);
+        const audiencesResult = await getAudiences(apiKey, dc);
+        const audienceSenders = (audiencesResult.audiences || [])
+          .filter(a => a.defaultFromEmail)
+          .map(a => ({ email: a.defaultFromEmail!, name: a.defaultFromName || "", source: `Audiencia: ${a.name}` }));
+        res.json({
+          domains: domainsResult.error ? [] : domainsResult.domains,
+          senders: audienceSenders,
+          currentSender: { email: existing.senderEmail, name: existing.senderName },
+        });
       } else {
         return res.status(400).json({ message: "Proveedor no soportado." });
       }
@@ -1764,13 +1779,21 @@ export async function registerRoutes(
       if (audiencesResult.error) {
         return res.status(502).json({ message: "No se pudo verificar la audiencia con Mailchimp. Inténtalo de nuevo." });
       }
-      const validIds = audiencesResult.audiences.map((a: { id: string }) => a.id);
-      if (!validIds.includes(audienceId)) {
+      const selectedAudience = audiencesResult.audiences.find((a) => a.id === audienceId);
+      if (!selectedAudience) {
         return res.status(400).json({ message: "La audiencia seleccionada no existe en tu cuenta de Mailchimp." });
       }
 
-      const updated = await storage.updateEmailProvider(providerId, { mailchimpAudienceId: audienceId });
-      res.json({ id: updated!.id, mailchimpAudienceId: updated!.mailchimpAudienceId });
+      const updateData: Record<string, unknown> = { mailchimpAudienceId: audienceId };
+      if (selectedAudience.defaultFromEmail) {
+        updateData.senderEmail = selectedAudience.defaultFromEmail;
+      }
+      if (selectedAudience.defaultFromName) {
+        updateData.senderName = selectedAudience.defaultFromName;
+      }
+
+      const updated = await storage.updateEmailProvider(providerId, updateData);
+      res.json({ id: updated!.id, mailchimpAudienceId: updated!.mailchimpAudienceId, senderEmail: updated!.senderEmail, senderName: updated!.senderName });
     } catch (err: any) {
       console.error("Error updating audience:", err.message);
       return res.status(500).json({ message: "Error al actualizar la audiencia." });
