@@ -1,0 +1,36 @@
+5 Requisitos importantes para usuarios de Brevo (Para tu UI)
+Validación de cuentas nuevas: Las cuentas recién creadas en Brevo pasan por un proceso de revisión manual de seguridad. Hasta que Brevo no apruebe la cuenta, no podrás enviar campañas reales (la conexión marcará un error de validación pendiente).
+Autenticación de Dominio (DKIM/DMARC): Es obligatorio verificar tu dirección de correo electrónico remitente. Además, se recomienda encarecidamente autenticar tu dominio en Brevo; si no lo haces, tus correos tienen una alta probabilidad de llegar a la carpeta de Spam.
+Límites del plan gratuito: El plan gratuito de Brevo permite enviar hasta 300 correos por día (este límite se renueva diariamente). Si tu campaña supera este número, el envío se detendrá por falta de créditos.
+Límite de Webhooks: Tu cuenta de Brevo permite un máximo de 40 webhooks configurados
+. PostIAlo creará uno automáticamente para rastrear entregas y aperturas; asegúrate de no tener este límite al máximo en Brevo.
+Cumplimiento Legal (Consentimiento y Dirección): Al igual que con cualquier proveedor, tus contactos deben tener opt-in (consentimiento previo). Brevo puede suspender cuentas que generen altas tasas de rebote o quejas por spam. Incluye siempre una dirección física válida y un enlace para cancelar la suscripción. (Nota: Esta información sobre CAN-SPAM y políticas anti-spam pertenece a las normativas globales de email marketing, aunque no se detalla en la documentación técnica de su API).
+
+--------------------------------------------------------------------------------
+Respuestas técnicas a tus preguntas de arquitectura
+1. Límites exactos del plan gratuito Tal como confirmamos en nuestra conversación anterior, el límite es de 300 correos por día. Esta cuota se recarga automáticamente cada 24 horas. Si el usuario intenta enviar el correo número 301, el endpoint de envío devolverá un error HTTP 402 Payment Required indicando el código not_enough_credits
+.
+2. Verificación de dominio (DKIM/SPF/DMARC) vs. Spam Para enviar un correo, Brevo exige como mínimo que la dirección de correo individual del remitente esté verificada (haciendo clic en un enlace enviado a ese correo)
+. Autenticar el dominio completo (configurando DKIM y DMARC en los DNS)
+ no es un bloqueo técnico estricto para hacer la llamada a la API, pero si el usuario no lo configura, los correos probablemente se irán a spam. Brevo no reemplaza el dominio por uno propio (como hace Mailchimp con @mandrillapp.com), simplemente envía el correo con una firma no autenticada, lo que afecta severamente la entregabilidad
+.
+3. Proceso de validación para cuentas nuevas Sí, Brevo tiene un proceso de validación. Las cuentas nuevas no pueden enviar campañas masivas inmediatamente sin pasar una revisión. Si intentan hacerlo a través de la API antes de ser aprobados, recibirás un error con el código de estado 400 o 403 que contiene el código interno account_under_validation (la cuenta está pendiente de validación)
+. El usuario debe completar su perfil en Brevo y a veces contactar a soporte para activarla.
+4. ¿Qué necesitan configurar para los "remitentes verificados"? El usuario puede crear un remitente proporcionando un nombre y un correo electrónico (email)
+. Brevo enviará un correo de verificación a esa dirección específica
+. Si el usuario verifica el dominio completo, todas las direcciones bajo ese dominio heredan la confianza, pero a nivel API, listar los remitentes (GET /v3/senders) traerá todos aquellos que hayan completado este proceso de verificación (ya sea por correo directo o por dominio)
+.
+5 y 6. Dirección física y Consentimiento (CAN-SPAM / Opt-in) La documentación de la API de Brevo asume el cumplimiento normativo general (GDPR, normativas anti-spam)
+. Brevo no inyecta automáticamente una dirección postal como Mailchimp. Es responsabilidad de tu plataforma (PostIAlo) asegurarse de que el HTML generado (htmlContent) incluya la dirección física de la empresa y el enlace para darse de baja (unsubscribe)
+. Si el usuario envía correos sin consentimiento y genera rebotes/quejas, Brevo bloqueará el envío y notificará eventos como complaint (queja) o suspenderá la cuenta.
+7. Proceso de "warm-up" o limitación progresiva En la documentación de la API técnica no existe una mención directa a un bloqueo progresivo del lado de la API para cuentas gratuitas. La limitación principal es la cuota diaria (300) y la aprobación manual de la cuenta
+. Sin embargo, para planes superiores con IPs dedicadas, Brevo recomienda procesos de calentamiento de IP, pero esto se maneja desde su panel, no desde la API de envíos.
+8. Límites de rate/velocidad de la API Los límites técnicos (Rate limits) de Brevo son altísimos y es poco probable que una PyME los alcance, pero a nivel técnico tú debes controlarlo. Para cuentas gratuitas (y en general), el endpoint de envío transaccional (POST /v3/smtp/email) soporta hasta 1,000 peticiones por segundo (RPS) y 3,600,000 peticiones por hora (RPH)
+. Si usas la propiedad messageVersions para enviar en lotes (batch), puedes enviar hasta 1,000 correos en una sola llamada y ejecutar ese endpoint hasta 6,000 veces por hora
+. Si superas esto, recibirás un 429 Too Many Requests
+.
+9. ¿Falta algo en el flujo descrito? Sí, el límite de webhooks. Debes contemplar que Brevo solo permite crear un máximo de 40 webhooks por cuenta
+. Cuando tu plataforma intente registrar tu endpoint mediante POST /webhooks
+, si el usuario ya conectó su cuenta de Brevo a demasiadas herramientas (Zapier, Make, Shopify, etc.) y alcanzó los 40 webhooks, la llamada a tu API fallará
+. Debes manejar ese error (400 Bad Request indicando el límite alcanzado) y decirle al usuario que elimine webhooks antiguos en su panel de Brevo. Además, si tu volumen crece, es muy recomendable agregar el parámetro "batched": true al crear el webhook para que Brevo te envíe los eventos agrupados en bloques de hasta 500 eventos cada 5 minutos, reduciendo la carga en tu servidor
+.
