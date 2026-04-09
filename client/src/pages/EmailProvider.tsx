@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Link2,
   Check,
   Loader2,
   Plug,
@@ -13,11 +12,11 @@ import {
   Eye,
   EyeOff,
   Unplug,
-  Mail,
   Crown,
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Star,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -33,10 +32,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import brevoLogo from "@assets/brevo_icon_1775749753762.webp";
+import mailchimpLogo from "@assets/mailchimp-la-gi_1775749753761.webp";
 
 interface ProviderStatus {
+  id: number;
   provider: string;
   isActive: boolean;
+  isDefault: boolean;
   senderEmail: string | null;
   senderName: string | null;
   accountEmail: string | null;
@@ -51,52 +54,58 @@ interface BrevoSender {
   active: boolean;
 }
 
+interface MailchimpDomain {
+  domain: string;
+  verified: boolean;
+  authenticationType: string;
+}
+
 export default function EmailProvider() {
   const { toast } = useToast();
-  const [apiKey, setApiKey] = useState("");
-  const [showKey, setShowKey] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [brevoApiKey, setBrevoApiKey] = useState("");
+  const [mailchimpApiKey, setMailchimpApiKey] = useState("");
+  const [showBrevoKey, setShowBrevoKey] = useState(false);
+  const [showMailchimpKey, setShowMailchimpKey] = useState(false);
+  const [showBrevoInstructions, setShowBrevoInstructions] = useState(false);
+  const [showMailchimpInstructions, setShowMailchimpInstructions] = useState(false);
 
-  const { data: providerStatus, isLoading } = useQuery<ProviderStatus | null>({
+  const { data: allProviders, isLoading } = useQuery<ProviderStatus[]>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
       const res = await fetch("/api/email-provider/status", { credentials: "include" });
-      if (!res.ok) {
-        if (res.status === 404) return null;
-        throw new Error("Error cargando estado del proveedor");
-      }
-      const data = await res.json() as ProviderStatus[] | ProviderStatus;
-      if (Array.isArray(data)) {
-        const active = data.find((p) => p.provider === "brevo" && p.isActive);
-        return active || null;
-      }
-      if (!data || !data.provider) return null;
-      return data;
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
-  const isConnected = !!providerStatus?.isActive;
+  const brevoStatus = allProviders?.find(p => p.provider === "brevo" && p.isActive) || null;
+  const mailchimpStatus = allProviders?.find(p => p.provider === "mailchimp" && p.isActive) || null;
 
   const { data: sendersData, isLoading: sendersLoading } = useQuery<{ senders: BrevoSender[] }>({
     queryKey: ["/api/email-provider/brevo/senders"],
-    enabled: isConnected,
+    enabled: !!brevoStatus,
   });
-
   const senders = sendersData?.senders || [];
 
+  const { data: domainsData, isLoading: domainsLoading } = useQuery<{ domains: MailchimpDomain[] }>({
+    queryKey: ["/api/email-provider/mailchimp/senders"],
+    enabled: !!mailchimpStatus,
+  });
+  const domains = domainsData?.domains || [];
+
   const connectMutation = useMutation({
-    mutationFn: async (key: string) => {
-      const res = await apiRequest("POST", "/api/email-provider/connect", {
-        provider: "brevo",
-        apiKey: key,
-      });
+    mutationFn: async ({ provider, apiKey }: { provider: string; apiKey: string }) => {
+      const res = await apiRequest("POST", "/api/email-provider/connect", { provider, apiKey });
       return res.json();
     },
-    onSuccess: () => {
-      setApiKey("");
+    onSuccess: (_data, variables) => {
+      if (variables.provider === "brevo") setBrevoApiKey("");
+      else setMailchimpApiKey("");
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/email-provider/brevo/senders"] });
-      toast({ title: "Proveedor conectado", description: "Su cuenta de Brevo ha sido vinculada exitosamente." });
+      queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${variables.provider}/senders`] });
+      const name = variables.provider === "brevo" ? "Brevo" : "Mailchimp";
+      toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.` });
     },
     onError: (err: Error) => {
       toast({ title: "Error de conexión", description: err.message || "No se pudo conectar. Verifique su API key.", variant: "destructive" });
@@ -104,13 +113,14 @@ export default function EmailProvider() {
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("DELETE", "/api/email-provider/brevo");
+    mutationFn: async (provider: string) => {
+      await apiRequest("DELETE", `/api/email-provider/${provider}`);
     },
-    onSuccess: () => {
+    onSuccess: (_data, provider) => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/email-provider/brevo/senders"] });
-      toast({ title: "Proveedor desconectado", description: "Su cuenta de Brevo ha sido desvinculada." });
+      queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${provider}/senders`] });
+      const name = provider === "brevo" ? "Brevo" : "Mailchimp";
+      toast({ title: "Proveedor desconectado", description: `Su cuenta de ${name} ha sido desvinculada.` });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message || "No se pudo desconectar.", variant: "destructive" });
@@ -118,8 +128,8 @@ export default function EmailProvider() {
   });
 
   const updateSenderMutation = useMutation({
-    mutationFn: async ({ email, name }: { email: string; name: string }) => {
-      const res = await apiRequest("PATCH", "/api/email-provider/brevo/sender", {
+    mutationFn: async ({ provider, email, name }: { provider: string; email: string; name: string }) => {
+      const res = await apiRequest("PATCH", `/api/email-provider/${provider}/sender`, {
         senderEmail: email,
         senderName: name,
       });
@@ -134,17 +144,22 @@ export default function EmailProvider() {
     },
   });
 
-  function handleConnect() {
-    if (!apiKey.trim()) {
-      toast({ title: "API Key requerida", description: "Ingrese su API key de Brevo.", variant: "destructive" });
-      return;
-    }
-    connectMutation.mutate(apiKey.trim());
-  }
-
-  function handleSelectSender(sender: BrevoSender) {
-    updateSenderMutation.mutate({ email: sender.email, name: sender.name });
-  }
+  const setDefaultMutation = useMutation({
+    mutationFn: async ({ id, remove }: { id: number; remove: boolean }) => {
+      if (remove) {
+        await apiRequest("DELETE", `/api/email-provider/${id}/default`);
+      } else {
+        await apiRequest("PATCH", `/api/email-provider/${id}/default`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
+      toast({ title: "Predeterminado actualizado" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -168,31 +183,39 @@ export default function EmailProvider() {
       <div className="space-y-6">
         <div>
           <h1 data-testid="text-page-title" className="text-3xl md:text-4xl font-extrabold">Proveedor de Email</h1>
-          <p className="text-muted-foreground mt-1">Conecte su servicio de envío de correos para enviar campañas directamente.</p>
+          <p className="text-muted-foreground mt-1">Conecte sus servicios de envío de correos para enviar campañas directamente.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* ── Brevo Card ── */}
           <div data-testid="card-brevo" className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0B996E]/10 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-[#0B996E]" />
-                </div>
+                <img src={brevoLogo} alt="Brevo" className="w-10 h-10 rounded-xl object-cover" />
                 <div>
                   <h3 className="font-bold text-base">Brevo</h3>
                   <p className="text-xs text-muted-foreground">Servicio de email transaccional</p>
                 </div>
               </div>
-              {isConnected && (
-                <span data-testid="badge-brevo-connected" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-                  <Check className="w-3 h-3" />
-                  Conectado
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {brevoStatus?.isDefault && (
+                  <span data-testid="badge-brevo-default" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                    Predeterminado
+                  </span>
+                )}
+                {brevoStatus && (
+                  <span data-testid="badge-brevo-connected" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                    <Check className="w-3 h-3" />
+                    Conectado
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="p-5 space-y-4">
-              {!isConnected ? (
+              {!brevoStatus ? (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="brevo-api-key">API Key de Brevo</Label>
@@ -200,47 +223,42 @@ export default function EmailProvider() {
                       <Input
                         data-testid="input-brevo-api-key"
                         id="brevo-api-key"
-                        type={showKey ? "text" : "password"}
+                        type={showBrevoKey ? "text" : "password"}
                         placeholder="xkeysib-..."
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
+                        value={brevoApiKey}
+                        onChange={(e) => setBrevoApiKey(e.target.value)}
                         className="rounded-xl pr-10"
                       />
                       <button
-                        data-testid="button-toggle-key-visibility"
+                        data-testid="button-toggle-brevo-key"
                         type="button"
-                        onClick={() => setShowKey(!showKey)}
+                        onClick={() => setShowBrevoKey(!showBrevoKey)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
-                        {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showBrevoKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                   <Button
                     data-testid="button-connect-brevo"
-                    onClick={handleConnect}
-                    disabled={connectMutation.isPending || !apiKey.trim()}
+                    onClick={() => connectMutation.mutate({ provider: "brevo", apiKey: brevoApiKey.trim() })}
+                    disabled={connectMutation.isPending || !brevoApiKey.trim()}
                     className="w-full rounded-xl gap-2"
                   >
-                    {connectMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Plug className="w-4 h-4" />
-                    )}
+                    {connectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
                     {connectMutation.isPending ? "Conectando..." : "Conectar"}
                   </Button>
-
                   <div className="pt-2">
                     <button
-                      data-testid="button-toggle-instructions"
-                      onClick={() => setShowInstructions(!showInstructions)}
+                      data-testid="button-toggle-brevo-instructions"
+                      onClick={() => setShowBrevoInstructions(!showBrevoInstructions)}
                       className="flex items-center gap-2 text-sm text-primary hover:underline"
                     >
-                      {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      {showBrevoInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       ¿Cómo obtener mi API key?
                     </button>
-                    {showInstructions && (
-                      <div data-testid="instructions-panel" className="mt-3 p-4 bg-muted/50 rounded-xl text-sm space-y-2">
+                    {showBrevoInstructions && (
+                      <div data-testid="brevo-instructions-panel" className="mt-3 p-4 bg-muted/50 rounded-xl text-sm space-y-2">
                         <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
                           <li>Ingrese a su cuenta de <strong>Brevo</strong></li>
                           <li>Vaya a <strong>SMTP & API</strong> en el menú de configuración</li>
@@ -264,34 +282,34 @@ export default function EmailProvider() {
               ) : (
                 <>
                   <div className="space-y-3">
-                    {providerStatus?.accountEmail && (
+                    {brevoStatus.accountEmail && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Cuenta:</span>
-                        <span data-testid="text-account-email" className="font-medium">{providerStatus.accountEmail}</span>
+                        <span data-testid="text-brevo-account-email" className="font-medium">{brevoStatus.accountEmail}</span>
                       </div>
                     )}
-                    {providerStatus?.accountPlan && (
+                    {brevoStatus.accountPlan && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Plan:</span>
-                        <span data-testid="text-account-plan" className="font-medium flex items-center gap-1.5">
+                        <span data-testid="text-brevo-plan" className="font-medium flex items-center gap-1.5">
                           <Crown className="w-3.5 h-3.5 text-amber-500" />
-                          {providerStatus.accountPlan}
+                          {brevoStatus.accountPlan}
                         </span>
                       </div>
                     )}
-                    {providerStatus?.maskedKey && (
+                    {brevoStatus.maskedKey && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">API Key:</span>
-                        <span data-testid="text-masked-key" className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                          ••••••••{providerStatus.maskedKey}
+                        <span data-testid="text-brevo-masked-key" className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                          ••••••••{brevoStatus.maskedKey}
                         </span>
                       </div>
                     )}
-                    {providerStatus?.senderEmail && (
+                    {brevoStatus.senderEmail && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Remitente:</span>
-                        <span data-testid="text-current-sender" className="font-medium">
-                          {providerStatus.senderName ? `${providerStatus.senderName} <${providerStatus.senderEmail}>` : providerStatus.senderEmail}
+                        <span data-testid="text-brevo-sender" className="font-medium">
+                          {brevoStatus.senderName ? `${brevoStatus.senderName} <${brevoStatus.senderEmail}>` : brevoStatus.senderEmail}
                         </span>
                       </div>
                     )}
@@ -301,7 +319,6 @@ export default function EmailProvider() {
                     <div className="space-y-2">
                       <Skeleton className="h-4 w-32" />
                       <Skeleton className="h-12 w-full rounded-xl" />
-                      <Skeleton className="h-12 w-full rounded-xl" />
                     </div>
                   ) : senders.length > 0 ? (
                     <div className="space-y-2">
@@ -310,12 +327,12 @@ export default function EmailProvider() {
                       </Label>
                       <div className="space-y-1.5 max-h-48 overflow-y-auto">
                         {senders.filter(s => s.active).map((sender) => {
-                          const isSelected = providerStatus?.senderEmail === sender.email;
+                          const isSelected = brevoStatus.senderEmail === sender.email;
                           return (
                             <button
                               key={sender.id}
-                              data-testid={`button-sender-${sender.id}`}
-                              onClick={() => handleSelectSender(sender)}
+                              data-testid={`button-brevo-sender-${sender.id}`}
+                              onClick={() => updateSenderMutation.mutate({ provider: "brevo", email: sender.email, name: sender.name })}
                               disabled={updateSenderMutation.isPending}
                               className={`w-full flex items-center justify-between p-3 rounded-xl border text-left text-sm transition-all ${
                                 isSelected
@@ -340,6 +357,17 @@ export default function EmailProvider() {
                     </div>
                   )}
 
+                  <Button
+                    data-testid="button-toggle-brevo-default"
+                    variant={brevoStatus.isDefault ? "default" : "outline"}
+                    onClick={() => setDefaultMutation.mutate({ id: brevoStatus.id, remove: brevoStatus.isDefault })}
+                    disabled={setDefaultMutation.isPending}
+                    className={`w-full rounded-xl gap-2 ${brevoStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                  >
+                    <Star className={`w-4 h-4 ${brevoStatus.isDefault ? "fill-white" : ""}`} />
+                    {brevoStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                  </Button>
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -355,14 +383,14 @@ export default function EmailProvider() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Desconectar Brevo?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Se eliminará la configuración de Brevo. No podrá enviar campañas hasta volver a conectar un proveedor.
+                          Se eliminará la configuración de Brevo. No podrá enviar campañas con este proveedor hasta volver a conectarlo.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel data-testid="button-cancel-disconnect">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel data-testid="button-cancel-disconnect-brevo">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
-                          data-testid="button-confirm-disconnect"
-                          onClick={() => disconnectMutation.mutate()}
+                          data-testid="button-confirm-disconnect-brevo"
+                          onClick={() => disconnectMutation.mutate("brevo")}
                           className="bg-red-600 hover:bg-red-700"
                         >
                           {disconnectMutation.isPending ? "Desconectando..." : "Desconectar"}
@@ -375,27 +403,222 @@ export default function EmailProvider() {
             </div>
           </div>
 
-          <div data-testid="card-mailchimp" className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden opacity-60">
+          {/* ── Mailchimp Card ── */}
+          <div data-testid="card-mailchimp" className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#FFE01B]/10 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-[#FFE01B]" />
-                </div>
+                <img src={mailchimpLogo} alt="Mailchimp" className="w-10 h-10 rounded-xl object-cover" />
                 <div>
                   <h3 className="font-bold text-base">Mailchimp</h3>
                   <p className="text-xs text-muted-foreground">Plataforma de email marketing</p>
                 </div>
               </div>
-              <span data-testid="badge-mailchimp-coming-soon" className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-                Próximamente
-              </span>
+              <div className="flex items-center gap-2">
+                {mailchimpStatus?.isDefault && (
+                  <span data-testid="badge-mailchimp-default" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                    Predeterminado
+                  </span>
+                )}
+                {mailchimpStatus && (
+                  <span data-testid="badge-mailchimp-connected" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                    <Check className="w-3 h-3" />
+                    Conectado
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="p-5">
-              <p className="text-sm text-muted-foreground">
-                La integración con Mailchimp estará disponible pronto. Por ahora, puede usar Brevo como su proveedor de envío.
-              </p>
+
+            <div className="p-5 space-y-4">
+              {!mailchimpStatus ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="mailchimp-api-key">API Key de Mailchimp</Label>
+                    <div className="relative">
+                      <Input
+                        data-testid="input-mailchimp-api-key"
+                        id="mailchimp-api-key"
+                        type={showMailchimpKey ? "text" : "password"}
+                        placeholder="xxxxxxxxxxxxxxxx-usXX"
+                        value={mailchimpApiKey}
+                        onChange={(e) => setMailchimpApiKey(e.target.value)}
+                        className="rounded-xl pr-10"
+                      />
+                      <button
+                        data-testid="button-toggle-mailchimp-key"
+                        type="button"
+                        onClick={() => setShowMailchimpKey(!showMailchimpKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showMailchimpKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <Button
+                    data-testid="button-connect-mailchimp"
+                    onClick={() => connectMutation.mutate({ provider: "mailchimp", apiKey: mailchimpApiKey.trim() })}
+                    disabled={connectMutation.isPending || !mailchimpApiKey.trim()}
+                    className="w-full rounded-xl gap-2"
+                  >
+                    {connectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+                    {connectMutation.isPending ? "Conectando..." : "Conectar"}
+                  </Button>
+                  <div className="pt-2">
+                    <button
+                      data-testid="button-toggle-mailchimp-instructions"
+                      onClick={() => setShowMailchimpInstructions(!showMailchimpInstructions)}
+                      className="flex items-center gap-2 text-sm text-primary hover:underline"
+                    >
+                      {showMailchimpInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      ¿Cómo obtener mi API key?
+                    </button>
+                    {showMailchimpInstructions && (
+                      <div data-testid="mailchimp-instructions-panel" className="mt-3 p-4 bg-muted/50 rounded-xl text-sm space-y-2">
+                        <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
+                          <li>Ingrese a su cuenta de <strong>Mailchimp</strong></li>
+                          <li>Vaya a <strong>Profile → Extras → API keys</strong></li>
+                          <li>Haga clic en <strong>"Create A Key"</strong></li>
+                          <li>Copie la key completa (incluye el sufijo <code>-usXX</code>)</li>
+                        </ol>
+                        <a
+                          data-testid="link-mailchimp-api-keys"
+                          href="https://us1.admin.mailchimp.com/account/api/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium mt-2"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Ir a Mailchimp API Keys
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {mailchimpStatus.accountEmail && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Cuenta:</span>
+                        <span data-testid="text-mailchimp-account-email" className="font-medium">{mailchimpStatus.accountEmail}</span>
+                      </div>
+                    )}
+                    {mailchimpStatus.accountPlan && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Info:</span>
+                        <span data-testid="text-mailchimp-plan" className="font-medium flex items-center gap-1.5">
+                          <Crown className="w-3.5 h-3.5 text-amber-500" />
+                          {mailchimpStatus.accountPlan}
+                        </span>
+                      </div>
+                    )}
+                    {mailchimpStatus.maskedKey && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">API Key:</span>
+                        <span data-testid="text-mailchimp-masked-key" className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                          ••••••••{mailchimpStatus.maskedKey}
+                        </span>
+                      </div>
+                    )}
+                    {mailchimpStatus.senderEmail && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Remitente:</span>
+                        <span data-testid="text-mailchimp-sender" className="font-medium">
+                          {mailchimpStatus.senderName ? `${mailchimpStatus.senderName} <${mailchimpStatus.senderEmail}>` : mailchimpStatus.senderEmail}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {domainsLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-12 w-full rounded-xl" />
+                    </div>
+                  ) : domains.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Dominios verificados
+                      </Label>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {domains.map((domain) => (
+                          <div
+                            key={domain.domain}
+                            data-testid={`domain-${domain.domain}`}
+                            className={`flex items-center justify-between p-3 rounded-xl border text-sm ${
+                              domain.verified
+                                ? "border-emerald-200 bg-emerald-50/50"
+                                : "border-amber-200 bg-amber-50/50"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{domain.domain}</div>
+                              <div className="text-xs text-muted-foreground">{domain.authenticationType || "DKIM"}</div>
+                            </div>
+                            {domain.verified ? (
+                              <span className="text-emerald-600 text-xs font-semibold flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Verificado
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 text-xs font-semibold">Pendiente</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      No se encontraron dominios verificados. Configure su dominio en Mailchimp para enviar correos.
+                    </div>
+                  )}
+
+                  <Button
+                    data-testid="button-toggle-mailchimp-default"
+                    variant={mailchimpStatus.isDefault ? "default" : "outline"}
+                    onClick={() => setDefaultMutation.mutate({ id: mailchimpStatus.id, remove: mailchimpStatus.isDefault })}
+                    disabled={setDefaultMutation.isPending}
+                    className={`w-full rounded-xl gap-2 ${mailchimpStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                  >
+                    <Star className={`w-4 h-4 ${mailchimpStatus.isDefault ? "fill-white" : ""}`} />
+                    {mailchimpStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                  </Button>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        data-testid="button-disconnect-mailchimp"
+                        variant="outline"
+                        className="w-full rounded-xl gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      >
+                        <Unplug className="w-4 h-4" />
+                        Desconectar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Desconectar Mailchimp?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Se eliminará la configuración de Mailchimp. No podrá enviar campañas con este proveedor hasta volver a conectarlo.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel data-testid="button-cancel-disconnect-mailchimp">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          data-testid="button-confirm-disconnect-mailchimp"
+                          onClick={() => disconnectMutation.mutate("mailchimp")}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          {disconnectMutation.isPending ? "Desconectando..." : "Desconectar"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
             </div>
           </div>
+
         </div>
       </div>
     </Layout>

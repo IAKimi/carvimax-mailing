@@ -137,11 +137,14 @@ export const emailProviders = pgTable("email_providers", {
   iv: text("iv").notNull(),
   authTag: text("auth_tag").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
   senderEmail: text("sender_email"),
   senderName: text("sender_name"),
   webhookId: text("webhook_id"),
   accountEmail: text("account_email"),
   accountPlan: text("account_plan"),
+  mailchimpDataCenter: text("mailchimp_data_center"),
+  mailchimpAudienceId: text("mailchimp_audience_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

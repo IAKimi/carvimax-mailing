@@ -1556,8 +1556,44 @@ export async function registerRoutes(
           webhookConfigured: !!webhookResult.webhookId,
           senders: sendersResult.senders,
         });
-      } else {
-        return res.status(400).json({ message: "La integración con Mailchimp estará disponible próximamente." });
+      } else if (provider === "mailchimp") {
+        const { validateApiKey: validateMailchimp } = await import("./providers/mailchimp");
+        const validation = await validateMailchimp(apiKey);
+        if (!validation.valid) {
+          return res.status(400).json({ message: validation.error || "API key inválida." });
+        }
+
+        const existing = await storage.getEmailProvider(req.session.userId!, provider);
+        if (existing) {
+          await storage.deleteEmailProvider(existing.id);
+        }
+
+        const { encryptApiKey } = await import("./encryption");
+        const encrypted = encryptApiKey(apiKey);
+
+        const created = await storage.createEmailProvider({
+          userId: req.session.userId!,
+          provider,
+          encryptedApiKey: encrypted.encrypted,
+          iv: encrypted.iv,
+          authTag: encrypted.authTag,
+          isActive: true,
+          senderEmail: null,
+          senderName: null,
+          webhookId: null,
+          accountEmail: validation.account?.email || null,
+          accountPlan: `${validation.account?.totalSubscribers || 0} suscriptores`,
+          mailchimpDataCenter: validation.dataCenter || null,
+        });
+
+        res.status(201).json({
+          id: created.id,
+          provider: created.provider,
+          isActive: created.isActive,
+          accountEmail: created.accountEmail,
+          accountPlan: created.accountPlan,
+          accountName: validation.account?.accountName || null,
+        });
       }
     } catch (err: any) {
       console.error("Error connecting email provider:", err.message);
@@ -1606,6 +1642,7 @@ export async function registerRoutes(
           id: p.id,
           provider: p.provider,
           isActive: p.isActive,
+          isDefault: p.isDefault,
           senderEmail: p.senderEmail,
           senderName: p.senderName,
           accountEmail: p.accountEmail,
@@ -1640,6 +1677,14 @@ export async function registerRoutes(
           return res.status(502).json({ message: result.error });
         }
         res.json({ senders: result.senders });
+      } else if (provider === "mailchimp") {
+        const { getVerifiedDomains } = await import("./providers/mailchimp");
+        const dc = existing.mailchimpDataCenter || "";
+        const result = await getVerifiedDomains(apiKey, dc);
+        if (result.error) {
+          return res.status(502).json({ message: result.error });
+        }
+        res.json({ domains: result.domains });
       } else {
         return res.status(400).json({ message: "Proveedor no soportado." });
       }
@@ -1672,6 +1717,46 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating sender:", err.message);
       return res.status(500).json({ message: "Error al actualizar el remitente." });
+    }
+  });
+
+  app.patch("/api/email-provider/:id/default", requireAuth, async (req, res) => {
+    try {
+      const providerId = parseInt(req.params.id);
+      if (isNaN(providerId)) {
+        return res.status(400).json({ message: "ID de proveedor inválido." });
+      }
+
+      const provider = await storage.getEmailProviderById(providerId);
+      if (!provider || provider.userId !== req.session.userId!) {
+        return res.status(404).json({ message: "Proveedor no encontrado." });
+      }
+
+      const updated = await storage.setDefaultProvider(providerId, req.session.userId!);
+      res.json({ id: updated!.id, provider: updated!.provider, isDefault: updated!.isDefault });
+    } catch (err: any) {
+      console.error("Error setting default provider:", err.message);
+      return res.status(500).json({ message: "Error al establecer proveedor predeterminado." });
+    }
+  });
+
+  app.delete("/api/email-provider/:id/default", requireAuth, async (req, res) => {
+    try {
+      const providerId = parseInt(req.params.id);
+      if (isNaN(providerId)) {
+        return res.status(400).json({ message: "ID de proveedor inválido." });
+      }
+
+      const provider = await storage.getEmailProviderById(providerId);
+      if (!provider || provider.userId !== req.session.userId!) {
+        return res.status(404).json({ message: "Proveedor no encontrado." });
+      }
+
+      const updated = await storage.updateEmailProvider(providerId, { isDefault: false } as any);
+      res.json({ id: updated!.id, provider: updated!.provider, isDefault: false });
+    } catch (err: any) {
+      console.error("Error removing default provider:", err.message);
+      return res.status(500).json({ message: "Error al quitar proveedor predeterminado." });
     }
   });
 
@@ -1953,10 +2038,23 @@ export async function registerRoutes(
   async function sendCampaignDirect(campaignId: number, userId: number): Promise<{ success: boolean; error?: string }> {
     let previousStatus = "draft";
     try {
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== userId) {
+        return { success: false, error: "Campaña no encontrada." };
+      }
+
       const providers = await storage.getEmailProviders(userId);
-      const activeProvider = providers.find(p => p.provider === "brevo" && p.isActive);
+      let activeProvider = campaign.providerId
+        ? providers.find(p => p.id === campaign.providerId && p.isActive)
+        : null;
       if (!activeProvider) {
-        return { success: false, error: "No tienes Brevo configurado. Ve a Configuración > Proveedor de Email para conectar tu cuenta de Brevo." };
+        activeProvider = providers.find(p => p.isDefault && p.isActive) || null;
+      }
+      if (!activeProvider) {
+        activeProvider = providers.find(p => p.isActive) || null;
+      }
+      if (!activeProvider) {
+        return { success: false, error: "No tienes un proveedor de email configurado. Ve a Configuración > Proveedor de Email para conectar tu cuenta." };
       }
 
       let apiKey: string;
@@ -1964,11 +2062,6 @@ export async function registerRoutes(
         apiKey = decryptApiKey(activeProvider.encryptedApiKey, activeProvider.iv, activeProvider.authTag);
       } catch {
         return { success: false, error: "Error al descifrar la API key del proveedor. Reconecta tu proveedor de email." };
-      }
-
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign || campaign.userId !== userId) {
-        return { success: false, error: "Campaña no encontrada." };
       }
       if (!campaign.templateId) {
         return { success: false, error: "La campaña no tiene plantilla asignada." };
@@ -2052,95 +2145,159 @@ export async function registerRoutes(
         status: "sending",
       });
 
-      const campaignTag = `postialo_campaign_${campaignId}`;
-      const brevoContacts = contactsList.map(c => ({
-        name: c.name || "",
-        email: c.email,
-      }));
+      if (activeProvider.provider === "brevo") {
+        const campaignTag = `postialo_campaign_${campaignId}`;
+        const brevoContacts = contactsList.map(c => ({
+          name: c.name || "",
+          email: c.email,
+        }));
 
-      const batchResult = await sendBatchEmails(
-        apiKey,
-        { name: senderName, email: senderEmail },
-        subject,
-        cleanHtmlForEmail(renderedHtml),
-        brevoContacts,
-        campaignTag
-      );
+        const batchResult = await sendBatchEmails(
+          apiKey,
+          { name: senderName, email: senderEmail },
+          subject,
+          cleanHtmlForEmail(renderedHtml),
+          brevoContacts,
+          campaignTag
+        );
 
-      for (const errEntry of batchResult.errors) {
-        await storage.updateCampaignSend(campaignId, errEntry.email, {
-          status: "failed",
-          errorMessage: errEntry.error,
+        for (const errEntry of batchResult.errors) {
+          await storage.updateCampaignSend(campaignId, errEntry.email, {
+            status: "failed",
+            errorMessage: errEntry.error,
+          });
+        }
+
+        if (batchResult.sent > 0) {
+          const failedEmails = new Set(batchResult.errors.map(e => e.email));
+          const sentEmails = contactsList.filter(c => !failedEmails.has(c.email));
+          for (const contact of sentEmails) {
+            await storage.updateCampaignSend(campaignId, contact.email, { status: "sent" });
+          }
+          await db.update(campaignsTable).set({
+            sentCount: batchResult.sent,
+            failedCount: batchResult.failed,
+          }).where(eq(campaignsTable.id, campaignId));
+        } else {
+          await db.update(campaignsTable).set({
+            failedCount: batchResult.failed,
+          }).where(eq(campaignsTable.id, campaignId));
+        }
+
+        if (batchResult.noCredits && batchResult.sent === 0) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: contactsList.length,
+            sentCount: 0,
+            failedCount: batchResult.failed,
+            status: "failed",
+            completed: true,
+          });
+          return { success: false, error: "Sin créditos en Brevo. No se pudo enviar ningún correo." };
+        }
+
+        if (batchResult.noCredits && batchResult.sent > 0) {
+          await storage.updateCampaign(campaignId, { status: "partial" } as any);
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: contactsList.length,
+            sentCount: batchResult.sent,
+            failedCount: batchResult.failed,
+            status: "partial",
+            completed: true,
+          });
+          return { success: false, error: `Sin créditos en Brevo. Se enviaron ${batchResult.sent} de ${contactsList.length} correos. Los restantes fallaron.` };
+        }
+
+        if (batchResult.sent === 0) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: contactsList.length,
+            sentCount: 0,
+            failedCount: batchResult.failed,
+            status: "failed",
+            completed: true,
+          });
+          return { success: false, error: "No se pudo enviar ningún correo. Verifica tu configuración de Brevo." };
+        }
+
+        const finalStatus = batchResult.failed === 0 ? "sent" : "partial";
+        await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: contactsList.length,
+          sentCount: batchResult.sent,
+          failedCount: batchResult.failed,
+          status: finalStatus,
+          completed: true,
         });
-      }
 
-      if (batchResult.sent > 0) {
-        const failedEmails = new Set(batchResult.errors.map(e => e.email));
-        const sentEmails = contactsList.filter(c => !failedEmails.has(c.email));
-        for (const contact of sentEmails) {
+        return { success: true };
+
+      } else if (activeProvider.provider === "mailchimp") {
+        const { syncContactsToAudience, createAndSendCampaign } = await import("./providers/mailchimp");
+        const dc = activeProvider.mailchimpDataCenter || "";
+
+        const mcContacts = contactsList.map(c => ({
+          name: c.name || "",
+          email: c.email,
+        }));
+
+        const tagName = `postialo_campaign_${campaignId}`;
+        const syncResult = await syncContactsToAudience(
+          apiKey, dc,
+          activeProvider.mailchimpAudienceId || null,
+          mcContacts, tagName,
+          senderEmail, senderName
+        );
+
+        if (syncResult.error) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
+          return { success: false, error: `Error al sincronizar contactos con Mailchimp: ${syncResult.error}` };
+        }
+
+        if (syncResult.audienceId && syncResult.audienceId !== activeProvider.mailchimpAudienceId) {
+          await storage.updateEmailProvider(activeProvider.id, { mailchimpAudienceId: syncResult.audienceId } as any);
+        }
+
+        const sendResult = await createAndSendCampaign(
+          apiKey, dc,
+          syncResult.audienceId,
+          subject, senderName, senderEmail,
+          cleanHtmlForEmail(renderedHtml)
+        );
+
+        if (sendResult.error) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
+          return { success: false, error: `Error en Mailchimp: ${sendResult.error}` };
+        }
+
+        for (const contact of contactsList) {
           await storage.updateCampaignSend(campaignId, contact.email, { status: "sent" });
         }
         await db.update(campaignsTable).set({
-          sentCount: batchResult.sent,
-          failedCount: batchResult.failed,
+          sentCount: contactsList.length,
+          failedCount: 0,
         }).where(eq(campaignsTable.id, campaignId));
+
+        await storage.updateCampaign(campaignId, { status: "sent" } as any);
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: contactsList.length,
+          sentCount: contactsList.length,
+          failedCount: 0,
+          status: "sent",
+          completed: true,
+        });
+
+        return { success: true };
       } else {
-        await db.update(campaignsTable).set({
-          failedCount: batchResult.failed,
-        }).where(eq(campaignsTable.id, campaignId));
+        return { success: false, error: "Proveedor de email no soportado." };
       }
-
-      if (batchResult.noCredits && batchResult.sent === 0) {
-        await storage.updateCampaign(campaignId, { status: "failed" } as any);
-        broadcastWs("campaign-progress", {
-          campaignId,
-          totalExpectedSends: contactsList.length,
-          sentCount: 0,
-          failedCount: batchResult.failed,
-          status: "failed",
-          completed: true,
-        });
-        return { success: false, error: "Sin créditos en Brevo. No se pudo enviar ningún correo." };
-      }
-
-      if (batchResult.noCredits && batchResult.sent > 0) {
-        await storage.updateCampaign(campaignId, { status: "partial" } as any);
-        broadcastWs("campaign-progress", {
-          campaignId,
-          totalExpectedSends: contactsList.length,
-          sentCount: batchResult.sent,
-          failedCount: batchResult.failed,
-          status: "partial",
-          completed: true,
-        });
-        return { success: false, error: `Sin créditos en Brevo. Se enviaron ${batchResult.sent} de ${contactsList.length} correos. Los restantes fallaron.` };
-      }
-
-      if (batchResult.sent === 0) {
-        await storage.updateCampaign(campaignId, { status: "failed" } as any);
-        broadcastWs("campaign-progress", {
-          campaignId,
-          totalExpectedSends: contactsList.length,
-          sentCount: 0,
-          failedCount: batchResult.failed,
-          status: "failed",
-          completed: true,
-        });
-        return { success: false, error: "No se pudo enviar ningún correo. Verifica tu configuración de Brevo." };
-      }
-
-      const finalStatus = batchResult.failed === 0 ? "sent" : "partial";
-      await storage.updateCampaign(campaignId, { status: finalStatus } as any);
-      broadcastWs("campaign-progress", {
-        campaignId,
-        totalExpectedSends: contactsList.length,
-        sentCount: batchResult.sent,
-        failedCount: batchResult.failed,
-        status: finalStatus,
-        completed: true,
-      });
-
-      return { success: true };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error interno al enviar.";
       console.error("Error sending campaign directly:", message);
@@ -2614,12 +2771,12 @@ export async function registerRoutes(
               continue;
             }
             const providerList = await storage.getEmailProviders(campaign.userId);
-            const hasProvider = providerList.some(p => p.provider === "brevo" && p.isActive);
+            const hasProvider = providerList.some(p => p.isActive);
             if (!hasProvider) {
               console.error(`Scheduler: campaign #${campaign.id} skipped — user ${campaign.userId} has no email provider configured.`);
               await storage.updateCampaign(campaign.id, { status: "failed" } as any);
               await db.update(campaignsTable).set({
-                schedulerLastError: "No hay proveedor de email configurado. Configura tu cuenta de Brevo antes de programar campañas.",
+                schedulerLastError: "No hay proveedor de email configurado. Configura tu cuenta antes de programar campañas.",
               }).where(eq(campaignsTable.id, campaign.id));
               broadcastWs("campaign-progress", {
                 campaignId: campaign.id,

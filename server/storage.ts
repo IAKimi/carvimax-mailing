@@ -77,9 +77,12 @@ export interface IStorage {
 
   createEmailProvider(data: InsertEmailProvider): Promise<EmailProvider>;
   getEmailProvider(userId: number, provider: string): Promise<EmailProvider | undefined>;
+  getEmailProviderById(id: number): Promise<EmailProvider | undefined>;
   getEmailProviders(userId: number): Promise<EmailProvider[]>;
   updateEmailProvider(id: number, updates: Partial<InsertEmailProvider>): Promise<EmailProvider | undefined>;
   deleteEmailProvider(id: number): Promise<void>;
+  clearDefaultProvider(userId: number): Promise<void>;
+  setDefaultProvider(id: number, userId: number): Promise<EmailProvider | undefined>;
 
   getAllUsers(): Promise<User[]>;
   updateUser(id: number, updates: Partial<{ name: string; email: string; company: string | null; role: string; isActive: boolean }>): Promise<User | undefined>;
@@ -565,8 +568,28 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async getEmailProviderById(id: number): Promise<EmailProvider | undefined> {
+    const [result] = await db.select().from(emailProviders).where(eq(emailProviders.id, id));
+    return result;
+  }
+
   async deleteEmailProvider(id: number): Promise<void> {
     await db.delete(emailProviders).where(eq(emailProviders.id, id));
+  }
+
+  async clearDefaultProvider(userId: number): Promise<void> {
+    await db.update(emailProviders)
+      .set({ isDefault: false } as any)
+      .where(and(eq(emailProviders.userId, userId), eq(emailProviders.isDefault, true)));
+  }
+
+  async setDefaultProvider(id: number, userId: number): Promise<EmailProvider | undefined> {
+    await this.clearDefaultProvider(userId);
+    const [updated] = await db.update(emailProviders)
+      .set({ isDefault: true } as any)
+      .where(and(eq(emailProviders.id, id), eq(emailProviders.userId, userId)))
+      .returning();
+    return updated;
   }
 
   async getAdminStats(): Promise<{ totalUsers: number; totalCampaigns: number; totalCampaignsByStatus: Record<string, number>; totalTemplates: number; totalContacts: number; totalDatabases: number }> {

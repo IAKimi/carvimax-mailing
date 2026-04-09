@@ -1,0 +1,90 @@
+Seguimiento — Diseño técnico de la integración con PostIAlo Mailing
+
+
+Gracias por las respuestas anteriores. Ahora te explico lo que estamos pensando implementar para que nos confirmes si es viable y nos aclares las dudas técnicas.
+
+
+Contexto importante de nuestro flujo:
+En PostIAlo, los usuarios suben sus bases de datos de contactos como archivos CSV (con columnas de nombre y email). Estos contactos se almacenan en nuestra base de datos interna. Cuando el usuario crea una campaña, selecciona una de sus bases de contactos, la plataforma genera el contenido del email con IA, y luego lo envía.
+
+
+Lo que entendemos del flujo con Mailchimp:
+A diferencia de Brevo (donde podemos enviar un email directo a cualquier destinatario), con Mailchimp necesitamos:
+
+
+Sincronizar los contactos del CSV a una audiencia/lista en la cuenta de Mailchimp del usuario
+Crear una campaña en Mailchimp asociada a esa audiencia
+Poner el HTML del email como contenido de la campaña
+Disparar el envío
+Preguntas específicas:
+
+
+Sobre la sincronización de contactos: Cuando el usuario sube un CSV en PostIAlo con 500 contactos, ¿debemos crear una nueva lista/audiencia en Mailchimp y agregar todos los contactos ahí? ¿O debemos agregarlos a una audiencia existente? ¿Cuál es el endpoint más eficiente para agregar múltiples contactos de golpe? ¿El endpoint de /batches o /lists/{list_id}/members? ¿Hay un límite de contactos por llamada?
+
+
+Sobre OAuth2 vs API Key: Mencionaste que para integraciones SaaS se recomienda OAuth2. Para nuestro caso donde el usuario simplemente pega su API key en nuestra plataforma, ¿hay alguna limitación real o riesgo más allá de que el usuario está compartiendo su key? ¿Podemos arrancar con API key para simplificar la primera versión y después migrar a OAuth2? ¿El flujo de OAuth2 requiere que registremos nuestra app en Mailchimp?
+
+
+Sobre la API Transaccional (Mandrill): Mailchimp tiene un servicio llamado Mandrill para envío transaccional que permite enviar correos individuales sin necesidad de crear campañas ni audiencias. ¿Sería más adecuado para nuestro caso de uso donde ya tenemos los contactos y el HTML y solo necesitamos enviarlo? ¿Mandrill usa la misma API key de Mailchimp o es un servicio separado con sus propias credenciales?
+
+
+Sobre los reportes de tracking: Dijiste que no hay webhooks nativos y que hay que consultar /reports/{campaign_id}. ¿Con qué frecuencia podemos consultar ese endpoint sin exceder los límites? ¿Cuánto tarda típicamente Mailchimp en actualizar los datos del reporte después de enviar la campaña? ¿Hay algún mecanismo de webhooks disponible aunque sea limitado?
+
+
+Sobre la verificación del dominio del remitente: ¿Podemos consultar programáticamente si el dominio del remitente del usuario está verificado antes de intentar enviar? El endpoint GET /verified-domains que mencionaste, ¿también nos dice el estado de la verificación (pendiente, verificado, fallido)?
+
+
+Si tenemos una lista de 2,000 contactos y queremos enviarles a todos: ¿Creamos una audiencia, subimos los 2,000 contactos con el endpoint batch, creamos la campaña, y la enviamos? ¿Todo eso en una secuencia de 4 llamadas a la API? ¿O es más complejo que eso?
+
+
+¿Existe un endpoint para consultar los límites de envío restantes del usuario? Para mostrarle en PostIAlo cuántos envíos le quedan antes de enviar.
+
+El diseño de tu flujo es conceptualmente viable, pero hay detalles críticos de la API de Mailchimp y sus políticas que debes tener en cuenta. Aquí tienes la validación técnica de cada una de tus dudas basada en la documentación oficial:
+1. Sobre la sincronización de contactos
+¿Nueva audiencia o existente? Técnicamente puedes crear una nueva audiencia por cada envío (POST /lists
+), pero Mailchimp está optimizado para tener un número reducido de audiencias principales y segmentar internamente con "Tags" (etiquetas)
+.
+El endpoint más eficiente: Para sincronizar múltiples contactos de golpe, tienes dos opciones:
+Llamada síncrona: POST /lists/{list_id} permite hacer "Batch subscribe or unsubscribe" (Suscripción o desuscripción por lotes) de miembros de una lista
+.
+Llamada asíncrona (Para listas grandes): Debes usar el endpoint de Operaciones por Lotes (POST /batches), el cual ejecuta peticiones en segundo plano y te ayuda a evitar los límites de la API si estás procesando una gran cantidad de datos
+.
+2. Sobre OAuth2 vs API Key
+Limitaciones y Riesgos: Mailchimp es muy claro en sus directrices: "Si alguna vez necesitas acceder a los datos de la cuenta de Mailchimp de otra persona, debes usar OAuth 2"
+. Usar API Keys está reservado estrictamente para conectar tu propia aplicación con tu propia cuenta
+.
+¿Se puede arrancar con API key? Físicamente tu código funcionará si el usuario pega su API key, pero estás violando sus mejores prácticas y podrías tener problemas si solicitas entrar al Integration Partner Program (Marketplace de Mailchimp), donde soportar OAuth2 es un requisito estricto
+.
+Registro de App: Sí, el flujo de OAuth 2 requiere que registres tu aplicación en Mailchimp para obtener las credenciales de cliente
+.
+3. Sobre la API Transaccional (Mandrill / Mailchimp Transactional)
+¿Es adecuado para campañas? No. Mailchimp Transactional (anteriormente Mandrill) está diseñado para "enviar correos transaccionales a escala" y "mensajes dirigidos basados en eventos", como confirmaciones de compra o reseteo de contraseñas
+. Para marketing masivo (campañas de tus usuarios), debes seguir utilizando la Marketing API
+.
+Credenciales: Es un servicio con su propia infraestructura y requiere que el usuario cree/habilite una cuenta transaccional separada o como add-on
+.
+4. Sobre los reportes de tracking y Webhooks
+Frecuencia de consulta: Mailchimp tiene un límite estricto de 10 conexiones simultáneas
+. Si superas este límite haciendo polling (consultas constantes) al endpoint /reports/{campaign_id}
+, recibirás un error HTTP 429
+.
+Webhooks: Mailchimp ofrece webhooks, pero la documentación de la Marketing API los enfoca principalmente en "mantener tu base de datos sincronizada con tu audiencia de Mailchimp" (cambios en listas, suscripciones/desuscripciones)
+. Para rastrear la actividad detallada de emails (aperturas, clics), la API Transaccional sí menciona webhooks específicos de actividad
+, pero en la Marketing API probablemente dependas de consultar asíncronamente los reportes.
+5. Sobre la verificación del dominio del remitente
+¿Podemos consultar el estado? Sí. Utilizando el endpoint GET /verified-domains/{domain_name}, la API te devolverá los detalles de un único dominio en la cuenta del usuario
+, lo que te permitirá confirmar si está validado para hacer envíos antes de intentar despachar la campaña.
+6. El flujo de secuencia de llamadas (Ejemplo de 2,000 contactos) Tu lógica es correcta, pero requerirá 5 llamadas a la API (no 4):
+POST /lists: Crear la audiencia
+.
+POST /lists/{list_id} (o POST /batches): Subir los 2,000 contactos
+.
+POST /campaigns: Crear la campaña asociada a esa audiencia
+.
+PUT /campaigns/{campaign_id}/content: Insertar el HTML generado por tu IA
+.
+POST /campaigns/{campaign_id}/actions/send: Disparar el envío masivo
+.
+7. Consultar los límites de envío restantes
+Endpoint raíz: Haciendo una llamada GET / al directorio raíz de la API, Mailchimp devuelve enlaces a otros recursos y "detalles sobre la cuenta de usuario de Mailchimp"
+. Es aquí donde se exponen habitualmente los datos generales del plan y el estado de la cuenta, aunque deberás inspeccionar el payload exacto para ver los envíos restantes según el plan de cada usuario.

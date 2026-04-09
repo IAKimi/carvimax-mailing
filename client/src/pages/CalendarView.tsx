@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import brevoLogo from "@assets/brevo_icon_1775749753762.webp";
+import mailchimpLogo from "@assets/mailchimp-la-gi_1775749753761.webp";
 import { TipTapEditor } from "@/components/TipTapEditor";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -486,7 +488,8 @@ export default function CalendarView() {
         defaultTime = "23:59";
       }
     }
-    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "", providerId: emailProviderStatus?.isActive ? String(emailProviderStatus.id) : "" });
+    const defaultProviderId = defaultProvider ? String(defaultProvider.id) : (allEmailProviders.length === 1 ? String(allEmailProviders[0].id) : "");
+    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "", providerId: defaultProviderId });
     setShowTargetAudience(false);
     setImageSourceMode(null);
     setUploadedImageFile(null);
@@ -576,7 +579,7 @@ export default function CalendarView() {
     },
   });
 
-  interface EmailProviderInfo { id: number; provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
+  interface EmailProviderInfo { id: number; provider: string; isActive: boolean; isDefault: boolean; senderEmail: string | null; senderName: string | null }
   const { data: rawProviders, isLoading: isLoadingProviders } = useQuery<EmailProviderInfo[]>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
@@ -588,7 +591,8 @@ export default function CalendarView() {
     },
   });
   const allEmailProviders: EmailProviderInfo[] = Array.isArray(rawProviders) ? rawProviders : [];
-  const emailProviderStatus = allEmailProviders.length > 0 ? allEmailProviders[0] : null;
+  const defaultProvider = allEmailProviders.find(p => p.isDefault) || null;
+  const emailProviderStatus = defaultProvider || (allEmailProviders.length > 0 ? allEmailProviders[0] : null);
 
   function handlePublishNow() {
     if (!editingCampaignId) return;
@@ -599,7 +603,7 @@ export default function CalendarView() {
     if (!emailProviderStatus?.isActive) {
       toast({
         title: "Proveedor de email no configurado",
-        description: "Debe conectar un proveedor de email (Brevo) antes de enviar campañas. Vaya a Proveedor de Email en el menú lateral.",
+        description: "Debe conectar un proveedor de email antes de enviar campañas. Vaya a Proveedor de Email en el menú lateral.",
         variant: "destructive",
       });
       return;
@@ -2846,7 +2850,7 @@ export default function CalendarView() {
               </div>
             ) : allEmailProviders.length === 1 ? (
               <div data-testid="info-provider-connected" className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <img src={allEmailProviders[0].provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
                 <span className="text-emerald-700">
                   Proveedor: <strong className="capitalize">{allEmailProviders[0].provider}</strong>
                   {allEmailProviders[0].senderEmail && <> · {allEmailProviders[0].senderEmail}</>}
@@ -2865,8 +2869,12 @@ export default function CalendarView() {
                   <SelectContent>
                     {allEmailProviders.map(p => (
                       <SelectItem key={p.id} value={String(p.id)}>
-                        <span className="capitalize">{p.provider}</span>
-                        {p.senderEmail && <span className="text-muted-foreground ml-2">· {p.senderEmail}</span>}
+                        <span className="inline-flex items-center gap-2">
+                          <img src={p.provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
+                          <span className="capitalize">{p.provider}</span>
+                          {p.isDefault && <span className="text-xs text-amber-600 font-semibold">★</span>}
+                          {p.senderEmail && <span className="text-muted-foreground">· {p.senderEmail}</span>}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

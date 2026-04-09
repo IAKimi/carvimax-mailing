@@ -1,0 +1,21 @@
+1. Sobre el opt-in de contactos Al importar o agregar contactos, no es estrictamente necesario que pasen por el proceso de double opt-in. Utilizando la API, puedes definir el estado de consentimiento de marketing del contacto como "Confirmed" (o status: "subscribed" en el modelo estándar)
+. Este estado indica que el contacto no necesita más verificaciones de consentimiento y no pasará por el flujo de double opt-in al ser importado al sistema
+.
+2. Campos requeridos al crear una campaña Para la creación de la campaña (POST /campaigns), el objeto settings requiere parámetros básicos de configuración como el asunto (subject_line), el nombre del remitente (from_name) y el correo de respuesta/remitente (reply_to), tal como revisamos en el esquema anterior. El correo utilizado en el reply_to debe pertenecer a un dominio que haya sido previamente verificado en la cuenta de Mailchimp del usuario para que se le permita hacer el envío
+.
+3. Límite del batch subscribe La documentación de la API detalla que puedes suscribir miembros por lotes directamente a una lista mediante POST /lists/{list_id}
+ o utilizar el endpoint global de operaciones por lotes POST /batches para ejecutar múltiples operaciones en segundo plano
+. Nota: La documentación de las fuentes proporcionadas no especifica el número máximo exacto de contactos que puedes enviar en una sola llamada para estos endpoints. Sin embargo, para bases de datos muy grandes, Mailchimp diseñó el endpoint /batches específicamente para procesar operaciones asíncronas y evitar problemas de límite de tasa en tu aplicación
+.
+4. Respuesta después del envío Al disparar la acción POST /campaigns/{campaign_id}/actions/send, el comando instruye a Mailchimp a enviar la campaña inmediatamente (a menos que sea una campaña RSS o programada)
+. Como comentamos en el historial de la conversación, esta llamada te devuelve una respuesta inmediata de éxito (código 204), confirmando que Mailchimp ha aceptado la orden de despliegue. El proceso real de entrega a cada bandeja de entrada lo ejecuta Mailchimp en sus servidores, y podrás consultar los reportes asíncronamente.
+5. Gestión de audiencias Es altamente recomendado crear una sola audiencia por usuario y utilizar "Tags" (etiquetas) para segmentar las distintas bases de contactos que el usuario suba
+. Las etiquetas están diseñadas como rótulos para organizar a tus contactos dentro de una misma lista
+. Como detallamos anteriormente, Mailchimp está arquitectónicamente optimizado para manejar muy pocas audiencias principales por cuenta y segmentar el resto de la información internamente.
+6. Extracción del data center Es totalmente correcto. El identificador <dc> es el subdominio del servidor que le corresponde a la cuenta y siempre se anexa al final de la API Key
+. Por ejemplo, si tu usuario ingresa la clave 0123456789abcdef0123456789abcde-us6, el centro de datos es us6 y la URL base para todas tus llamadas deberá ser https://us6.api.mailchimp.com/3.0/
+.
+7. Estado de una campaña ya enviada Sí, puedes consultar el endpoint GET /campaigns/{campaign_id} en cualquier momento para obtener información específica de la campaña, lo que incluye su configuración y estado
+. Aunque las fuentes no enumeran un glosario completo de todos los estados de respuesta, sí confirman la existencia de estados internos como "saved" (guardada en borrador) y "send" (enviada/en proceso de envío)
+. Además, la documentación menciona opciones para campañas programadas y campañas pausadas
+.

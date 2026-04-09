@@ -248,6 +248,19 @@ const migrations: Migration[] = [
       console.log("[migration 010] Added provider_id column to campaigns");
     },
   },
+  {
+    name: "011_add_mailchimp_and_default_provider_fields",
+    up: async (client) => {
+      await client.query(`ALTER TABLE email_providers ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT false`);
+      await client.query(`ALTER TABLE email_providers ADD COLUMN IF NOT EXISTS mailchimp_data_center TEXT`);
+      await client.query(`ALTER TABLE email_providers ADD COLUMN IF NOT EXISTS mailchimp_audience_id TEXT`);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_email_providers_user_default
+        ON email_providers (user_id) WHERE is_default = true
+      `);
+      console.log("[migration 011] Added is_default, mailchimp_data_center, mailchimp_audience_id to email_providers");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
