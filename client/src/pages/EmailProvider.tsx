@@ -111,6 +111,7 @@ export default function EmailProvider() {
             <div>
               <p className="font-semibold text-amber-800">Límites del plan gratuito</p>
               <p className="text-amber-700 mt-0.5">La cuenta gratuita de Mailchimp solo permite enviar <strong>100 correos en total</strong>. Cuando se acaben, necesita agregar una tarjeta de crédito o cambiar a un plan de pago directamente en Mailchimp.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Puede revisar y actualizar su plan desde su panel de Mailchimp.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
@@ -118,6 +119,7 @@ export default function EmailProvider() {
             <div>
               <p className="font-semibold text-amber-800">Velocidad de envío</p>
               <p className="text-amber-700 mt-0.5">Si envía muchas campañas al mismo tiempo, Mailchimp puede pausar temporalmente sus envíos. Esto es normal y se resuelve solo esperando unos minutos.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Este límite es gestionado automáticamente por Mailchimp.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
@@ -125,6 +127,7 @@ export default function EmailProvider() {
             <div>
               <p className="font-semibold text-amber-800">Permiso de sus contactos</p>
               <p className="text-amber-700 mt-0.5">Las personas a las que les envíe correos deben haber aceptado recibir información suya previamente. Si envía correos a personas que no lo autorizaron, <strong>Mailchimp puede suspender su cuenta</strong>.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Asegúrese de tener consentimiento antes de importar contactos a Mailchimp.</p>
             </div>
           </div>
         </div>
@@ -167,6 +170,7 @@ export default function EmailProvider() {
             <div>
               <p className="font-semibold text-amber-800">Límites del plan gratuito</p>
               <p className="text-amber-700 mt-0.5">El plan gratuito de Brevo permite enviar hasta <strong>300 correos por día</strong>. Este límite se renueva automáticamente cada 24 horas. Si su campaña tiene más de 300 destinatarios, el envío se pausará y continuará al día siguiente.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Puede revisar y actualizar su plan desde su panel de Brevo.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
@@ -182,6 +186,7 @@ export default function EmailProvider() {
             <div>
               <p className="font-semibold text-amber-800">Permiso de sus contactos</p>
               <p className="text-amber-700 mt-0.5">Las personas a las que envíe correos deben haber dado su consentimiento para recibir información suya. Si envía correos a personas que no lo autorizaron y estos generan quejas, <strong>Brevo puede bloquear su cuenta</strong>.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Asegúrese de tener consentimiento antes de importar contactos a su cuenta.</p>
             </div>
           </div>
         </div>
