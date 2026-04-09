@@ -577,7 +577,7 @@ export default function CalendarView() {
   });
 
   interface EmailProviderInfo { id: number; provider: string; isActive: boolean; senderEmail: string | null; senderName: string | null }
-  const { data: rawProviders } = useQuery<EmailProviderInfo[]>({
+  const { data: rawProviders, isLoading: isLoadingProviders } = useQuery<EmailProviderInfo[]>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
       const res = await fetch("/api/email-provider/status", { credentials: "include" });
@@ -592,6 +592,10 @@ export default function CalendarView() {
 
   function handlePublishNow() {
     if (!editingCampaignId) return;
+    if (isLoadingProviders) {
+      toast({ title: "Cargando proveedor...", description: "Espere un momento mientras se verifica su proveedor de email." });
+      return;
+    }
     if (!emailProviderStatus?.isActive) {
       toast({
         title: "Proveedor de email no configurado",
@@ -924,6 +928,10 @@ export default function CalendarView() {
     if (!editingCampaignId || !editingCampaign) return;
     if (editingCampaign.status !== "draft") return;
     if (!editingCampaign.scheduledAt) return;
+    if (isLoadingProviders) {
+      toast({ title: "Cargando proveedor...", description: "Espere un momento mientras se verifica su proveedor de email." });
+      return;
+    }
     if (!emailProviderStatus?.isActive) {
       toast({
         title: "Proveedor de email no configurado",
@@ -957,6 +965,10 @@ export default function CalendarView() {
 
   function handleReschedule() {
     if (!editingCampaignId || !rescheduleDate) return;
+    if (isLoadingProviders) {
+      toast({ title: "Cargando proveedor...", description: "Espere un momento mientras se verifica su proveedor de email." });
+      return;
+    }
     if (!emailProviderStatus?.isActive) {
       toast({ title: "Proveedor de email no configurado", description: "Debe conectar un proveedor de email antes de programar campañas.", variant: "destructive" });
       return;
@@ -1246,7 +1258,7 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {!emailProviderStatus?.isActive && !isCancelled && !isSending && !isSent && (
+          {!isLoadingProviders && !emailProviderStatus?.isActive && !isCancelled && !isSending && !isSent && (
             <div data-testid="banner-no-provider" className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
               <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
               <div className="flex-1">
@@ -2814,7 +2826,12 @@ export default function CalendarView() {
                 />
               </div>
             </TutorialHighlight>
-            {allEmailProviders.length === 0 ? (
+            {isLoadingProviders ? (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 border rounded-xl text-sm">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground">Verificando proveedor de email...</span>
+              </div>
+            ) : allEmailProviders.length === 0 ? (
               <div data-testid="info-provider-missing" className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
                 <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
                 <div className="flex-1">
