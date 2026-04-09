@@ -41,6 +41,14 @@ const CONTACTS_STEPS: TutorialStep[] = [
   { fieldId: "import-contacts", label: "Importar Contactos", description: "Use el botón de importar para subir un archivo CSV o Excel con los datos de sus contactos." },
 ];
 
+const PROVIDER_STEPS: TutorialStep[] = [
+  { fieldId: "provider-overview", label: "Proveedor de Email", description: "Conecte un servicio de envío de correos (Brevo o Mailchimp) para poder enviar sus campañas. Puede tener ambos conectados y elegir cuál usar como predeterminado." },
+  { fieldId: "provider-apikey", label: "API Key", description: "Cada proveedor requiere una API Key que usted obtiene desde su panel de Brevo o Mailchimp. Siga las instrucciones en pantalla para obtenerla." },
+  { fieldId: "provider-sender", label: "Remitente", description: "Seleccione el remitente verificado que aparecerá como el 'De' en los correos que envíe. En Brevo elija un remitente y en Mailchimp verifique su dominio." },
+  { fieldId: "provider-audience", label: "Audiencia (Mailchimp)", description: "Si usa Mailchimp, seleccione la audiencia (lista de contactos) donde se sincronizarán sus contactos al enviar campañas." },
+  { fieldId: "provider-default", label: "Predeterminado", description: "Si tiene ambos proveedores conectados, establezca uno como predeterminado. Este se usará automáticamente en sus campañas." },
+];
+
 const TEMPLATES_STEPS: TutorialStep[] = [
   { fieldId: "templates-overview", label: "Plantillas", description: "Puede generar plantillas automáticamente con IA o subir sus propias plantillas HTML personalizadas." },
   { fieldId: "generate-ai", label: "Generar con IA", description: "Haga clic aquí para que la IA genere una plantilla profesional basada en su identidad de marca." },
@@ -56,6 +64,7 @@ const DASHBOARD_STEPS: TutorialStep[] = [
 
 export const TUTORIAL_SECTIONS: Record<string, TutorialStep[]> = {
   brand: BRAND_STEPS,
+  provider: PROVIDER_STEPS,
   calendar: CALENDAR_STEPS,
   contacts: CONTACTS_STEPS,
   templates: TEMPLATES_STEPS,

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
+import { useTutorial } from "@/contexts/TutorialContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,8 +66,18 @@ interface MailchimpDomain {
   authenticationType: string;
 }
 
+interface MailchimpAudience {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
 export default function EmailProvider() {
   const { toast } = useToast();
+  const { setCurrentSection } = useTutorial();
+  useEffect(() => {
+    setCurrentSection("provider");
+  }, [setCurrentSection]);
   const [brevoApiKey, setBrevoApiKey] = useState("");
   const [mailchimpApiKey, setMailchimpApiKey] = useState("");
   const [showBrevoKey, setShowBrevoKey] = useState(false);
@@ -219,6 +230,28 @@ export default function EmailProvider() {
   });
   const domains = domainsData?.domains || [];
 
+  const { data: audiencesData, isLoading: audiencesLoading } = useQuery<{ audiences: MailchimpAudience[]; selectedAudienceId: string | null }>({
+    queryKey: ["/api/email-provider/mailchimp/audiences"],
+    enabled: !!mailchimpStatus,
+  });
+  const audiences = audiencesData?.audiences || [];
+  const selectedAudienceId = audiencesData?.selectedAudienceId || null;
+
+  const updateAudienceMutation = useMutation({
+    mutationFn: async ({ providerId, audienceId }: { providerId: number; audienceId: string }) => {
+      const res = await apiRequest("PATCH", `/api/email-provider/${providerId}/audience`, { audienceId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-provider/mailchimp/audiences"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
+      toast({ title: "Audiencia actualizada", description: "La audiencia de Mailchimp ha sido seleccionada." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const connectMutation = useMutation({
     mutationFn: async ({ provider, apiKey }: { provider: string; apiKey: string }) => {
       const res = await apiRequest("POST", "/api/email-provider/connect", { provider, apiKey });
@@ -229,6 +262,9 @@ export default function EmailProvider() {
       else setMailchimpApiKey("");
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
       queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${variables.provider}/senders`] });
+      if (variables.provider === "mailchimp") {
+        queryClient.invalidateQueries({ queryKey: ["/api/email-provider/mailchimp/audiences"] });
+      }
       const name = variables.provider === "brevo" ? "Brevo" : "Mailchimp";
       toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.` });
     },
@@ -663,6 +699,55 @@ export default function EmailProvider() {
                     )}
                   </div>
 
+                  {audiencesLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-12 w-full rounded-xl" />
+                    </div>
+                  ) : audiences.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Audiencia (lista de contactos)
+                      </Label>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {audiences.map((audience) => {
+                          const isSelected = selectedAudienceId === audience.id;
+                          return (
+                            <button
+                              key={audience.id}
+                              data-testid={`button-audience-${audience.id}`}
+                              onClick={() => updateAudienceMutation.mutate({ providerId: mailchimpStatus.id, audienceId: audience.id })}
+                              disabled={updateAudienceMutation.isPending || isSelected}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border text-left text-sm transition-all ${
+                                isSelected
+                                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                  : "border-border hover:border-primary/30 hover:bg-muted/50"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{audience.name}</div>
+                                <div className="text-xs text-muted-foreground">{audience.memberCount} contactos</div>
+                              </div>
+                              {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      No se encontraron audiencias en su cuenta de Mailchimp. Cree una audiencia desde su panel de Mailchimp.
+                    </div>
+                  )}
+
+                  {!selectedAudienceId && audiences.length > 0 && (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      Seleccione una audiencia para poder enviar campañas con Mailchimp.
+                    </div>
+                  )}
+
                   {domainsLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-4 w-32" />
@@ -699,12 +784,7 @@ export default function EmailProvider() {
                         ))}
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      No se encontraron dominios verificados. Configure su dominio en Mailchimp para enviar correos.
-                    </div>
-                  )}
+                  ) : null}
 
                   {mailchimpRequirementsPanel("-connected")}
 

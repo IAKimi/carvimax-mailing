@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface OnboardingStatus {
   hasBrand: boolean;
+  hasProvider: boolean;
   hasTemplates: boolean;
   hasContactDatabases: boolean;
 }
@@ -34,19 +35,20 @@ const NAV_ITEMS = [
   { icon: Home, label: "Inicio", href: "/", requiresLevel: 0 },
   { icon: Palette, label: "Identidad de Marca", href: "/brand", requiresLevel: 0 },
   { icon: Link2, label: "Proveedor de Email", href: "/email-provider", requiresLevel: 1 },
-  { icon: LayoutTemplate, label: "Plantillas", href: "/templates", requiresLevel: 1 },
-  { icon: Database, label: "Base de Datos", href: "/contacts", requiresLevel: 2 },
-  { icon: CalendarDays, label: "Calendario", href: "/calendar", requiresLevel: 3 },
-  { icon: Mail, label: "Historial", href: "/emails", requiresLevel: 3 },
-  { icon: BarChart3, label: "Dashboard", href: "/dashboard", requiresLevel: 3 },
+  { icon: LayoutTemplate, label: "Plantillas", href: "/templates", requiresLevel: 2 },
+  { icon: Database, label: "Base de Datos", href: "/contacts", requiresLevel: 3 },
+  { icon: CalendarDays, label: "Calendario", href: "/calendar", requiresLevel: 4 },
+  { icon: Mail, label: "Historial", href: "/emails", requiresLevel: 4 },
+  { icon: BarChart3, label: "Dashboard", href: "/dashboard", requiresLevel: 4 },
 ];
 
 function getOnboardingLevel(status: OnboardingStatus | undefined): number {
   if (!status) return 0;
   if (!status.hasBrand) return 0;
-  if (!status.hasTemplates) return 1;
-  if (!status.hasContactDatabases) return 2;
-  return 3;
+  if (!status.hasProvider) return 1;
+  if (!status.hasTemplates) return 2;
+  if (!status.hasContactDatabases) return 3;
+  return 4;
 }
 
 function getLockedMessage(requiredLevel: number, currentLevel: number): string {
@@ -54,9 +56,12 @@ function getLockedMessage(requiredLevel: number, currentLevel: number): string {
     return "Primero completa tu Identidad de Marca para desbloquear esta sección.";
   }
   if (currentLevel < 2 && requiredLevel >= 2) {
-    return "Primero crea al menos una plantilla para desbloquear esta sección.";
+    return "Primero conecta un proveedor de email (Brevo o Mailchimp) para desbloquear esta sección.";
   }
   if (currentLevel < 3 && requiredLevel >= 3) {
+    return "Primero crea al menos una plantilla para desbloquear esta sección.";
+  }
+  if (currentLevel < 4 && requiredLevel >= 4) {
     return "Necesitas tener al menos una plantilla y una base de datos para acceder aquí.";
   }
   return "Sección bloqueada.";

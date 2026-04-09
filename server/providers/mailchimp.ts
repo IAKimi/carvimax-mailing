@@ -14,12 +14,10 @@ interface MailchimpVerifiedDomain {
   authenticationType: string;
 }
 
-interface MailchimpBatchResult {
-  sent: number;
-  failed: number;
-  errors: Array<{ email: string; error: string }>;
-  mailchimpCampaignId: string | null;
-  audienceId: string | null;
+export interface MailchimpAudience {
+  id: string;
+  name: string;
+  memberCount: number;
 }
 
 function extractDataCenter(apiKey: string): string {
@@ -81,6 +79,39 @@ export async function validateApiKey(apiKey: string): Promise<{
   }
 }
 
+export async function getAudiences(
+  apiKey: string,
+  dataCenter: string
+): Promise<{ audiences: MailchimpAudience[]; error?: string }> {
+  try {
+    const res = await fetch(`${baseUrl(dataCenter)}/lists?count=100`, {
+      method: "GET",
+      headers: authHeaders(apiKey),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Error desconocido");
+      return { audiences: [], error: `Error al consultar audiencias (${res.status}): ${errText}` };
+    }
+
+    const data = await res.json() as Record<string, unknown>;
+    const rawLists = Array.isArray(data.lists) ? data.lists : [];
+    const audiences: MailchimpAudience[] = rawLists.map((l: Record<string, unknown>) => {
+      const stats = l.stats as Record<string, unknown> | undefined;
+      return {
+        id: String(l.id || ""),
+        name: String(l.name || ""),
+        memberCount: Number(stats?.member_count || 0),
+      };
+    });
+
+    return { audiences };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    return { audiences: [], error: `Error de conexión: ${message}` };
+  }
+}
+
 export async function getVerifiedDomains(
   apiKey: string,
   dataCenter: string
@@ -114,58 +145,16 @@ export async function getVerifiedDomains(
 export async function syncContactsToAudience(
   apiKey: string,
   dataCenter: string,
-  existingAudienceId: string | null,
+  audienceId: string,
   contacts: Array<{ name: string; email: string }>,
-  tagName: string,
-  fromEmail: string,
-  fromName: string
+  tagName: string
 ): Promise<{ audienceId: string; error?: string }> {
+  if (!audienceId) {
+    return { audienceId: "", error: "No hay una audiencia de Mailchimp seleccionada. Ve a Configuración > Proveedor de Email y selecciona una audiencia." };
+  }
+
   const headers = authHeaders(apiKey);
   const base = baseUrl(dataCenter);
-
-  let audienceId = existingAudienceId;
-
-  if (!audienceId) {
-    try {
-      const createRes = await fetch(`${base}/lists`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name: `PostIAlo Mailing - ${fromName}`,
-          permission_reminder: "Usted recibe este correo porque está suscrito a nuestras actualizaciones.",
-          contact: {
-            company: fromName,
-            address1: "",
-            city: "",
-            state: "",
-            zip: "",
-            country: "US",
-          },
-          campaign_defaults: {
-            from_name: fromName,
-            from_email: fromEmail,
-            subject: "",
-            language: "es",
-          },
-          email_type_option: false,
-        }),
-      });
-
-      if (!createRes.ok) {
-        const errText = await createRes.text().catch(() => "");
-        return { audienceId: "", error: `Error al crear audiencia en Mailchimp (${createRes.status}): ${errText}` };
-      }
-
-      const listData = await createRes.json() as Record<string, unknown>;
-      audienceId = String(listData.id || "");
-      if (!audienceId) {
-        return { audienceId: "", error: "Mailchimp no devolvió un ID de audiencia." };
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error desconocido";
-      return { audienceId: "", error: `Error al crear audiencia: ${message}` };
-    }
-  }
 
   try {
     const members = contacts.map(c => ({

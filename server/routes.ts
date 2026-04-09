@@ -1411,11 +1411,13 @@ export async function registerRoutes(
     const userId = req.session.userId!;
     const brand = await storage.getBrandIdentity(userId);
     const hasBrand = !!(brand && brand.companyName && brand.industry);
+    const providers = await storage.getEmailProviders(userId);
+    const hasProvider = providers.some(p => p.isActive);
     const templates = await storage.getTemplates(userId);
     const hasTemplates = templates.length > 0;
     const contactDbs = await storage.getContactDatabases(userId);
     const hasContactDatabases = contactDbs.length > 0;
-    res.json({ hasBrand, hasTemplates, hasContactDatabases });
+    res.json({ hasBrand, hasProvider, hasTemplates, hasContactDatabases });
   });
 
   app.get("/api/brand-identity", requireAuth, async (req, res) => {
@@ -1557,7 +1559,7 @@ export async function registerRoutes(
           senders: sendersResult.senders,
         });
       } else if (provider === "mailchimp") {
-        const { validateApiKey: validateMailchimp } = await import("./providers/mailchimp");
+        const { validateApiKey: validateMailchimp, getAudiences } = await import("./providers/mailchimp");
         const validation = await validateMailchimp(apiKey);
         if (!validation.valid) {
           return res.status(400).json({ message: validation.error || "API key inválida." });
@@ -1570,6 +1572,16 @@ export async function registerRoutes(
 
         const { encryptApiKey } = await import("./encryption");
         const encrypted = encryptApiKey(apiKey);
+
+        let autoAudienceId: string | null = null;
+        let audiencesList: Array<{ id: string; name: string; memberCount: number }> = [];
+        if (validation.dataCenter) {
+          const audiencesResult = await getAudiences(apiKey, validation.dataCenter);
+          audiencesList = audiencesResult.audiences;
+          if (audiencesList.length === 1) {
+            autoAudienceId = audiencesList[0].id;
+          }
+        }
 
         const created = await storage.createEmailProvider({
           userId: req.session.userId!,
@@ -1584,6 +1596,7 @@ export async function registerRoutes(
           accountEmail: validation.account?.email || null,
           accountPlan: `${validation.account?.totalSubscribers || 0} suscriptores`,
           mailchimpDataCenter: validation.dataCenter || null,
+          mailchimpAudienceId: autoAudienceId,
         });
 
         res.status(201).json({
@@ -1593,6 +1606,8 @@ export async function registerRoutes(
           accountEmail: created.accountEmail,
           accountPlan: created.accountPlan,
           accountName: validation.account?.accountName || null,
+          audiences: audiencesList,
+          selectedAudienceId: autoAudienceId,
         });
       }
     } catch (err: any) {
@@ -1691,6 +1706,55 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error fetching senders:", err.message);
       return res.status(500).json({ message: "Error al obtener los remitentes." });
+    }
+  });
+
+  app.get("/api/email-provider/mailchimp/audiences", requireAuth, async (req, res) => {
+    try {
+      const existing = await storage.getEmailProvider(req.session.userId!, "mailchimp");
+      if (!existing) {
+        return res.status(404).json({ message: "Mailchimp no está configurado." });
+      }
+
+      const { decryptApiKey } = await import("./encryption");
+      const apiKey = decryptApiKey(existing.encryptedApiKey, existing.iv, existing.authTag);
+      const { getAudiences } = await import("./providers/mailchimp");
+      const dc = existing.mailchimpDataCenter || "";
+      const result = await getAudiences(apiKey, dc);
+      if (result.error) {
+        return res.status(502).json({ message: result.error });
+      }
+      res.json({ audiences: result.audiences, selectedAudienceId: existing.mailchimpAudienceId || null });
+    } catch (err: any) {
+      console.error("Error fetching Mailchimp audiences:", err.message);
+      return res.status(500).json({ message: "Error al obtener las audiencias de Mailchimp." });
+    }
+  });
+
+  app.patch("/api/email-provider/:id/audience", requireAuth, async (req, res) => {
+    try {
+      const providerId = parseInt(req.params.id);
+      if (isNaN(providerId)) {
+        return res.status(400).json({ message: "ID de proveedor inválido." });
+      }
+      const { audienceId } = req.body;
+      if (!audienceId) {
+        return res.status(400).json({ message: "ID de audiencia es requerido." });
+      }
+
+      const provider = await storage.getEmailProviderById(providerId);
+      if (!provider || provider.userId !== req.session.userId!) {
+        return res.status(404).json({ message: "Proveedor no encontrado." });
+      }
+      if (provider.provider !== "mailchimp") {
+        return res.status(400).json({ message: "Solo Mailchimp usa audiencias." });
+      }
+
+      const updated = await storage.updateEmailProvider(providerId, { mailchimpAudienceId: audienceId } as any);
+      res.json({ id: updated!.id, mailchimpAudienceId: updated!.mailchimpAudienceId });
+    } catch (err: any) {
+      console.error("Error updating audience:", err.message);
+      return res.status(500).json({ message: "Error al actualizar la audiencia." });
     }
   });
 
@@ -2239,6 +2303,13 @@ export async function registerRoutes(
       } else if (activeProvider.provider === "mailchimp") {
         const { syncContactsToAudience, createAndSendCampaign } = await import("./providers/mailchimp");
         const dc = activeProvider.mailchimpDataCenter || "";
+        const selectedAudienceId = activeProvider.mailchimpAudienceId || "";
+
+        if (!selectedAudienceId) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
+          return { success: false, error: "No hay una audiencia de Mailchimp seleccionada. Ve a Configuración > Proveedor de Email y selecciona una audiencia." };
+        }
 
         const mcContacts = contactsList.map(c => ({
           name: c.name || "",
@@ -2248,19 +2319,14 @@ export async function registerRoutes(
         const tagName = `postialo_campaign_${campaignId}`;
         const syncResult = await syncContactsToAudience(
           apiKey, dc,
-          activeProvider.mailchimpAudienceId || null,
-          mcContacts, tagName,
-          senderEmail, senderName
+          selectedAudienceId,
+          mcContacts, tagName
         );
 
         if (syncResult.error) {
           await storage.updateCampaign(campaignId, { status: "failed" } as any);
           broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
           return { success: false, error: `Error al sincronizar contactos con Mailchimp: ${syncResult.error}` };
-        }
-
-        if (syncResult.audienceId && syncResult.audienceId !== activeProvider.mailchimpAudienceId) {
-          await storage.updateEmailProvider(activeProvider.id, { mailchimpAudienceId: syncResult.audienceId } as any);
         }
 
         const sendResult = await createAndSendCampaign(
