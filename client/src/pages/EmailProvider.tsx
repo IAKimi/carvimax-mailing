@@ -74,6 +74,7 @@ export default function EmailProvider() {
   const [showBrevoInstructions, setShowBrevoInstructions] = useState(false);
   const [showMailchimpInstructions, setShowMailchimpInstructions] = useState(false);
   const [showMailchimpRequirements, setShowMailchimpRequirements] = useState(false);
+  const [showBrevoRequirements, setShowBrevoRequirements] = useState(false);
 
   const mailchimpRequirementsPanel = (testIdSuffix: string) => (
     <div>
@@ -92,36 +93,95 @@ export default function EmailProvider() {
           <div className="flex items-start gap-2.5">
             <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-800">Autenticación de dominio (DKIM/DMARC)</p>
-              <p className="text-amber-700 mt-0.5">Si no configura DKIM y DMARC en su dominio, Mailchimp reemplazará su dirección de remitente por un subdominio genérico (<code className="bg-amber-100 px-1 rounded">@mandrillapp.com</code>). Debe crear registros CNAME para DKIM y un registro TXT para DMARC en su proveedor de DNS.</p>
+              <p className="font-semibold text-amber-800">Verifique su dominio de correo</p>
+              <p className="text-amber-700 mt-0.5">Si no verifica su dominio en Mailchimp, los correos que envíe van a aparecer como enviados desde una dirección genérica (<code className="bg-amber-100 px-1 rounded">@mandrillapp.com</code>) en lugar de su marca. Necesitará acceso al sitio donde compró su dominio web para completar este paso.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Busque "Autenticar dominio" en la configuración de su cuenta de Mailchimp.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
             <MapPin className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-800">Dirección física obligatoria</p>
-              <p className="text-amber-700 mt-0.5">Por regulaciones CAN-SPAM, Mailchimp requiere una dirección postal válida en la configuración de su audiencia. Esta se inserta automáticamente en el pie de página de cada correo enviado.</p>
+              <p className="font-semibold text-amber-800">Dirección física en los correos</p>
+              <p className="text-amber-700 mt-0.5">Por ley, todo correo masivo debe incluir una dirección postal real de su empresa o negocio. Mailchimp la pide cuando usted configura su lista de contactos y la agrega automáticamente al pie de cada correo que envíe.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Ingrese esta dirección en la configuración de su audiencia en Mailchimp.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
             <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-amber-800">Límites del plan gratuito</p>
-              <p className="text-amber-700 mt-0.5">La cuenta gratuita permite un máximo de <strong>100 envíos</strong> sin tarjeta de crédito. Una vez agotados, necesita agregar un método de pago o actualizar su plan en Mailchimp.</p>
+              <p className="text-amber-700 mt-0.5">La cuenta gratuita de Mailchimp solo permite enviar <strong>100 correos en total</strong>. Cuando se acaben, necesita agregar una tarjeta de crédito o cambiar a un plan de pago directamente en Mailchimp.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-800">Límite de conexiones</p>
-              <p className="text-amber-700 mt-0.5">Mailchimp permite máximo 10 conexiones simultáneas a su API. Si se supera este límite, se recibirá un error 429.</p>
+              <p className="font-semibold text-amber-800">Velocidad de envío</p>
+              <p className="text-amber-700 mt-0.5">Si envía muchas campañas al mismo tiempo, Mailchimp puede pausar temporalmente sus envíos. Esto es normal y se resuelve solo esperando unos minutos.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
             <Users className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-800">Consentimiento de contactos</p>
-              <p className="text-amber-700 mt-0.5">Los contactos importados deben tener consentimiento previo (opt-in) para recibir correos. Mailchimp puede suspender cuentas que envíen a contactos sin autorización.</p>
+              <p className="font-semibold text-amber-800">Permiso de sus contactos</p>
+              <p className="text-amber-700 mt-0.5">Las personas a las que les envíe correos deben haber aceptado recibir información suya previamente. Si envía correos a personas que no lo autorizaron, <strong>Mailchimp puede suspender su cuenta</strong>.</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const brevoRequirementsPanel = (testIdSuffix: string) => (
+    <div>
+      <button
+        type="button"
+        data-testid={`button-toggle-brevo-requirements${testIdSuffix}`}
+        onClick={() => setShowBrevoRequirements(!showBrevoRequirements)}
+        className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 hover:underline"
+      >
+        <AlertTriangle className="w-4 h-4" />
+        {showBrevoRequirements ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        Requisitos importantes
+      </button>
+      {showBrevoRequirements && (
+        <div data-testid={`brevo-requirements-panel${testIdSuffix}`} className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm space-y-3">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Validación de cuenta nueva</p>
+              <p className="text-amber-700 mt-0.5">Cuando crea una cuenta nueva en Brevo, esta pasa por una revisión de seguridad. Hasta que Brevo no la apruebe, <strong>no podrá enviar correos</strong> desde PostIAlo. Si le aparece un error de "cuenta en validación", debe completar su perfil en Brevo y esperar la aprobación.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Complete su perfil en el panel de Brevo para agilizar la aprobación.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Verifique su correo y dominio</p>
+              <p className="text-amber-700 mt-0.5">Debe verificar al menos la dirección de correo que usará como remitente (Brevo le enviará un enlace de confirmación). Se recomienda también verificar el dominio completo para que sus correos <strong>no caigan en la carpeta de spam</strong> de sus destinatarios.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Busque "Dominios" o "Senders" en la configuración de su cuenta de Brevo.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Límites del plan gratuito</p>
+              <p className="text-amber-700 mt-0.5">El plan gratuito de Brevo permite enviar hasta <strong>300 correos por día</strong>. Este límite se renueva automáticamente cada 24 horas. Si su campaña tiene más de 300 destinatarios, el envío se pausará y continuará al día siguiente.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <MapPin className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Conexiones de seguimiento (webhooks)</p>
+              <p className="text-amber-700 mt-0.5">PostIAlo crea automáticamente una conexión con Brevo para rastrear si sus correos fueron entregados y abiertos. Brevo permite máximo <strong>40 de estas conexiones</strong>. Si ya tiene muchas herramientas conectadas, puede que necesite eliminar alguna desde su panel de Brevo.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Revise sus webhooks en la configuración de Brevo si tiene problemas al conectar.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Users className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Permiso de sus contactos</p>
+              <p className="text-amber-700 mt-0.5">Las personas a las que envíe correos deben haber dado su consentimiento para recibir información suya. Si envía correos a personas que no lo autorizaron y estos generan quejas, <strong>Brevo puede bloquear su cuenta</strong>.</p>
             </div>
           </div>
         </div>
@@ -338,6 +398,9 @@ export default function EmailProvider() {
                       </div>
                     )}
                   </div>
+                  <div className="pt-1">
+                    {brevoRequirementsPanel("")}
+                  </div>
                 </>
               ) : (
                 <>
@@ -416,6 +479,8 @@ export default function EmailProvider() {
                       No se encontraron remitentes verificados en su cuenta de Brevo.
                     </div>
                   )}
+
+                  {brevoRequirementsPanel("-connected")}
 
                   <Button
                     data-testid="button-toggle-brevo-default"
