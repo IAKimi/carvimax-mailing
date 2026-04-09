@@ -2548,8 +2548,8 @@ export async function registerRoutes(
 
         const sendingCampaigns = await db.select().from(campaignsTable).where(eq(campaignsTable.status, "sending"));
         for (const stuck of sendingCampaigns) {
-          const createdAt = stuck.createdAt ? new Date(stuck.createdAt).getTime() : 0;
-          const ageMinutes = (now.getTime() - createdAt) / (1000 * 60);
+          const sendStartedAt = stuck.scheduledAt ? new Date(stuck.scheduledAt).getTime() : (stuck.createdAt ? new Date(stuck.createdAt).getTime() : 0);
+          const ageMinutes = (now.getTime() - sendStartedAt) / (1000 * 60);
           if (ageMinutes > 30) {
             const sent = stuck.sentCount || 0;
             const failed = stuck.failedCount || 0;
