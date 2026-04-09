@@ -259,7 +259,7 @@ export default function EmailProvider() {
       const res = await apiRequest("POST", "/api/email-provider/connect", { provider, apiKey });
       return res.json();
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       if (variables.provider === "brevo") setBrevoApiKey("");
       else setMailchimpApiKey("");
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
@@ -269,6 +269,9 @@ export default function EmailProvider() {
       }
       const name = variables.provider === "brevo" ? "Brevo" : "Mailchimp";
       toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.` });
+      if (data?.warning) {
+        toast({ title: "Aviso", description: data.warning, variant: "destructive" });
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Error de conexión", description: err.message || "No se pudo conectar. Verifique su API key.", variant: "destructive" });
@@ -610,28 +613,30 @@ export default function EmailProvider() {
             <div className="p-5 space-y-4">
               {!mailchimpStatus ? (
                 <>
-                  <div className="space-y-2">
-                    <Label htmlFor="mailchimp-api-key">API Key de Mailchimp</Label>
-                    <div className="relative">
-                      <Input
-                        data-testid="input-mailchimp-api-key"
-                        id="mailchimp-api-key"
-                        type={showMailchimpKey ? "text" : "password"}
-                        placeholder="xxxxxxxxxxxxxxxx-usXX"
-                        value={mailchimpApiKey}
-                        onChange={(e) => setMailchimpApiKey(e.target.value)}
-                        className="rounded-xl pr-10"
-                      />
-                      <button
-                        data-testid="button-toggle-mailchimp-key"
-                        type="button"
-                        onClick={() => setShowMailchimpKey(!showMailchimpKey)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showMailchimpKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                  <TutorialHighlight fieldId="provider-apikey">
+                    <div className="space-y-2">
+                      <Label htmlFor="mailchimp-api-key">API Key de Mailchimp</Label>
+                      <div className="relative">
+                        <Input
+                          data-testid="input-mailchimp-api-key"
+                          id="mailchimp-api-key"
+                          type={showMailchimpKey ? "text" : "password"}
+                          placeholder="xxxxxxxxxxxxxxxx-usXX"
+                          value={mailchimpApiKey}
+                          onChange={(e) => setMailchimpApiKey(e.target.value)}
+                          className="rounded-xl pr-10"
+                        />
+                        <button
+                          data-testid="button-toggle-mailchimp-key"
+                          type="button"
+                          onClick={() => setShowMailchimpKey(!showMailchimpKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showMailchimpKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  </TutorialHighlight>
                   <Button
                     data-testid="button-connect-mailchimp"
                     onClick={() => connectMutation.mutate({ provider: "mailchimp", apiKey: mailchimpApiKey.trim() })}
@@ -802,16 +807,18 @@ export default function EmailProvider() {
 
                   {mailchimpRequirementsPanel("-connected")}
 
-                  <Button
-                    data-testid="button-toggle-mailchimp-default"
-                    variant={mailchimpStatus.isDefault ? "default" : "outline"}
-                    onClick={() => setDefaultMutation.mutate({ id: mailchimpStatus.id, remove: mailchimpStatus.isDefault })}
-                    disabled={setDefaultMutation.isPending}
-                    className={`w-full rounded-xl gap-2 ${mailchimpStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
-                  >
-                    <Star className={`w-4 h-4 ${mailchimpStatus.isDefault ? "fill-white" : ""}`} />
-                    {mailchimpStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
-                  </Button>
+                  <TutorialHighlight fieldId="provider-default">
+                    <Button
+                      data-testid="button-toggle-mailchimp-default"
+                      variant={mailchimpStatus.isDefault ? "default" : "outline"}
+                      onClick={() => setDefaultMutation.mutate({ id: mailchimpStatus.id, remove: mailchimpStatus.isDefault })}
+                      disabled={setDefaultMutation.isPending}
+                      className={`w-full rounded-xl gap-2 ${mailchimpStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                    >
+                      <Star className={`w-4 h-4 ${mailchimpStatus.isDefault ? "fill-white" : ""}`} />
+                      {mailchimpStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                    </Button>
+                  </TutorialHighlight>
 
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

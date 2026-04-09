@@ -1575,11 +1575,16 @@ export async function registerRoutes(
 
         let autoAudienceId: string | null = null;
         let audiencesList: Array<{ id: string; name: string; memberCount: number }> = [];
+        let audienceWarning: string | null = null;
         if (validation.dataCenter) {
           const audiencesResult = await getAudiences(apiKey, validation.dataCenter);
-          audiencesList = audiencesResult.audiences;
-          if (audiencesList.length === 1) {
-            autoAudienceId = audiencesList[0].id;
+          if (audiencesResult.error) {
+            audienceWarning = "Conectado exitosamente, pero no se pudieron obtener las audiencias. Inténtalo de nuevo desde la tarjeta de Mailchimp.";
+          } else {
+            audiencesList = audiencesResult.audiences;
+            if (audiencesList.length === 1) {
+              autoAudienceId = audiencesList[0].id;
+            }
           }
         }
 
@@ -1608,6 +1613,7 @@ export async function registerRoutes(
           accountName: validation.account?.accountName || null,
           audiences: audiencesList,
           selectedAudienceId: autoAudienceId,
+          ...(audienceWarning ? { warning: audienceWarning } : {}),
         });
       }
     } catch (err: any) {
