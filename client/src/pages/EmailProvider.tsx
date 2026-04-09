@@ -14,9 +14,14 @@ import {
   Unplug,
   Crown,
   AlertCircle,
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   Star,
+  Shield,
+  MapPin,
+  Users,
+  Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -68,6 +73,7 @@ export default function EmailProvider() {
   const [showMailchimpKey, setShowMailchimpKey] = useState(false);
   const [showBrevoInstructions, setShowBrevoInstructions] = useState(false);
   const [showMailchimpInstructions, setShowMailchimpInstructions] = useState(false);
+  const [showMailchimpRequirements, setShowMailchimpRequirements] = useState(false);
 
   const { data: allProviders, isLoading } = useQuery<ProviderStatus[]>({
     queryKey: ["/api/email-provider/status"],
@@ -493,6 +499,57 @@ export default function EmailProvider() {
                       </div>
                     )}
                   </div>
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      data-testid="button-toggle-mailchimp-requirements"
+                      onClick={() => setShowMailchimpRequirements(!showMailchimpRequirements)}
+                      className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 hover:underline"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      {showMailchimpRequirements ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      Requisitos importantes
+                    </button>
+                    {showMailchimpRequirements && (
+                      <div data-testid="mailchimp-requirements-panel" className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Autenticación de dominio (DKIM/DMARC)</p>
+                            <p className="text-amber-700 mt-0.5">Si no configura DKIM y DMARC en su dominio, Mailchimp reemplazará su dirección de remitente por un subdominio genérico (<code className="bg-amber-100 px-1 rounded">@mandrillapp.com</code>). Debe crear registros CNAME para DKIM y un registro TXT para DMARC en su proveedor de DNS.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <MapPin className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Dirección física obligatoria</p>
+                            <p className="text-amber-700 mt-0.5">Por regulaciones CAN-SPAM, Mailchimp requiere una dirección postal válida en la configuración de su audiencia. Esta se inserta automáticamente en el pie de página de cada correo enviado.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Límites del plan gratuito</p>
+                            <p className="text-amber-700 mt-0.5">La cuenta gratuita permite un máximo de <strong>100 envíos</strong> sin tarjeta de crédito. Una vez agotados, necesita agregar un método de pago o actualizar su plan en Mailchimp.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Límite de conexiones</p>
+                            <p className="text-amber-700 mt-0.5">Mailchimp permite máximo 10 conexiones simultáneas a su API. Si se supera este límite, se recibirá un error 429.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <Users className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Consentimiento de contactos</p>
+                            <p className="text-amber-700 mt-0.5">Los contactos importados deben tener consentimiento previo (opt-in) para recibir correos. Mailchimp puede suspender cuentas que envíen a contactos sin autorización.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
@@ -572,6 +629,58 @@ export default function EmailProvider() {
                       No se encontraron dominios verificados. Configure su dominio en Mailchimp para enviar correos.
                     </div>
                   )}
+
+                  <div>
+                    <button
+                      type="button"
+                      data-testid="button-toggle-mailchimp-requirements-connected"
+                      onClick={() => setShowMailchimpRequirements(!showMailchimpRequirements)}
+                      className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 hover:underline"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      {showMailchimpRequirements ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      Requisitos importantes
+                    </button>
+                    {showMailchimpRequirements && (
+                      <div data-testid="mailchimp-requirements-panel-connected" className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Autenticación de dominio (DKIM/DMARC)</p>
+                            <p className="text-amber-700 mt-0.5">Si no configura DKIM y DMARC en su dominio, Mailchimp reemplazará su dirección de remitente por un subdominio genérico (<code className="bg-amber-100 px-1 rounded">@mandrillapp.com</code>). Debe crear registros CNAME para DKIM y un registro TXT para DMARC en su proveedor de DNS.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <MapPin className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Dirección física obligatoria</p>
+                            <p className="text-amber-700 mt-0.5">Por regulaciones CAN-SPAM, Mailchimp requiere una dirección postal válida en la configuración de su audiencia. Esta se inserta automáticamente en el pie de página de cada correo enviado.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Límites del plan gratuito</p>
+                            <p className="text-amber-700 mt-0.5">La cuenta gratuita permite un máximo de <strong>100 envíos</strong> sin tarjeta de crédito. Una vez agotados, necesita agregar un método de pago o actualizar su plan en Mailchimp.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Límite de conexiones</p>
+                            <p className="text-amber-700 mt-0.5">Mailchimp permite máximo 10 conexiones simultáneas a su API. Si se supera este límite, se recibirá un error 429.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <Users className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-800">Consentimiento de contactos</p>
+                            <p className="text-amber-700 mt-0.5">Los contactos importados deben tener consentimiento previo (opt-in) para recibir correos. Mailchimp puede suspender cuentas que envíen a contactos sin autorización.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <Button
                     data-testid="button-toggle-mailchimp-default"
