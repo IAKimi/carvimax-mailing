@@ -119,7 +119,7 @@ export default function EmailProvider() {
             <div>
               <p className="font-semibold text-amber-800">Velocidad de envío</p>
               <p className="text-amber-700 mt-0.5">Si envía muchas campañas al mismo tiempo, Mailchimp puede pausar temporalmente sus envíos. Esto es normal y se resuelve solo esperando unos minutos.</p>
-              <p className="text-amber-600 mt-1 text-xs italic">Este límite es gestionado automáticamente por Mailchimp.</p>
+              <p className="text-amber-600 mt-1 text-xs italic">Puede revisar el estado de sus envíos desde su panel de Mailchimp.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
