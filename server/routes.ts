@@ -158,7 +158,7 @@ const updateTemplateSchema = z.object({
 
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   draft: ["scheduled", "cancelled"],
-  scheduled: ["cancelled", "sending", "sent"],
+  scheduled: ["scheduled", "cancelled", "sending", "sent"],
   sending: ["sent", "partial", "failed", "cancelled"],
   sent: [],
   partial: [],
