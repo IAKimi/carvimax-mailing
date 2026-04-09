@@ -1750,7 +1750,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Solo Mailchimp usa audiencias." });
       }
 
-      const updated = await storage.updateEmailProvider(providerId, { mailchimpAudienceId: audienceId } as any);
+      const updated = await storage.updateEmailProvider(providerId, { mailchimpAudienceId: audienceId });
       res.json({ id: updated!.id, mailchimpAudienceId: updated!.mailchimpAudienceId });
     } catch (err: any) {
       console.error("Error updating audience:", err.message);

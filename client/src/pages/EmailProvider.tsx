@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useTutorial } from "@/contexts/TutorialContext";
+import { TutorialHighlight } from "@/components/TutorialHighlight";
+import { TutorialTip } from "@/components/TutorialTip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,7 +76,7 @@ interface MailchimpAudience {
 
 export default function EmailProvider() {
   const { toast } = useToast();
-  const { setCurrentSection } = useTutorial();
+  const { setCurrentSection, tutorialActive } = useTutorial();
   useEffect(() => {
     setCurrentSection("provider");
   }, [setCurrentSection]);
@@ -342,10 +344,12 @@ export default function EmailProvider() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 data-testid="text-page-title" className="text-3xl md:text-4xl font-extrabold">Proveedor de Email</h1>
-          <p className="text-muted-foreground mt-1">Conecte sus servicios de envío de correos para enviar campañas directamente.</p>
-        </div>
+        <TutorialHighlight fieldId="provider-overview">
+          <div>
+            <h1 data-testid="text-page-title" className="text-3xl md:text-4xl font-extrabold">Proveedor de Email</h1>
+            <p className="text-muted-foreground mt-1">Conecte sus servicios de envío de correos para enviar campañas directamente.</p>
+          </div>
+        </TutorialHighlight>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -378,37 +382,41 @@ export default function EmailProvider() {
             <div className="p-5 space-y-4">
               {!brevoStatus ? (
                 <>
-                  <div className="space-y-2">
-                    <Label htmlFor="brevo-api-key">API Key de Brevo</Label>
-                    <div className="relative">
-                      <Input
-                        data-testid="input-brevo-api-key"
-                        id="brevo-api-key"
-                        type={showBrevoKey ? "text" : "password"}
-                        placeholder="xkeysib-..."
-                        value={brevoApiKey}
-                        onChange={(e) => setBrevoApiKey(e.target.value)}
-                        className="rounded-xl pr-10"
-                      />
-                      <button
-                        data-testid="button-toggle-brevo-key"
-                        type="button"
-                        onClick={() => setShowBrevoKey(!showBrevoKey)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  <TutorialHighlight fieldId="provider-apikey">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="brevo-api-key">API Key de Brevo</Label>
+                        <div className="relative">
+                          <Input
+                            data-testid="input-brevo-api-key"
+                            id="brevo-api-key"
+                            type={showBrevoKey ? "text" : "password"}
+                            placeholder="xkeysib-..."
+                            value={brevoApiKey}
+                            onChange={(e) => setBrevoApiKey(e.target.value)}
+                            className="rounded-xl pr-10"
+                          />
+                          <button
+                            data-testid="button-toggle-brevo-key"
+                            type="button"
+                            onClick={() => setShowBrevoKey(!showBrevoKey)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showBrevoKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <Button
+                        data-testid="button-connect-brevo"
+                        onClick={() => connectMutation.mutate({ provider: "brevo", apiKey: brevoApiKey.trim() })}
+                        disabled={connectMutation.isPending || !brevoApiKey.trim()}
+                        className="w-full rounded-xl gap-2"
                       >
-                        {showBrevoKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                        {connectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+                        {connectMutation.isPending ? "Conectando..." : "Conectar"}
+                      </Button>
                     </div>
-                  </div>
-                  <Button
-                    data-testid="button-connect-brevo"
-                    onClick={() => connectMutation.mutate({ provider: "brevo", apiKey: brevoApiKey.trim() })}
-                    disabled={connectMutation.isPending || !brevoApiKey.trim()}
-                    className="w-full rounded-xl gap-2"
-                  >
-                    {connectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
-                    {connectMutation.isPending ? "Conectando..." : "Conectar"}
-                  </Button>
+                  </TutorialHighlight>
                   <div className="pt-2">
                     <button
                       data-testid="button-toggle-brevo-instructions"
@@ -485,35 +493,37 @@ export default function EmailProvider() {
                       <Skeleton className="h-12 w-full rounded-xl" />
                     </div>
                   ) : senders.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Remitentes verificados
-                      </Label>
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                        {senders.filter(s => s.active).map((sender) => {
-                          const isSelected = brevoStatus.senderEmail === sender.email;
-                          return (
-                            <button
-                              key={sender.id}
-                              data-testid={`button-brevo-sender-${sender.id}`}
-                              onClick={() => updateSenderMutation.mutate({ provider: "brevo", email: sender.email, name: sender.name })}
-                              disabled={updateSenderMutation.isPending}
-                              className={`w-full flex items-center justify-between p-3 rounded-xl border text-left text-sm transition-all ${
-                                isSelected
-                                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                                  : "border-border hover:border-primary/30 hover:bg-muted/50"
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">{sender.name}</div>
-                                <div className="text-xs text-muted-foreground truncate">{sender.email}</div>
-                              </div>
-                              {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
-                            </button>
-                          );
-                        })}
+                    <TutorialHighlight fieldId="provider-sender">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Remitentes verificados
+                        </Label>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                          {senders.filter(s => s.active).map((sender) => {
+                            const isSelected = brevoStatus.senderEmail === sender.email;
+                            return (
+                              <button
+                                key={sender.id}
+                                data-testid={`button-brevo-sender-${sender.id}`}
+                                onClick={() => updateSenderMutation.mutate({ provider: "brevo", email: sender.email, name: sender.name })}
+                                disabled={updateSenderMutation.isPending}
+                                className={`w-full flex items-center justify-between p-3 rounded-xl border text-left text-sm transition-all ${
+                                  isSelected
+                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                    : "border-border hover:border-primary/30 hover:bg-muted/50"
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{sender.name}</div>
+                                  <div className="text-xs text-muted-foreground truncate">{sender.email}</div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    </TutorialHighlight>
                   ) : (
                     <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">
                       <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -523,16 +533,18 @@ export default function EmailProvider() {
 
                   {brevoRequirementsPanel("-connected")}
 
-                  <Button
-                    data-testid="button-toggle-brevo-default"
-                    variant={brevoStatus.isDefault ? "default" : "outline"}
-                    onClick={() => setDefaultMutation.mutate({ id: brevoStatus.id, remove: brevoStatus.isDefault })}
-                    disabled={setDefaultMutation.isPending}
-                    className={`w-full rounded-xl gap-2 ${brevoStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
-                  >
-                    <Star className={`w-4 h-4 ${brevoStatus.isDefault ? "fill-white" : ""}`} />
-                    {brevoStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
-                  </Button>
+                  <TutorialHighlight fieldId="provider-default">
+                    <Button
+                      data-testid="button-toggle-brevo-default"
+                      variant={brevoStatus.isDefault ? "default" : "outline"}
+                      onClick={() => setDefaultMutation.mutate({ id: brevoStatus.id, remove: brevoStatus.isDefault })}
+                      disabled={setDefaultMutation.isPending}
+                      className={`w-full rounded-xl gap-2 ${brevoStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                    >
+                      <Star className={`w-4 h-4 ${brevoStatus.isDefault ? "fill-white" : ""}`} />
+                      {brevoStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                    </Button>
+                  </TutorialHighlight>
 
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -705,35 +717,37 @@ export default function EmailProvider() {
                       <Skeleton className="h-12 w-full rounded-xl" />
                     </div>
                   ) : audiences.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Audiencia (lista de contactos)
-                      </Label>
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                        {audiences.map((audience) => {
-                          const isSelected = selectedAudienceId === audience.id;
-                          return (
-                            <button
-                              key={audience.id}
-                              data-testid={`button-audience-${audience.id}`}
-                              onClick={() => updateAudienceMutation.mutate({ providerId: mailchimpStatus.id, audienceId: audience.id })}
-                              disabled={updateAudienceMutation.isPending || isSelected}
-                              className={`w-full flex items-center justify-between p-3 rounded-xl border text-left text-sm transition-all ${
-                                isSelected
-                                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                                  : "border-border hover:border-primary/30 hover:bg-muted/50"
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">{audience.name}</div>
-                                <div className="text-xs text-muted-foreground">{audience.memberCount} contactos</div>
-                              </div>
-                              {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
-                            </button>
-                          );
-                        })}
+                    <TutorialHighlight fieldId="provider-audience">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Audiencia (lista de contactos)
+                        </Label>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                          {audiences.map((audience) => {
+                            const isSelected = selectedAudienceId === audience.id;
+                            return (
+                              <button
+                                key={audience.id}
+                                data-testid={`button-audience-${audience.id}`}
+                                onClick={() => updateAudienceMutation.mutate({ providerId: mailchimpStatus.id, audienceId: audience.id })}
+                                disabled={updateAudienceMutation.isPending || isSelected}
+                                className={`w-full flex items-center justify-between p-3 rounded-xl border text-left text-sm transition-all ${
+                                  isSelected
+                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                    : "border-border hover:border-primary/30 hover:bg-muted/50"
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{audience.name}</div>
+                                  <div className="text-xs text-muted-foreground">{audience.memberCount} contactos</div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    </TutorialHighlight>
                   ) : (
                     <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">
                       <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -835,6 +849,7 @@ export default function EmailProvider() {
           </div>
 
         </div>
+        {tutorialActive && <TutorialTip />}
       </div>
     </Layout>
   );
