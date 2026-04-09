@@ -263,6 +263,7 @@ export default function EmailProvider() {
       if (variables.provider === "brevo") setBrevoApiKey("");
       else setMailchimpApiKey("");
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${variables.provider}/senders`] });
       if (variables.provider === "mailchimp") {
         queryClient.invalidateQueries({ queryKey: ["/api/email-provider/mailchimp/audiences"] });
@@ -284,6 +285,7 @@ export default function EmailProvider() {
     },
     onSuccess: (_data, provider) => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${provider}/senders`] });
       const name = provider === "brevo" ? "Brevo" : "Mailchimp";
       toast({ title: "Proveedor desconectado", description: `Su cuenta de ${name} ha sido desvinculada.` });
@@ -536,18 +538,25 @@ export default function EmailProvider() {
 
                   {brevoRequirementsPanel("-connected")}
 
-                  <TutorialHighlight fieldId="provider-default">
-                    <Button
-                      data-testid="button-toggle-brevo-default"
-                      variant={brevoStatus.isDefault ? "default" : "outline"}
-                      onClick={() => setDefaultMutation.mutate({ id: brevoStatus.id, remove: brevoStatus.isDefault })}
-                      disabled={setDefaultMutation.isPending}
-                      className={`w-full rounded-xl gap-2 ${brevoStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
-                    >
-                      <Star className={`w-4 h-4 ${brevoStatus.isDefault ? "fill-white" : ""}`} />
-                      {brevoStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
-                    </Button>
-                  </TutorialHighlight>
+                  {brevoStatus && mailchimpStatus ? (
+                    <TutorialHighlight fieldId="provider-default">
+                      <Button
+                        data-testid="button-toggle-brevo-default"
+                        variant={brevoStatus.isDefault ? "default" : "outline"}
+                        onClick={() => setDefaultMutation.mutate({ id: brevoStatus.id, remove: brevoStatus.isDefault })}
+                        disabled={setDefaultMutation.isPending}
+                        className={`w-full rounded-xl gap-2 ${brevoStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                      >
+                        <Star className={`w-4 h-4 ${brevoStatus.isDefault ? "fill-white" : ""}`} />
+                        {brevoStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                      </Button>
+                    </TutorialHighlight>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
+                      <Star className="w-4 h-4 fill-amber-500" />
+                      <span>Predeterminado</span>
+                    </div>
+                  )}
 
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -807,18 +816,25 @@ export default function EmailProvider() {
 
                   {mailchimpRequirementsPanel("-connected")}
 
-                  <TutorialHighlight fieldId="provider-default">
-                    <Button
-                      data-testid="button-toggle-mailchimp-default"
-                      variant={mailchimpStatus.isDefault ? "default" : "outline"}
-                      onClick={() => setDefaultMutation.mutate({ id: mailchimpStatus.id, remove: mailchimpStatus.isDefault })}
-                      disabled={setDefaultMutation.isPending}
-                      className={`w-full rounded-xl gap-2 ${mailchimpStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
-                    >
-                      <Star className={`w-4 h-4 ${mailchimpStatus.isDefault ? "fill-white" : ""}`} />
-                      {mailchimpStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
-                    </Button>
-                  </TutorialHighlight>
+                  {brevoStatus && mailchimpStatus ? (
+                    <TutorialHighlight fieldId="provider-default">
+                      <Button
+                        data-testid="button-toggle-mailchimp-default"
+                        variant={mailchimpStatus.isDefault ? "default" : "outline"}
+                        onClick={() => setDefaultMutation.mutate({ id: mailchimpStatus.id, remove: mailchimpStatus.isDefault })}
+                        disabled={setDefaultMutation.isPending}
+                        className={`w-full rounded-xl gap-2 ${mailchimpStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                      >
+                        <Star className={`w-4 h-4 ${mailchimpStatus.isDefault ? "fill-white" : ""}`} />
+                        {mailchimpStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                      </Button>
+                    </TutorialHighlight>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
+                      <Star className="w-4 h-4 fill-amber-500" />
+                      <span>Predeterminado</span>
+                    </div>
+                  )}
 
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

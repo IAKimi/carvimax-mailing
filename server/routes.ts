@@ -1547,6 +1547,12 @@ export async function registerRoutes(
           accountPlan: planInfo,
         });
 
+        const allProviders = await storage.getEmailProviders(req.session.userId!);
+        const activeProviders = allProviders.filter(p => p.isActive);
+        if (activeProviders.length === 1) {
+          await storage.updateEmailProvider(created.id, { isDefault: true });
+        }
+
         res.status(201).json({
           id: created.id,
           provider: created.provider,
@@ -1612,6 +1618,12 @@ export async function registerRoutes(
           mailchimpAudienceId: autoAudienceId,
         });
 
+        const allProviders = await storage.getEmailProviders(req.session.userId!);
+        const activeProviders = allProviders.filter(p => p.isActive);
+        if (activeProviders.length === 1) {
+          await storage.updateEmailProvider(created.id, { isDefault: true });
+        }
+
         res.status(201).json({
           id: created.id,
           provider: created.provider,
@@ -1652,6 +1664,13 @@ export async function registerRoutes(
       }
 
       await storage.deleteEmailProvider(existing.id);
+
+      const remaining = await storage.getEmailProviders(req.session.userId!);
+      const activeRemaining = remaining.filter(p => p.isActive);
+      if (activeRemaining.length === 1 && !activeRemaining[0].isDefault) {
+        await storage.updateEmailProvider(activeRemaining[0].id, { isDefault: true });
+      }
+
       res.json({ message: "Proveedor desconectado exitosamente." });
     } catch (err: any) {
       console.error("Error disconnecting email provider:", err.message);
