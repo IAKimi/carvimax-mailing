@@ -322,6 +322,7 @@ export default function EmailProvider() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       toast({ title: "Predeterminado actualizado" });
     },
     onError: (err: Error) => {
