@@ -2539,6 +2539,8 @@ export async function registerRoutes(
 
   const MAX_SCHEDULER_RETRIES = 3;
 
+  const stuckCampaignSnapshots = new Map<number, { sentCount: number; failedCount: number; firstSeenAt: number }>();
+
   function startCampaignScheduler() {
     console.log("Campaign scheduler started (checking every 60s)");
     setInterval(async () => {
@@ -2547,14 +2549,30 @@ export async function registerRoutes(
         const now = new Date();
 
         const sendingCampaigns = await db.select().from(campaignsTable).where(eq(campaignsTable.status, "sending"));
+        const sendingIds = new Set(sendingCampaigns.map(c => c.id));
+        for (const [id] of stuckCampaignSnapshots) {
+          if (!sendingIds.has(id)) stuckCampaignSnapshots.delete(id);
+        }
+
         for (const stuck of sendingCampaigns) {
-          const sendStartedAt = stuck.scheduledAt ? new Date(stuck.scheduledAt).getTime() : (stuck.createdAt ? new Date(stuck.createdAt).getTime() : 0);
-          const ageMinutes = (now.getTime() - sendStartedAt) / (1000 * 60);
-          if (ageMinutes > 30) {
-            const sent = stuck.sentCount || 0;
-            const failed = stuck.failedCount || 0;
+          const sent = stuck.sentCount || 0;
+          const failed = stuck.failedCount || 0;
+          const prev = stuckCampaignSnapshots.get(stuck.id);
+
+          if (!prev) {
+            stuckCampaignSnapshots.set(stuck.id, { sentCount: sent, failedCount: failed, firstSeenAt: now.getTime() });
+            continue;
+          }
+
+          if (prev.sentCount !== sent || prev.failedCount !== failed) {
+            stuckCampaignSnapshots.set(stuck.id, { sentCount: sent, failedCount: failed, firstSeenAt: now.getTime() });
+            continue;
+          }
+
+          const noProgressMinutes = (now.getTime() - prev.firstSeenAt) / (1000 * 60);
+          if (noProgressMinutes >= 30) {
             const finalStatus = sent > 0 ? (failed > 0 ? "partial" : "sent") : "failed";
-            console.log(`Scheduler: campaign #${stuck.id} stuck in 'sending' for ${Math.round(ageMinutes)}min, forcing to '${finalStatus}' (sent=${sent}, failed=${failed})`);
+            console.log(`Scheduler: campaign #${stuck.id} no progress for ${Math.round(noProgressMinutes)}min, forcing to '${finalStatus}' (sent=${sent}, failed=${failed})`);
             await storage.updateCampaign(stuck.id, { status: finalStatus } as any);
             broadcastWs("campaign-progress", {
               campaignId: stuck.id,
@@ -2564,6 +2582,7 @@ export async function registerRoutes(
               status: finalStatus,
               completed: true,
             });
+            stuckCampaignSnapshots.delete(stuck.id);
           }
         }
 
