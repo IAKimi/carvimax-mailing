@@ -2306,7 +2306,7 @@ export async function registerRoutes(
         const selectedAudienceId = activeProvider.mailchimpAudienceId || "";
 
         if (!selectedAudienceId) {
-          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          await storage.updateCampaign(campaignId, { status: "failed" });
           broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
           return { success: false, error: "No hay una audiencia de Mailchimp seleccionada. Ve a Configuración > Proveedor de Email y selecciona una audiencia." };
         }
@@ -2324,7 +2324,7 @@ export async function registerRoutes(
         );
 
         if (syncResult.error) {
-          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          await storage.updateCampaign(campaignId, { status: "failed" });
           broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
           return { success: false, error: `Error al sincronizar contactos con Mailchimp: ${syncResult.error}` };
         }
@@ -2337,7 +2337,7 @@ export async function registerRoutes(
         );
 
         if (sendResult.error) {
-          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          await storage.updateCampaign(campaignId, { status: "failed" });
           broadcastWs("campaign-progress", { campaignId, totalExpectedSends: contactsList.length, sentCount: 0, failedCount: contactsList.length, status: "failed", completed: true });
           return { success: false, error: `Error en Mailchimp: ${sendResult.error}` };
         }
@@ -2350,7 +2350,7 @@ export async function registerRoutes(
           failedCount: 0,
         }).where(eq(campaignsTable.id, campaignId));
 
-        await storage.updateCampaign(campaignId, { status: "sent" } as any);
+        await storage.updateCampaign(campaignId, { status: "sent" });
         broadcastWs("campaign-progress", {
           campaignId,
           totalExpectedSends: contactsList.length,

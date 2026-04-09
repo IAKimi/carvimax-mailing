@@ -178,6 +178,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
+export type UpdateCampaign = Partial<typeof campaigns.$inferInsert>;
 
 export type CampaignVersion = typeof campaignVersions.$inferSelect;
 export type InsertCampaignVersion = z.infer<typeof insertCampaignVersionSchema>;

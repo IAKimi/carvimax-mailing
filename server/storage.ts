@@ -3,7 +3,7 @@ import { db } from "./db";
 import {
   users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends, emailProviders,
   type User, type InsertUser,
-  type Campaign, type InsertCampaign,
+  type Campaign, type InsertCampaign, type UpdateCampaign,
   type CampaignVersion, type InsertCampaignVersion,
   type Contact, type InsertContact,
   type ContactDatabase, type InsertContactDatabase,
@@ -28,7 +28,7 @@ export interface IStorage {
   getCampaign(id: number): Promise<Campaign | undefined>;
   getAllScheduledCampaigns(): Promise<Campaign[]>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
-  updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined>;
+  updateCampaign(id: number, updates: Partial<InsertCampaign> | UpdateCampaign): Promise<Campaign | undefined>;
   deleteAllCampaigns(userId: number): Promise<void>;
   deleteCampaigns(campaignIds: number[], userId: number): Promise<void>;
 
@@ -186,7 +186,7 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateCampaign(id: number, updates: Partial<InsertCampaign>): Promise<Campaign | undefined> {
+  async updateCampaign(id: number, updates: Partial<InsertCampaign> | UpdateCampaign): Promise<Campaign | undefined> {
     const [updated] = await db.update(campaigns).set(updates).where(eq(campaigns.id, id)).returning();
     return updated;
   }
