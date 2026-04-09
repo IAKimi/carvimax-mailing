@@ -1761,11 +1761,12 @@ export async function registerRoutes(
       const { getAudiences } = await import("./providers/mailchimp");
       const dc = provider.mailchimpDataCenter || "";
       const audiencesResult = await getAudiences(apiKey, dc);
-      if (!audiencesResult.error) {
-        const validIds = audiencesResult.audiences.map((a: { id: string }) => a.id);
-        if (!validIds.includes(audienceId)) {
-          return res.status(400).json({ message: "La audiencia seleccionada no existe en tu cuenta de Mailchimp." });
-        }
+      if (audiencesResult.error) {
+        return res.status(502).json({ message: "No se pudo verificar la audiencia con Mailchimp. Inténtalo de nuevo." });
+      }
+      const validIds = audiencesResult.audiences.map((a: { id: string }) => a.id);
+      if (!validIds.includes(audienceId)) {
+        return res.status(400).json({ message: "La audiencia seleccionada no existe en tu cuenta de Mailchimp." });
       }
 
       const updated = await storage.updateEmailProvider(providerId, { mailchimpAudienceId: audienceId });
