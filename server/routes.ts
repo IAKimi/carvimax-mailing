@@ -1756,6 +1756,18 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Solo Mailchimp usa audiencias." });
       }
 
+      const { decryptApiKey } = await import("./encryption");
+      const apiKey = decryptApiKey(provider.encryptedApiKey, provider.iv, provider.authTag);
+      const { getAudiences } = await import("./providers/mailchimp");
+      const dc = provider.mailchimpDataCenter || "";
+      const audiencesResult = await getAudiences(apiKey, dc);
+      if (!audiencesResult.error) {
+        const validIds = audiencesResult.audiences.map((a: { id: string }) => a.id);
+        if (!validIds.includes(audienceId)) {
+          return res.status(400).json({ message: "La audiencia seleccionada no existe en tu cuenta de Mailchimp." });
+        }
+      }
+
       const updated = await storage.updateEmailProvider(providerId, { mailchimpAudienceId: audienceId });
       res.json({ id: updated!.id, mailchimpAudienceId: updated!.mailchimpAudienceId });
     } catch (err: any) {
