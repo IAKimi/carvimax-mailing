@@ -1,0 +1,32 @@
+1. Cuenta Gratuita y sus límites Sí, puedes usar la API de Marketing con una cuenta de Mailchimp gratuita [historial de chat]. Sin embargo, debes tener en cuenta lo siguiente:
+Las cuentas que se encuentran en el periodo de prueba gratuito pueden estar limitadas a un máximo de 100 envíos de correo sin necesidad de tarjeta de crédito
+. Una vez que ingresan un método de pago o pasan a un plan de pago, el límite sube
+.
+Independientemente del plan, la API impone un límite estricto de un máximo de 10 conexiones simultáneas [historial de chat]. Si superas esto, recibirás un error HTTP 429.
+2. Obtención de la API Key y consideraciones de seguridad El usuario genera su API Key desde su cuenta, generalmente en la sección "API Keys", y esta clave no requiere permisos granulares adicionales porque, por defecto, otorga acceso total a la cuenta [historial de chat]. Sin embargo, aquí hay una advertencia crucial: La documentación de Mailchimp establece que si tu plataforma (SaaS) va a acceder a los datos de la cuenta de otros usuarios, debes usar OAuth 2 en lugar de pedirles la API Key
+. Usar OAuth 2 no solo es más seguro, sino que es un requisito estricto si en el futuro planeas ser parte del Integration Partner Program (para aparecer en el marketplace de Mailchimp)
+.
+3 y 4. Autenticación de Dominios (Spam, DKIM y DMARC) Este es uno de los pasos más importantes. A partir del 15 de marzo de 2024, Mailchimp comenzó a exigir nuevos requisitos obligatorios de autenticación de dominio debido a los cambios en las políticas de Google y Yahoo
+.
+¿Es obligatorio? Sí. Si no configuras la autenticación del dominio, Mailchimp no bloqueará tu envío, pero reemplazará el dominio de tu remitente por un subdominio genérico (como mandrillapp.com) para que el correo se entregue
+. Las respuestas seguirán yendo al correo original del usuario, pero estéticamente no se verá como su marca.
+Cómo hacerlo: Necesitas configurar dos registros CNAME para DKIM (ej. mte1._domainkey.tudominio.com apuntando a dkim1.mandrillapp.com) y un registro TXT para la política DMARC (ej. v=DMARC1; p=none)
+.
+Vía API: Puedes usar POST /verified-domains para añadir el dominio
+ y luego iniciar la verificación usando POST /verified-domains/{domain_name}/actions/verify
+.
+5. Dirección física y la ley CAN-SPAM (Aclaración: La siguiente información sobre la ley CAN-SPAM es externa a las fuentes proporcionadas, pero estándar en la industria del email marketing). Por regulaciones internacionales contra el spam (como CAN-SPAM), es obligatorio que todos los correos masivos incluyan una dirección física postal válida. Mailchimp exige esta información en la configuración de la Audiencia (Lista) y la inserta automáticamente en el pie de página (footer) de las plantillas predeterminadas para garantizar que el usuario cumpla con la ley. El campo no puede estar vacío o tener datos falsos si no quieres arriesgarte a que suspendan la cuenta.
+6 y 7. Calentamiento (Warm-up) y Bloqueos
+Warm-up: Las fuentes técnicas no mencionan un proceso de "warm-up" automatizado o limitación progresiva específica gestionada por la Marketing API para las cuentas nuevas . Las entregas se basan en la reputación del dominio y la cuenta, pero no hay un estrangulamiento artificial reportado para campañas estándar, más allá de los límites del plan comercial
+.
+Opt-in: Al importar los contactos, asegúrate de marcar su consentimiento (status: "subscribed", o en la nueva versión beta de audiencias marketing_consent: "confirmed") para evitar que Mailchimp envíe correos de doble opt-in (confirmación) a los destinatarios que estás subiendo
+.
+8. Elementos faltantes o a corregir en tu flujo de 5 pasos:
+Paso 1 (Crear la Audiencia): Como discutimos anteriormente [historial de chat], la mejor práctica de Mailchimp es tener una sola Audiencia principal y utilizar "Tags" (Etiquetas) o "Segmentos" para separar las bases de datos de tu usuario. Crear constantemente nuevas Audiencias (POST /lists
+) por cada envío fragmenta la cuenta, incrementa los costos y Mailchimp no está optimizado para operar así.
+Paso 2 (Sincronizar Contactos): En lugar de iterar contactos o usar endpoints individuales, para volúmenes grandes asegúrate de utilizar el endpoint asíncrono de Operaciones por Lotes (POST /batches
+) o el de suscripción masiva (POST /lists/{list_id} haciendo Batch subscribe or unsubscribe
+). Esto evitará que te bloqueen por el límite de 10 peticiones concurrentes.
+Paso 0 (Validación): Tu forma de extraer el data center (usXX) y hacer el chequeo (GET /) es la correcta y recomendada por la API Root para validar accesos y obtener detalles de la cuenta
+.
+En resumen, tu lógica técnica es la correcta, pero te sugiero planificar la migración a OAuth 2 en cuanto sea posible y educar a tus usuarios en la plataforma de PostIAlo para que configuren el DKIM y DMARC del dominio de manera obligatoria.
