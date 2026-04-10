@@ -1,0 +1,14 @@
+Y algunos cambios sobre todo en la forma en que se comportaría la API. Entonces te comparto estos documentos porque yo necesito que me generes exactamente esos mismos documentos que yo te estoy compartiendo, solo que en formato de Word por favor, que contenga toda la documentación técnica de cómo funciona la integración de las APIs para PostIAlo Mailing.
+Necesito que expliques:
+- el flujo de trabajo de toda la plataforma
+- en qué momento ocupamos la API de OpenAI, como por ejemplo para la sección de plantillas, para la generación de los textos, para la generación de todo lo que aplique con la API de OpenAI
+- lo mismo con la API de Gemini, cómo esto está orquestado con la plataforma, cómo hacemos las peticiones, cómo son los JSONs que enviamos, a dónde hacemos las peticiones, cómo nos devuelven la información, cómo la renderizamos, cuál es el prompt engineering que hay detrás para cada cosa
+Por ejemplo en la sección de NanoBanano, en donde hay todos los botones de:
+- agregar
+- reemplazar
+- fusionar
+- estilo
+- borrar elemento
+ahí, en esa parte, cuáles son los micro prompts que están enviados en cada botón, que se envían en conjunto cuando tú mandas tus instrucciones más la selección del botón, prácticamente todo eso.
+Yo lo que quiero es que la forma en la que funciona aquí se calque allá. Entonces le voy a pasar esos documentos no para que obviamente calque todo, porque si lo calque igualito va a romper el proyecto, porque aquí ocupamos cosas para correo y allá ocupamos cosas para redes sociales en imagen. Si va a ser calcado literal igualito, pero en texto no, lo que quiero es que tome como referencia la estructura exacta y que agarre todo eso. Trate de adaptarlo todo, que descarte lo que no se puede replicar igual, pero que si replique lo que si se puede hacer igual.
+Veámoslo, te voy a dar también un contexto de todo el workflow de la herramienta para que entendas las similitudes de cómo funciona esta de redes sociales versus la de mailing, que al final es exactamente lo mismo. Ya te vas a dar cuenta.

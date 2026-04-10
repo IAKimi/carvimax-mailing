@@ -36,3 +36,15 @@ id = "s30WQNa85OLng-_qfBJtl"
 uri = "file://Matriz_Pruebas_PostIAlo_Mailing_v2.md"
 type = "text"
 title = "Matriz de Pruebas QA — PostIAlo Mailing v2"
+
+[[outputs]]
+id = "IS-gRzlef-pudXuZ_jr_C"
+uri = "file://PostIAlo_Mailing_API_OpenAI.docx"
+type = "word_document"
+title = "PostIAlo Mailing — Documentación API OpenAI"
+
+[[outputs]]
+id = "JSIuBJxn1SHdO7QHWcUgb"
+uri = "file://PostIAlo_Mailing_API_Gemini.docx"
+type = "word_document"
+title = "PostIAlo Mailing — Documentación API Gemini"

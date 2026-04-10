@@ -1,0 +1,160 @@
+PostIAlo Redes Sociales — Guía completa del flujo de trabajo
+PostIAlo Redes Sociales es una plataforma de creación, programación y publicación de contenido para redes sociales (Facebook e Instagram), potenciada con inteligencia artificial. Su objetivo principal es que cualquier negocio, sin importar su tamaño, pueda tener presencia profesional en redes sociales con contenido visual y textual de alta calidad, generado y optimizado por IA, sin necesidad de contratar diseñadores ni community managers.
+
+1. Pantalla de inicio de sesión / Registro
+Cuando el usuario accede a la plataforma, lo primero que ve es la pantalla de Login. Aquí puede:
+
+Iniciar sesión con su correo y contraseña si ya tiene cuenta.
+Crear una cuenta nueva cambiando al modo "Registro". Para registrarse, se le piden cuatro datos:
+Nombre completo
+Correo electrónico
+Contraseña (mínimo 6 caracteres, al menos una mayúscula y un número)
+Nombre de la empresa (opcional)
+Al registrarse, el sistema envía un correo de verificación con un enlace. El usuario debe hacer clic en ese enlace para activar su cuenta. Además, al momento de registrarse, el sistema le asigna automáticamente una plantilla predeterminada ("Promoción de Producto") para que pueda empezar a trabajar de inmediato.
+
+2. Selección de Plan
+Una vez registrado e iniciada la sesión, lo primero que el usuario ve es la página de Planes. Aquí se presentan cuatro opciones con un diseño escalonado muy visual:
+
+Demo (Gratis): 30 días de acceso completo sin costo, ideal para probar todas las funcionalidades.
+Básico ($25/mes): 14 publicaciones mensuales base, portal SaaS para programación, e IA generativa y de optimización. El precio se ajusta proporcionalmente si se necesitan más posts.
+Profesional ($125/mes — "El más elegido"): Todo lo del Básico más un asistente virtual con IA (FAQs), módulo de generación de leads y dashboard analítico. Incluye participación en el "Marketplace Gastronómico" para restaurantes.
+Agencia ($300/mes): Todo lo del Profesional más catálogo inteligente con integración de productos, edición avanzada de imagen con IA, y estructura multi-cuenta ($25/mes por cuenta adicional).
+Lo que sucede al hacer clic:
+
+Si el usuario selecciona "Crear mi primer mes de prueba" (Demo), el sistema activa internamente el periodo de prueba gratuito y lo redirige al siguiente paso del proceso de configuración.
+Los planes de pago (Básico, Profesional, Agencia) están pendientes de configuración de pasarela de pago, por lo que actualmente muestran un aviso de "Próximamente".
+¿Por qué pide registrarse primero? Porque el sistema necesita identificar al usuario antes de asociarle un plan, su identidad de marca, plantillas y publicaciones. El registro es el paso previo obligatorio para que todo el contenido generado quede vinculado a la cuenta correcta.
+
+3. Configuración de redes sociales (Onboarding Meta)
+Después de activar el mes de prueba, el usuario es redirigido a la pantalla de Onboarding de Meta. Aquí debe:
+
+Proporcionar los IDs de su Página de Facebook y de su cuenta de Instagram vinculada.
+Seguir las instrucciones para otorgar acceso a la plataforma mediante Meta Business Suite.
+Este paso es necesario para que PostIAlo pueda publicar contenido directamente en las redes sociales del usuario de forma automatizada.
+
+4. Identidad de Marca
+Una vez configuradas las redes, el usuario llega a la página de Identidad de Marca. Este es uno de los pasos más importantes porque es aquí donde se le "enseña" a la IA quién es el negocio. Todo lo que el usuario defina aquí alimenta los prompts que la inteligencia artificial utiliza para generar contenido coherente y alineado con la marca.
+
+La página está dividida en tres secciones:
+
+A. Mi Empresa (Información general):
+
+Nombre de la empresa
+Industria o sector (tecnología, salud, alimentos, etc.)
+Sitio web
+WhatsApp de contacto
+Misión y visión
+Productos o servicios que ofrece
+Historia de la empresa
+B. Lineamientos de Redacción:
+
+Guía de estilo (reglas específicas, por ejemplo: "siempre usar emojis", "tutear al lector")
+Audiencia objetivo (a quién le habla la marca)
+Tono de comunicación (profesional, amigable, formal, casual, etc.)
+C. Identidad Visual:
+
+Logo de la empresa (se sube y almacena en el servidor)
+Paleta de colores: color primario, secundario y de acento (en formato hexadecimal)
+Tipografía para títulos y cuerpo de texto
+Estilo visual general (moderno, clásico, minimalista, etc.)
+La página tiene un indicador de porcentaje de completitud que muestra qué tan llena está la información. Se guarda automáticamente a medida que el usuario escribe (auto-guardado cada 1.5 segundos). Completar al menos el nombre de la empresa y la industria es obligatorio para avanzar.
+
+¿Qué efecto tiene? Toda esta información se inyecta como contexto en los prompts de la IA cuando se genera cualquier publicación. Así, si el tono es "amigable" y la audiencia es "jóvenes emprendedores", la IA va a escribir de esa forma en cada post.
+
+5. Plantillas
+El siguiente paso es la sección de Plantillas. Las plantillas son "moldes" visuales y de contenido que definen la estructura de las publicaciones. Su propósito es garantizar consistencia de marca en cada post y acelerar la creación de contenido.
+
+Tres formas de crear plantillas:
+
+Generación con IA (flujo principal): El usuario introduce un tema (por ejemplo, "Promoción de verano") y selecciona un estilo ("Profesional", "Casual", etc.). La IA genera automáticamente:
+
+Un nombre para la plantilla
+Una descripción
+Una estructura de texto con placeholders (como {{producto}}, {{descuento}}, {{precio}})
+Hashtags sugeridos
+Un estilo de imagen recomendado
+Carga manual: El usuario puede escribir su propio código HTML/CSS para diseñar una plantilla personalizada. Opcionalmente, puede pedirle a la IA que adapte su diseño inyectando automáticamente los elementos de marca (logo, sitio web, WhatsApp).
+
+Regeneración iterativa: Si la IA genera una plantilla que no convence, el usuario puede regenerarla hasta 3 veces. Cada versión queda guardada como una "versión" vinculada a la original, y el usuario puede comparar y elegir la que más le guste antes de confirmarla.
+
+Las plantillas se previsualisan en un formato de 1080x1080 píxeles (tamaño optimizado para redes sociales) y muestran los elementos de marca del usuario (logo, colores, sitio web) aplicados automáticamente.
+
+Al tener al menos una plantilla confirmada, el usuario desbloquea el acceso completo al calendario y las funcionalidades de programación.
+
+6. El Calendario — Vista Principal
+El Calendario es el corazón operativo de la plataforma. Es donde el usuario ve, crea y gestiona todas sus publicaciones. Presenta una cuadrícula mensual donde cada celda es un día, y las publicaciones aparecen como tarjetas codificadas por color según su estado:
+
+Borrador (gris): Recién creada, sin contenido.
+Generada (azul): La IA ya generó el texto y la imagen.
+Aprobada (verde): El usuario revisó y aprobó todo.
+Publicada (morada): Ya se envió a las redes sociales.
+Crear una publicación desde el calendario:
+
+El usuario hace clic en un día del calendario.
+Se abre un formulario donde completa:
+Idea: De qué trata el post (ejemplo: "Lanzamiento de producto X")
+Objetivo: Qué busca lograr (Ventas, Engagement, Awareness, etc.)
+Tono: Cómo quiere que suene (amigable, profesional, casual)
+Prompt de imagen: Descripción de qué tipo de imagen quiere
+Fecha y hora de publicación
+Redes sociales: Facebook, Instagram o ambas
+Al crear el post, se abre automáticamente el Editor de Publicación.
+7. El Editor de Publicación (PostEditor)
+Esta es la pantalla de trabajo detallada donde el usuario refina cada publicación. Se divide en dos grandes áreas:
+
+A. Gestión de Imagen:
+
+Al abrir un post nuevo (borrador sin contenido), la IA genera automáticamente una imagen y un texto usando la información de la idea, el objetivo, el tono, y la identidad de marca del usuario.
+El usuario puede:
+Regenerar la imagen con un prompt diferente.
+Editar con Nano Banana: Una herramienta de edición de imagen con IA que permite hacer ajustes específicos (cambiar colores, agregar elementos, modificar composición).
+Subir su propia imagen manualmente (se sube directamente al servidor sin pasar por conversión, de forma segura).
+Ver versiones anteriores y alternar entre ellas.
+Aprobar la imagen cuando esté satisfecho.
+B. Gestión de Textos:
+
+Se muestra el caption (texto) generado para cada red social seleccionada (Facebook e Instagram pueden tener textos diferentes).
+El usuario puede:
+Editar el texto manualmente.
+Regenerar con IA para obtener nuevas variaciones.
+Ver el historial de versiones de texto y restaurar una versión anterior.
+Aprobar el texto de cada red individualmente.
+Barra de progreso: Un indicador visual muestra el avance: 50% por imagen aprobada + 50% por textos aprobados = 100% listo para publicar.
+
+Acciones finales:
+
+Publicar ahora: Envía el post inmediatamente a las redes sociales conectadas.
+Reprogramar: Cambiar la fecha y hora de publicación.
+Guardar cambios: Persiste todas las ediciones en el servidor.
+8. Programación por Lote (Batch Scheduling)
+Para usuarios que necesitan generar muchos posts de una vez, existe la vista de Programación por Lote. Es como una hoja de cálculo donde se pueden planificar hasta 14 publicaciones simultáneamente.
+
+Cada fila representa un post y contiene:
+
+Idea / Tema
+Objetivo
+Tono
+Prompt de imagen
+Fecha
+Redes sociales (Facebook/Instagram)
+Funciones de automatización con IA:
+
+Sugerir objetivos automáticamente: Basándose en la industria del negocio (obtenida de la identidad de marca), la IA sugiere los objetivos más relevantes.
+Sugerir tonos: Ajusta el tono según el objetivo de cada fila.
+Generar prompts de imagen: Crea descripciones de imagen incorporando los colores y estilo visual de la marca.
+Distribuir fechas automáticamente: Reparte las publicaciones equitativamente a lo largo del mes seleccionado.
+Generación del lote:
+Al hacer clic en "Generar Lote", el sistema:
+
+Crea todos los posts en el servidor de una sola vez.
+Inicia la generación con IA de cada uno (texto + imagen).
+Muestra el progreso en tiempo real mediante WebSocket: cada fila se actualiza individualmente mostrando si está en proceso, completada o si tuvo un error.
+Si la generación con IA no está disponible (por ejemplo, falta configurar las claves de API), los posts se crean como borradores y el usuario puede generarlos individualmente después.
+9. Secciones adicionales
+Mis Publicaciones (Historial): Un registro de todas las publicaciones creadas, con filtros por estado y fecha.
+Dashboard: Panel analítico con estadísticas de rendimiento de las publicaciones.
+Panel de Administración: Visible solo para administradores, permite gestionar usuarios de la plataforma.
+Resumen del flujo completo
+Registro → Selección de plan → Conexión de redes sociales (Meta) → Identidad de marca → Creación de plantillas → Calendario / Programación → Edición con IA → Aprobación → Publicación automática
+
+Cada paso alimenta al siguiente: la identidad de marca se usa para generar plantillas, las plantillas definen la estructura, y la IA combina todo para producir publicaciones listas para publicar con el mínimo esfuerzo del usuario.
