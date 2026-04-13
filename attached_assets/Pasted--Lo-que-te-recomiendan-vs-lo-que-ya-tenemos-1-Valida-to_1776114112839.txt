@@ -1,0 +1,45 @@
+"Lo que te recomiendan vs. lo que ya tenemos:
+1. "Valida todos los inputs con Zod o similar"
+YA LO TENEMOS ✅ — Usamos Zod + drizzle-zod para validar todos los inputs del backend. Los schemas están en shared/schema.ts y se aplican en cada endpoint.
+2. "Usa prepared statements / ORM seguro (nunca queries raw SQL)"
+YA LO TENEMOS ✅ — Usamos Drizzle ORM para todas las consultas. No hay SQL crudo en ninguna parte del código.
+3. "Rate limiting en todos los endpoints públicos y API routes"
+YA LO TENEMOS ✅ — Tenemos authLimiter (rutas de login/registro), aiLimiter (rutas de IA) y webhookCallbackLimiter (webhooks). Las rutas protegidas con sesión ya están limitadas por naturaleza.
+4. "Protege contra SQL injection, XSS, CSRF"
+YA LO TENEMOS ✅ — SQL injection está cubierto por Drizzle ORM. XSS está cubierto por sanitización de HTML. CSRF está cubierto por las cookies de sesión sameSite + validación de origen.
+5. "Usa auth bien hecha con Clerk"
+NO APLICA / NO ES NECESARIO 🔵
+Acá es donde hay que poner los puntos sobre las íes. Clerk es un servicio de autenticación de terceros que tiene sentido cuando:
+Estás empezando un proyecto de cero con Next.js
+Querés login con Google/Microsoft/redes sociales
+No querés escribir tu propio sistema de auth
+Nosotros ya tenemos un sistema de autenticación completo y seguro:
+Sesiones del lado del servidor con express-session + PostgreSQL
+Contraseñas hasheadas con bcryptjs
+44 rutas protegidas con requireAuth
+Verificación de email por token
+Roles (user, admin, superadmin)
+Rate limiting en login/registro
+Migrar a Clerk significaría:
+Reescribir TODO el sistema de autenticación
+Depender de un servicio externo de pago (Clerk cobra por usuario activo)
+Perder el control de los datos de sesión
+Riesgo altísimo de romper funcionalidades existentes
+Si Clerk se cae, tu app no funciona
+Mi recomendación: NO migrar a Clerk. Lo que tenemos es equivalente en seguridad y tenemos control total. Clerk es conveniente para proyectos nuevos, no para migrar uno que ya funciona bien.
+6. "Nunca hardcodees secrets"
+YA LO TENEMOS ✅ — Todos los secrets están en variables de entorno (GEMINI_API_KEY, OPENAI_API_KEY, SESSION_SECRET, etc.).
+7. "Logging básico de errores"
+YA LO TENEMOS ✅ — Todas las rutas loguean errores con console.error. El failsafe de Gemini tiene logging con prefijo [FAILSAFE].
+8. "CORS correcto y headers de seguridad"
+PARCIALMENTE ⚠️ — CORS no aplica directamente porque frontend y backend corren en el mismo puerto. Los headers de seguridad (como X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security) los maneja Coolify/Traefik en producción, no la app. Pero podríamos agregar helmet como capa adicional si querés.
+9. "Cloudflare como protección DDoS"
+NO IMPLEMENTADO — PERO ES BUENA IDEA 🟡
+Esto sí vale la pena hacerlo. Es configuración a nivel DNS/servidor, no a nivel código. Básicamente:
+Apuntás tu dominio a Cloudflare (gratis)
+Cloudflare oculta la IP real de tu VPS
+Filtra ataques DDoS antes de que lleguen a tu servidor
+SSL gratis y caching automático
+Esto es configuración que harías vos en Cloudflare y Coolify, no es código.
+10. "Backups automáticos en Coolify"
+CONFIGURACIÓN PENDIENTE DE TU LADO 🟡 — Coolify tiene opción de backups automáticos de la base de datos. Es cuestión de activarlo en el panel."

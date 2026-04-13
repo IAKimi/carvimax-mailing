@@ -48,3 +48,9 @@ id = "JSIuBJxn1SHdO7QHWcUgb"
 uri = "file://PostIAlo_Mailing_API_Gemini.docx"
 type = "word_document"
 title = "PostIAlo Mailing — Documentación API Gemini"
+
+[[outputs]]
+id = "N8GfX6LxfUibOoM-99tPK"
+uri = "file://PostIAlo_Mailing_Auditoria_Seguridad.docx"
+type = "word_document"
+title = "PostIAlo Mailing — Auditoría de Seguridad"
