@@ -41,12 +41,16 @@ function authHeaders(apiKey: string): Record<string, string> {
   };
 }
 
-export async function validateApiKey(apiKey: string): Promise<{
+export async function validateApiKey(rawApiKey: string): Promise<{
   valid: boolean;
   account?: MailchimpAccountInfo;
   dataCenter?: string;
   error?: string;
 }> {
+  const apiKey = rawApiKey.trim();
+  if (!apiKey) {
+    return { valid: false, error: "La API key no puede estar vacía." };
+  }
   try {
     const dc = extractDataCenter(apiKey);
     const res = await fetch(`${baseUrl(dc)}/`, {

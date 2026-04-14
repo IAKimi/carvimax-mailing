@@ -62,7 +62,11 @@ function parseSendersResponse(data: unknown): BrevoSender[] {
   }));
 }
 
-export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; account?: BrevoAccountInfo; error?: string }> {
+export async function validateApiKey(rawApiKey: string): Promise<{ valid: boolean; account?: BrevoAccountInfo; error?: string }> {
+  const apiKey = rawApiKey.trim();
+  if (!apiKey) {
+    return { valid: false, error: "La API key no puede estar vacía." };
+  }
   try {
     const res = await fetch(`${BREVO_API_BASE}/account`, {
       method: "GET",
@@ -78,6 +82,10 @@ export async function validateApiKey(apiKey: string): Promise<{ valid: boolean; 
     }
 
     if (res.status === 401) {
+      const errBody = await res.text().catch(() => "");
+      if (errBody.includes("unrecognised IP") || errBody.includes("authorised_ips")) {
+        return { valid: false, error: "Tu cuenta de Brevo tiene restricción de IPs autorizadas. Agrega la IP del servidor de PostIAlo Mailing en Brevo → Configuración → Seguridad → IPs autorizadas, o desactiva la restricción de IPs." };
+      }
       return { valid: false, error: "API key inválida. Verifica que la key sea correcta." };
     }
 

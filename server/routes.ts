@@ -1492,10 +1492,11 @@ export async function registerRoutes(
 
   app.post("/api/email-provider/connect", requireAuth, async (req, res) => {
     try {
-      const { provider, apiKey } = req.body;
-      if (!provider || !apiKey) {
+      const { provider, apiKey: rawApiKey } = req.body;
+      if (!provider || !rawApiKey) {
         return res.status(400).json({ message: "Proveedor y API key son requeridos." });
       }
+      const apiKey = typeof rawApiKey === "string" ? rawApiKey.trim() : rawApiKey;
       if (!["brevo", "mailchimp"].includes(provider)) {
         return res.status(400).json({ message: "Proveedor no soportado. Use 'brevo' o 'mailchimp'." });
       }

@@ -1306,7 +1306,7 @@ export default function CalendarView() {
                         setTimeout(sendHeight,500);setTimeout(sendHeight,1500);
                         new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                         var imgs=document.querySelectorAll('img');
-                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
+                        for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.alt='[Imagen no disponible]';this.style.background='#f0f0f0';this.style.padding='20px';this.style.textAlign='center';this.style.color='#999';this.style.fontSize='12px';this.style.minHeight='80px';this.style.display='flex';this.style.alignItems='center';this.style.justifyContent='center';sendHeight();});}
                       </script>`;
                       const storedHtml = (selectedVersion as any)?.sentHtml;
                       if (storedHtml) {
@@ -1338,7 +1338,7 @@ export default function CalendarView() {
                       return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                         <div style="max-width:600px;margin:0 auto">
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
-                          <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.style.display='none'" />
+                          <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.alt='[Imagen no disponible]';this.style.background='#f0f0f0';this.style.padding='20px';this.style.textAlign='center';this.style.color='#999';this.style.fontSize='12px';this.style.minHeight='80px'" />
                           <div style="padding:24px">${contenido}</div>
                           ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold">${ctaTexto}</a></div>` : ""}
                         </div>
@@ -2048,13 +2048,13 @@ export default function CalendarView() {
                           setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.alt='[Imagen no disponible]';this.style.background='#f0f0f0';this.style.padding='20px';this.style.textAlign='center';this.style.color='#999';this.style.fontSize='12px';this.style.minHeight='80px';this.style.display='flex';this.style.alignItems='center';this.style.justifyContent='center';sendHeight();});}
                         </script></body></html>`;
                       }
                       return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">
                         <div style="max-width:600px;margin:0 auto">
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
-                          <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.style.display='none'" />
+                          <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.alt='[Imagen no disponible]';this.style.background='#f0f0f0';this.style.padding='20px';this.style.textAlign='center';this.style.color='#999';this.style.fontSize='12px';this.style.minHeight='80px'" />
                           <div style="padding:24px">${contenido}</div>
                           ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
                         </div>
@@ -2064,7 +2064,7 @@ export default function CalendarView() {
                           setTimeout(sendHeight,500);
                           new MutationObserver(sendHeight).observe(document.body,{childList:true,subtree:true});
                           var imgs=document.querySelectorAll('img');
-                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.style.display='none';sendHeight();});}
+                          for(var i=0;i<imgs.length;i++){imgs[i].addEventListener('load',sendHeight);imgs[i].addEventListener('error',function(){this.alt='[Imagen no disponible]';this.style.background='#f0f0f0';this.style.padding='20px';this.style.textAlign='center';this.style.color='#999';this.style.fontSize='12px';this.style.minHeight='80px';this.style.display='flex';this.style.alignItems='center';this.style.justifyContent='center';sendHeight();});}
                         </script>
                       </body></html>`;
                     })()}
