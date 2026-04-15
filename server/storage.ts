@@ -496,7 +496,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTemplateVersions(parentTemplateId: number): Promise<Template[]> {
-    return db.select().from(templates).where(eq(templates.parentTemplateId, parentTemplateId));
+    const children = await db.select().from(templates).where(eq(templates.parentTemplateId, parentTemplateId));
+    const parent = await db.select().from(templates).where(eq(templates.id, parentTemplateId));
+    const allVersions = [...parent, ...children.filter(c => c.id !== parentTemplateId)];
+    return allVersions.sort((a, b) => (a.versionNumber || 1) - (b.versionNumber || 1));
   }
 
   async deleteTemplatesByParent(parentTemplateId: number, excludeId: number): Promise<void> {

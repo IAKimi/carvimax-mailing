@@ -465,6 +465,23 @@ export default function CalendarView() {
     },
   });
 
+  const uploadImageMutation = useMutation({
+    mutationFn: async ({ campaignId, imageBase64 }: { campaignId: number; imageBase64: string }) => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/upload-image`, { imageBase64 });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      setEditorLocalImageUrl(null);
+      setImageApproved(false);
+      toast({ title: "Imagen cargada", description: "Imagen guardada como nueva versión." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   function prevMonth() { setCurrentDate(new Date(year, month - 1, 1)); }
   function nextMonth() { setCurrentDate(new Date(year, month + 1, 1)); }
 
@@ -1601,12 +1618,7 @@ export default function CalendarView() {
 
                   {!isResend && !imageApproved && !isFieldLocked("imagen") && (
                     <div className="flex flex-wrap gap-2">
-                      {((editingCampaign as any)?.imageRegenCount || 0) >= 2 ? (
-                        <span data-testid="text-image-regen-exhausted" className="text-xs text-gray-400 italic flex items-center gap-1 px-2 py-1">
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          Regeneraciones de imagen agotadas
-                        </span>
-                      ) : (
+                      {((editingCampaign as any)?.imageRegenCount || 0) < 2 && (
                       <Button
                         data-testid="button-regenerate-image"
                         size="sm"
@@ -1623,11 +1635,11 @@ export default function CalendarView() {
                         variant="outline"
                         size="sm"
                         className="rounded-xl gap-1 border-slate-300 hover:bg-slate-50"
-                        disabled={isLocked}
+                        disabled={isLocked || uploadImageMutation.isPending}
                         onClick={() => editorFileInputRef.current?.click()}
                       >
-                        <Upload className="w-3.5 h-3.5" />
-                        Cargar Imagen
+                        {uploadImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        {uploadImageMutation.isPending ? "Subiendo..." : "Cargar Imagen"}
                       </Button>
                       <input
                         ref={editorFileInputRef}
@@ -1636,11 +1648,13 @@ export default function CalendarView() {
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            const url = URL.createObjectURL(file);
-                            setEditorLocalImageUrl(url);
-                            setImageApproved(false);
-                            toast({ title: "Imagen cargada", description: "Vista previa actualizada." });
+                          if (file && editingCampaignId) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const base64 = reader.result as string;
+                              uploadImageMutation.mutate({ campaignId: editingCampaignId, imageBase64: base64 });
+                            };
+                            reader.readAsDataURL(file);
                           }
                           e.target.value = "";
                         }}
@@ -1651,7 +1665,7 @@ export default function CalendarView() {
                         size="sm"
                         className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={handleEditWithNanoBanana}
-                        disabled={isCancelled || isSent || editImageMutation.isPending || !selectedImageVersion?.imageUrl || !!editorLocalImageUrl}
+                        disabled={isCancelled || isSent || editImageMutation.isPending || uploadImageMutation.isPending || !selectedImageVersion?.imageUrl}
                       >
                         {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                         Nano Banana
@@ -1916,12 +1930,7 @@ export default function CalendarView() {
 
                   {!isResend && !textApproved && (
                     <div className="flex flex-wrap gap-2">
-                      {((editingCampaign as any)?.textRegenCount || 0) >= 2 ? (
-                        <span data-testid="text-text-regen-exhausted" className="text-xs text-gray-400 italic flex items-center gap-1 px-2 py-1">
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          Regeneraciones de texto agotadas
-                        </span>
-                      ) : (
+                      {((editingCampaign as any)?.textRegenCount || 0) < 2 && (
                       <Button
                         data-testid="button-regenerate-text"
                         size="sm"

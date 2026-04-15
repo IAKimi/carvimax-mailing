@@ -992,6 +992,43 @@ export async function registerRoutes(
     res.status(201).json(newVersion);
   });
 
+  app.post("/api/campaigns/:id/upload-image", requireAuth, async (req, res) => {
+    try {
+      const campaignId = parseId(req.params.id);
+      if (!campaignId) return res.status(400).json({ message: "ID inválido." });
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== req.session.userId) {
+        return res.status(404).json({ message: "Campaña no encontrada." });
+      }
+      if (campaign.status === "cancelled" || campaign.status === "sent") {
+        return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
+      }
+      const { imageBase64 } = req.body || {};
+      if (!imageBase64 || typeof imageBase64 !== "string" || !imageBase64.startsWith("data:image/")) {
+        return res.status(400).json({ message: "Imagen inválida. Debe ser una imagen en formato base64." });
+      }
+      const imageUrl = saveBase64Image(imageBase64, `campaign_${campaignId}`);
+      const versions = await storage.getCampaignVersions(campaignId);
+      const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
+      const resolved = getResolvedCampaignContent(versions);
+      const imageVersionNumber = imageVersions.length + 1;
+      await storage.deselectVersionsByType(campaignId, ["initial", "image"]);
+      const newVersion = await storage.createCampaignVersion({
+        campaignId,
+        versionNumber: imageVersionNumber,
+        contentJson: resolved.contentJson,
+        imageUrl,
+        isSelected: true,
+        type: "image",
+      });
+      await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
+      res.json({ version: newVersion, imageUrl });
+    } catch (err: any) {
+      console.error("Error subiendo imagen:", err.message);
+      res.status(500).json({ message: "Error al guardar la imagen." });
+    }
+  });
+
   const VALID_ADVANCED_ACTIONS: AdvancedAction[] = ["agregar", "reemplazar", "fusionar", "estilo", "borrar_elemento"];
 
   app.post("/api/campaigns/:id/edit-image-advanced", requireAuth, aiLimiter, async (req, res) => {
