@@ -2060,7 +2060,7 @@ export async function registerRoutes(
     }
     const parentId = tpl.parentTemplateId || tpl.id;
     const siblings = await storage.getTemplateVersions(parentId);
-    const totalVersions = siblings.length + 1;
+    const totalVersions = siblings.length;
     if (totalVersions >= 3) {
       return res.status(400).json({ message: "Máximo 3 versiones alcanzado. Confirme una versión antes de generar más." });
     }
