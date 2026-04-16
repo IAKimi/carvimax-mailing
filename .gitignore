@@ -4,3 +4,8 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Replit local agent state — ignored by default, but track task history
+.local/*
+!.local/tasks/
+!.local/tasks/**
