@@ -43,3 +43,6 @@ waitForPort = 5000
 
 [userenv.shared]
 MAKE_WEBHOOK_SECRET = "PostIAlo028f3ed8959730cffef0ddabd0ed4b5b"
+
+[agent]
+expertMode = true
