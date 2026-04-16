@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verifica tu cuenta - PostIAlo Mailing</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f2f5;padding:40px 20px;">
+<tr>
+<td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,32,115,0.08);">
+
+<!-- Header -->
+<tr>
+<td style="background-color:#002073;padding:40px 40px 32px;text-align:center;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+<tr>
+<td style="background-color:#ffffff;width:48px;height:48px;border-radius:12px;text-align:center;vertical-align:middle;">
+<span style="font-size:24px;">✉️</span>
+</td>
+<td style="padding-left:14px;">
+<span style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Post</span><span style="font-size:28px;font-weight:800;color:#e3001b;letter-spacing:-0.5px;">IA</span><span style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">lo</span>
+<span style="font-size:22px;font-weight:600;color:rgba(255,255,255,0.9);margin-left:6px;">Mailing</span>
+</td>
+</tr>
+</table>
+<p style="color:rgba(255,255,255,0.7);font-size:14px;margin:16px 0 0;letter-spacing:0.3px;">Email Marketing potenciado con Inteligencia Artificial</p>
+</td>
+</tr>
+
+<!-- Body -->
+<tr>
+<td style="padding:40px;">
+
+<!-- Greeting -->
+<h1 style="color:#002073;font-size:24px;font-weight:700;margin:0 0 8px;">¡Bienvenido/a, {{1.name}}!</h1>
+<p style="color:#555;font-size:16px;line-height:1.6;margin:0 0 28px;">Gracias por registrarte en <strong style="color:#002073;">PostIAlo Mailing</strong>. Estás a un paso de comenzar a crear campañas de email marketing con el poder de la inteligencia artificial.</p>
+
+<!-- Verification Card -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f8fb;border-radius:12px;border:1px solid #e8eaf0;">
+<tr>
+<td style="padding:28px 24px;text-align:center;">
+<p style="color:#002073;font-size:16px;font-weight:600;margin:0 0 6px;">Verificá tu correo electrónico</p>
+<p style="color:#777;font-size:14px;margin:0 0 24px;">Hacé clic en el botón para activar tu cuenta y empezar.</p>
+
+<!-- CTA Button -->
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+<tr>
+<td style="background-color:#002073;border-radius:12px;">
+<a href="{{1.verificationLink}}" target="_blank" style="display:inline-block;padding:14px 40px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;letter-spacing:0.3px;">
+Verificar mi cuenta
+</a>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+<!-- Alternate Link -->
+<p style="color:#999;font-size:13px;line-height:1.5;margin:24px 0 0;text-align:center;">
+Si el botón no funciona, copiá y pegá este enlace en tu navegador:
+</p>
+<p style="word-break:break-all;background-color:#f7f8fb;padding:12px 16px;border-radius:8px;font-size:12px;color:#002073;margin:8px 0 0;text-align:center;">
+{{1.verificationLink}}</p>
+
+<!-- Divider -->
+<hr style="border:none;border-top:1px solid #eee;margin:32px 0;">
+
+<!-- Features Preview -->
+<p style="color:#002073;font-size:15px;font-weight:600;margin:0 0 16px;text-align:center;">¿Qué podés hacer con PostIAlo Mailing?</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="text-align:center;padding:8px;">
+<div style="background-color:#f0f1ff;border-radius:10px;padding:16px 8px;">
+<span style="font-size:24px;">🤖</span>
+<p style="color:#002073;font-size:13px;font-weight:600;margin:8px 0 2px;">Textos con IA</p>
+<p style="color:#888;font-size:11px;margin:0;">Generá contenido persuasivo automáticamente</p>
+</div>
+</td>
+<td width="33%" style="text-align:center;padding:8px;">
+<div style="background-color:#fff0f0;border-radius:10px;padding:16px 8px;">
+<span style="font-size:24px;">🎨</span>
+<p style="color:#002073;font-size:13px;font-weight:600;margin:8px 0 2px;">Imágenes con IA</p>
+<p style="color:#888;font-size:11px;margin:0;">Creá visuales únicos para tus campañas</p>
+</div>
+</td>
+<td width="33%" style="text-align:center;padding:8px;">
+<div style="background-color:#f0fff4;border-radius:10px;padding:16px 8px;">
+<span style="font-size:24px;">📊</span>
+<p style="color:#002073;font-size:13px;font-weight:600;margin:8px 0 2px;">Dashboard</p>
+<p style="color:#888;font-size:11px;margin:0;">Métricas completas de tus envíos</p>
+</div>
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+
+<!-- Footer -->
+<tr>
+<td style="background-color:#001550;padding:28px 40px;text-align:center;">
+<p style="color:rgba(255,255,255,0.7);font-size:12px;margin:0 0 4px;">
+Este enlace expira en 24 horas. Si no solicitaste esta cuenta, ignorá este correo.
+</p>
+<p style="color:rgba(255,255,255,0.5);font-size:11px;margin:8px 0 0;">
+© 2026 PostIAlo Mailing · Email Marketing con Inteligencia Artificial
+</p>
+</td>
+</tr>
+
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>

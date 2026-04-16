@@ -1,0 +1,61 @@
+Contexto y objetivo
+Voy a migrar este proyecto desde esta cuenta de Replit a una cuenta nueva de Replit. El código vive en GitHub, así que la migración consiste en: (1) preparar todo el contexto necesario en el repo, (2) hacer commit y push a GitHub, (3) desconectar GitHub de esta cuenta, y (4) importar el repo en la cuenta nueva, donde otro agente levantará el proyecto desde cero usando los archivos que vos me vas a preparar ahora.
+Tu rol en esta conversación: preparar todo lo que necesita el agente de la cuenta nueva para poder levantar el proyecto sin tener que adivinar nada. No toques código de la app, ni schema, ni Dockerfile, ni lógica de negocio. Esta tarea es exclusivamente de documentación y configuración de repositorio.
+Importante sobre producción: la base de datos de producción (si existe, sea en VPS o en otro hosting) es independiente de Replit. No se toca con esta migración. Los usuarios reales, sus datos, y todo el estado productivo permanecen intactos. Cualquier cambio que propongas tiene que respetar ese principio.
+________________________________________
+Metodología de 4 entregables
+Tenés que preparar exactamente estos cuatro entregables. Ni uno más, ni uno menos.
+1. Excepción en .gitignore para .local/tasks/
+Revisá el .gitignore del proyecto. Si la carpeta .local/ está ignorada (es lo habitual en proyectos Replit), agregá una excepción explícita para que la subcarpeta .local/tasks/ sí se trackee. Esto es crítico porque .local/tasks/ contiene el historial completo de planes de tareas del proyecto, y es lo que le da contexto histórico al agente nuevo sobre qué se hizo, por qué, y qué decisiones se tomaron.
+Patrón esperado:
+.local/
+!.local/tasks/
+!.local/tasks/**
+Después de este cambio, confirmá con un comando que los archivos de .local/tasks/ efectivamente aparecen en git status / git ls-files. Si no hay nada en .local/tasks/ todavía, avisame.
+2. Archivo MIGRATION_GUIDE.md en la raíz del repo
+Creá este archivo con una guía de tres fases, pensada para que cualquier agente nuevo la siga de arriba a abajo sin conocimiento previo del proyecto:
+•	Fase 1 — Exportar desde la cuenta vieja: checklist de lo que tiene que estar listo antes de migrar (commit + push de todo, listado explícito de los secrets a copiar con su nombre exacto, recordatorio de desconectar GitHub de la cuenta vieja cuando termine la fase 2).
+•	Fase 2 — Bootstrap en la cuenta nueva: pasos secuenciales que el agente nuevo debe ejecutar: instalar dependencias, configurar la base de datos (usando la que provea Replit en la cuenta nueva, no la de producción), aplicar el schema inicial, cargar los secrets uno por uno pidiéndoselos al usuario, levantar workflows, verificar healthchecks, verificar que el login del admin funciona (si aplica), y verificar que las integraciones externas (APIs de terceros) responden.
+•	Fase 3 — Producción queda intacta: nota explícita de que el deploy/VPS/hosting de producción no se toca durante esta migración. El cambio de cuenta de Replit solo afecta el entorno de desarrollo. La DB de producción, las sesiones activas, y el dominio de producción siguen funcionando sin cambios.
+El tono del archivo tiene que ser práctico y directo, como un runbook para un agente que no conoce el proyecto.
+3. Archivo .env.example en la raíz del repo
+Listá todas las variables de entorno que el proyecto necesita para correr, con el nombre exacto de cada una y un comentario breve de para qué sirve. Nunca pongas valores reales — solo nombres, un placeholder descriptivo y el comentario. Ejemplo de formato:
+# OpenAI API key para generación de texto
+OPENAI_API_KEY=sk-...
+# Secret para firmar cookies de sesión (generar aleatorio de 64 chars)
+SESSION_SECRET=change-me-to-random-string
+# URL de la base de datos Postgres
+DATABASE_URL=postgresql://user:pass@host:port/db
+Para identificar las variables, revisá todo el código en busca de process.env.* (o el equivalente en el lenguaje del proyecto). No te olvides de ninguna. Si alguna variable es opcional o tiene un default seguro, anotalo en el comentario.
+4. Dos secciones nuevas en replit.md
+Este archivo ya existe y se carga automáticamente en la memoria de cualquier agente que trabaje en el proyecto. Agregale dos secciones nuevas:
+4a. "First-time setup en cuenta nueva de Replit" — ubicala al principio del archivo, antes de cualquier descripción técnica del proyecto. Debe contener los pasos mínimos que el agente nuevo ejecuta la primera vez que abre el repo en la cuenta nueva: instalar dependencias, referenciar MIGRATION_GUIDE.md para el detalle completo, recordatorio de pedirle los secrets al usuario uno a uno, y cómo verificar que todo levantó bien.
+4b. "Producto" — ubicala inmediatamente después de la sección anterior. Debe explicar en 2 o 3 párrafos: qué hace el producto, para quién está pensado (público objetivo y contexto geográfico/idiomático si aplica), modelo de negocio o monetización, y el flujo de uso típico de punta a punta. Esto le da al agente nuevo el contexto de por qué existe el proyecto, no solo cómo funciona técnicamente.
+4c. "Gotchas / cosas raras conocidas" — ubicala antes de la sección de Deployment/Infraestructura (o al menos en la mitad del archivo, no al final). Es una lista de bullets con todos los comportamientos no obvios, bugs conocidos, decisiones contraintuitivas, y trampas del proyecto. Cosas del tipo: columnas de DB que requieren fixes manuales, timezones hardcodeados, comportamientos condicionales según NODE_ENV, endpoints públicos sin auth que son así a propósito, librerías usadas de forma poco estándar, dependencias que están donde no parecen, límites hardcodeados que devuelven códigos HTTP específicos, features removidas a propósito que no hay que reintroducir, etc. El objetivo es que el agente nuevo no "arregle" cosas que no están rotas.
+Para detectar los gotchas, revisá: comentarios // TODO, // FIXME, // HACK, // IMPORTANT; chequeos de NODE_ENV; try/catch con fallbacks silenciosos; endpoints sin middleware de auth; valores mágicos hardcodeados; y cualquier comentario que empiece con algo tipo "ojo", "atención", "cuidado", "no tocar".
+________________________________________
+Orden de ejecución
+1.	Leé el replit.md actual completo para entender el proyecto.
+2.	Hacé un inventario rápido del código: framework, estructura, dependencias, puntos de entrada, integraciones externas, DB, secrets usados.
+3.	Preparame un plan corto de qué vas a poner específicamente en cada uno de los cuatro entregables, en base al código real del proyecto (no plantillas genéricas). Pausá acá y esperá mi aprobación antes de escribir los archivos.
+4.	Una vez aprobado el plan, creá/modificá los cuatro entregables en un solo paso.
+5.	Hacé commit de todo con un mensaje descriptivo.
+6.	Verificá explícitamente que los archivos de .local/tasks/ quedaron trackeados en git (es habitual que la plataforma los excluya del commit automático; si pasa, hacé un commit manual adicional solo para ese directorio).
+7.	Avisame cuando todo esté commiteado y decime cuántos commits quedan por pushear. El push lo hago yo a mano.
+________________________________________
+Qué NO hacer
+•	No toques código de la app, ni schema de base de datos, ni Dockerfile, ni configuración de build, ni prompts de IA, ni lógica de negocio.
+•	No modifiques el comportamiento de producción de ninguna forma. Esta migración es puramente de documentación y contexto.
+•	No pongas valores reales de secrets en ningún archivo. Solo nombres y placeholders.
+•	No crees archivos adicionales más allá de los cuatro entregables listados. Nada de READMEs nuevos, CHANGELOGs, ni resúmenes auxiliares.
+•	No hagas push a GitHub vos. Solo commiteás local. El push lo hago yo manualmente.
+•	No intentes conectar con la DB de producción ni leer datos de usuarios reales. Todo el trabajo es sobre el repo.
+________________________________________
+Cuando termines
+Decime: (a) qué archivos modificaste/creaste, (b) cuántos commits locales quedan por pushear, (c) si .local/tasks/ quedó trackeado correctamente, y (d) cualquier cosa que te haya llamado la atención del proyecto que valga la pena documentar además de lo pedido.
+Después de tu confirmación, yo hago el push, desconecto GitHub de esta cuenta, e importo el repo en la cuenta nueva de Replit.
+________________________________________
+Prompt inicial que le daré al agente de la cuenta nueva (para tu referencia)
+Para que tengas contexto de qué va a pasar después, este es el prompt que usaré en la cuenta nueva una vez importado el repo:
+"Hola. Estoy migrando este proyecto desde otra cuenta de Replit. La base de datos está vacía y los Secrets aún no están cargados. Por favor leé replit.md (secciones Producto, First-time setup y Gotchas) y MIGRATION_GUIDE.md, y ejecutá la Fase 2 paso a paso. Cuando llegues al paso de Secrets, pausá y pedímelos uno por uno. Al final, confirmame que el frontend carga, el login funciona y las integraciones responden."
+Asegurate de que tu trabajo le deje al agente nuevo todo lo que necesita para cumplir ese prompt sin tener que volver a preguntarme nada estructural del proyecto.

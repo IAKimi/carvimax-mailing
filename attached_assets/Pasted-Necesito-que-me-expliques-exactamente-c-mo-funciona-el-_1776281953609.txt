@@ -1,0 +1,37 @@
+Necesito que me expliques exactamente cómo funciona el proceso de onboarding completo de PostIAlo Mailing, desde que un usuario nuevo se registra hasta que puede usar la plataforma al 100%. Necesito entender la lógica completa para replicarla de forma idéntica en PostIAlo Redes Sociales (RRSS).
+
+Específicamente necesito que me detalles:
+
+1. Registro y verificación de email
+¿Qué pasa exactamente cuando un usuario llena el formulario de registro y le da "Crear cuenta"?
+¿Qué datos se envían al webhook de Make.com para el correo de verificación? (el payload completo)
+¿Qué escenario/flujo tiene configurado Make.com para enviar ese correo? ¿Usa Brevo, Gmail, o qué servicio de envío?
+¿Cómo es el diseño del correo de verificación que le llega al usuario? (template, colores, texto)
+¿Qué pasa cuando el usuario hace clic en el link de verificación? ¿A dónde lo redirige?
+¿Qué pasa si el usuario intenta hacer login sin haber verificado?
+2. Flujo de onboarding paso a paso
+¿Cuáles son los niveles de onboarding y en qué orden van?
+En Mailing entiendo que es: Brand Identity → Email Provider → Templates → Contacts → Acceso completo
+¿Es estrictamente lineal? ¿Puede el usuario saltarse pasos?
+¿Cómo se bloquean las secciones del sidebar que aún no están desbloqueadas? ¿Se muestra un candado?
+¿Hay alguna pantalla de bienvenida o tutorial entre pasos?
+3. Planes y activación
+¿Cómo funciona la página de planes? ¿Hay período de prueba gratuito?
+¿Qué pasa cuando el usuario activa la prueba o selecciona un plan?
+¿Hay integración con algún pasarela de pago (Stripe, etc.) o por ahora es manual?
+4. Orquestación con Make.com
+¿Cuántos escenarios de Make.com están involucrados en el onboarding?
+¿Qué webhooks se usan y para qué? (verificación de email, ¿algún otro?)
+¿Hay algún webhook que notifique a Make.com cuando el usuario completa cada paso del onboarding?
+5. Lo que necesito replicar en RRSS
+En PostIAlo RRSS el flujo actual es:
+
+Registro → Email de verificación (vía Make.com webhook)
+Login → Redirige a Planes → Activa prueba
+Redirige a Onboarding Meta → Ingresa Facebook Page ID e Instagram Account ID
+Redirige a Brand Identity → Llena info de empresa
+Templates → Crea al menos una plantilla
+Acceso completo al Dashboard, Calendario, Historial
+¿Este flujo es consistente con cómo lo tienen en Mailing? ¿Hay algo que me esté faltando o que esté diferente?
+
+Dame todos los detalles técnicos y de UX que puedas: textos exactos de botones, mensajes que ve el usuario, diseño de los emails, configuración de Make.com, y cualquier edge case que manejen (token expirado, reenvío de verificación, etc.)
