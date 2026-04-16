@@ -1,0 +1,188 @@
+2026-Apr-16 22:27:05
+^
+2026-Apr-16 22:27:05
+2026-Apr-16 22:27:05
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+2026-Apr-16 22:27:05
+at fileURLToPath (node:internal/url:1487:11)
+2026-Apr-16 22:27:05
+at Object. (/app/dist/index.cjs:328:59540)
+2026-Apr-16 22:27:05
+at Module._compile (node:internal/modules/cjs/loader:1521:14)
+2026-Apr-16 22:27:05
+at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+2026-Apr-16 22:27:05
+at Module.load (node:internal/modules/cjs/loader:1266:32)
+2026-Apr-16 22:27:05
+at Module._load (node:internal/modules/cjs/loader:1091:12)
+2026-Apr-16 22:27:05
+at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+2026-Apr-16 22:27:05
+at node:internal/main/run_main_module:28:49 {
+2026-Apr-16 22:27:05
+code: 'ERR_INVALID_ARG_TYPE'
+2026-Apr-16 22:27:05
+}
+2026-Apr-16 22:27:05
+2026-Apr-16 22:27:05
+Node.js v20.20.2
+2026-Apr-16 22:27:08
+node:internal/url:1487
+2026-Apr-16 22:27:08
+throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+2026-Apr-16 22:27:08
+^
+2026-Apr-16 22:27:08
+2026-Apr-16 22:27:08
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+2026-Apr-16 22:27:08
+at fileURLToPath (node:internal/url:1487:11)
+2026-Apr-16 22:27:08
+at Object. (/app/dist/index.cjs:328:59540)
+2026-Apr-16 22:27:08
+at Module._compile (node:internal/modules/cjs/loader:1521:14)
+2026-Apr-16 22:27:08
+at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+2026-Apr-16 22:27:08
+at Module.load (node:internal/modules/cjs/loader:1266:32)
+2026-Apr-16 22:27:08
+at Module._load (node:internal/modules/cjs/loader:1091:12)
+2026-Apr-16 22:27:08
+at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+2026-Apr-16 22:27:08
+at node:internal/main/run_main_module:28:49 {
+2026-Apr-16 22:27:08
+code: 'ERR_INVALID_ARG_TYPE'
+2026-Apr-16 22:27:08
+}
+2026-Apr-16 22:27:08
+2026-Apr-16 22:27:08
+Node.js v20.20.2
+2026-Apr-16 22:27:12
+node:internal/url:1487
+2026-Apr-16 22:27:12
+throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+2026-Apr-16 22:27:12
+^
+2026-Apr-16 22:27:12
+2026-Apr-16 22:27:12
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+2026-Apr-16 22:27:12
+at fileURLToPath (node:internal/url:1487:11)
+2026-Apr-16 22:27:12
+at Object. (/app/dist/index.cjs:328:59540)
+2026-Apr-16 22:27:12
+at Module._compile (node:internal/modules/cjs/loader:1521:14)
+2026-Apr-16 22:27:12
+at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+2026-Apr-16 22:27:12
+at Module.load (node:internal/modules/cjs/loader:1266:32)
+2026-Apr-16 22:27:12
+at Module._load (node:internal/modules/cjs/loader:1091:12)
+2026-Apr-16 22:27:12
+at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+2026-Apr-16 22:27:12
+at node:internal/main/run_main_module:28:49 {
+2026-Apr-16 22:27:12
+code: 'ERR_INVALID_ARG_TYPE'
+2026-Apr-16 22:27:12
+}
+2026-Apr-16 22:27:12
+2026-Apr-16 22:27:12
+Node.js v20.20.2
+2026-Apr-16 22:27:20
+node:internal/url:1487
+2026-Apr-16 22:27:20
+throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+2026-Apr-16 22:27:20
+^
+2026-Apr-16 22:27:20
+2026-Apr-16 22:27:20
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+2026-Apr-16 22:27:20
+at fileURLToPath (node:internal/url:1487:11)
+2026-Apr-16 22:27:20
+at Object. (/app/dist/index.cjs:328:59540)
+2026-Apr-16 22:27:20
+at Module._compile (node:internal/modules/cjs/loader:1521:14)
+2026-Apr-16 22:27:20
+at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+2026-Apr-16 22:27:20
+at Module.load (node:internal/modules/cjs/loader:1266:32)
+2026-Apr-16 22:27:20
+at Module._load (node:internal/modules/cjs/loader:1091:12)
+2026-Apr-16 22:27:20
+at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+2026-Apr-16 22:27:20
+at node:internal/main/run_main_module:28:49 {
+2026-Apr-16 22:27:20
+code: 'ERR_INVALID_ARG_TYPE'
+2026-Apr-16 22:27:20
+}
+2026-Apr-16 22:27:20
+2026-Apr-16 22:27:20
+Node.js v20.20.2
+2026-Apr-16 22:27:34
+node:internal/url:1487
+2026-Apr-16 22:27:34
+throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+2026-Apr-16 22:27:34
+^
+2026-Apr-16 22:27:34
+2026-Apr-16 22:27:34
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+2026-Apr-16 22:27:34
+at fileURLToPath (node:internal/url:1487:11)
+2026-Apr-16 22:27:34
+at Object. (/app/dist/index.cjs:328:59540)
+2026-Apr-16 22:27:34
+at Module._compile (node:internal/modules/cjs/loader:1521:14)
+2026-Apr-16 22:27:34
+at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+2026-Apr-16 22:27:34
+at Module.load (node:internal/modules/cjs/loader:1266:32)
+2026-Apr-16 22:27:34
+at Module._load (node:internal/modules/cjs/loader:1091:12)
+2026-Apr-16 22:27:34
+at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+2026-Apr-16 22:27:34
+at node:internal/main/run_main_module:28:49 {
+2026-Apr-16 22:27:34
+code: 'ERR_INVALID_ARG_TYPE'
+2026-Apr-16 22:27:34
+}
+2026-Apr-16 22:27:34
+2026-Apr-16 22:27:34
+Node.js v20.20.2
+2026-Apr-16 22:28:01
+node:internal/url:1487
+2026-Apr-16 22:28:01
+throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+2026-Apr-16 22:28:01
+^
+2026-Apr-16 22:28:01
+2026-Apr-16 22:28:01
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+2026-Apr-16 22:28:01
+at fileURLToPath (node:internal/url:1487:11)
+2026-Apr-16 22:28:01
+at Object. (/app/dist/index.cjs:328:59540)
+2026-Apr-16 22:28:01
+at Module._compile (node:internal/modules/cjs/loader:1521:14)
+2026-Apr-16 22:28:01
+at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+2026-Apr-16 22:28:01
+at Module.load (node:internal/modules/cjs/loader:1266:32)
+2026-Apr-16 22:28:01
+at Module._load (node:internal/modules/cjs/loader:1091:12)
+2026-Apr-16 22:28:01
+at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+2026-Apr-16 22:28:01
+at node:internal/main/run_main_module:28:49 {
+2026-Apr-16 22:28:01
+code: 'ERR_INVALID_ARG_TYPE'
+2026-Apr-16 22:28:01
+}
+2026-Apr-16 22:28:01
+2026-Apr-16 22:28:01
+Node.js v20.20.2
