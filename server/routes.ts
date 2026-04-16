@@ -355,7 +355,7 @@ export async function registerRoutes(
       const host = req.headers["host"] || "localhost:5000";
       const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
 
-      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.eu2.make.com/0ifmac54kwkvgc85hlyq8nuxdfl15spu";
+      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.us2.make.com/8cvfysvskqxngepd1aczaaxckbchfv6l";
       try {
         const webhookRes = await fetch(webhookUrl, {
           method: "POST",
@@ -494,7 +494,7 @@ export async function registerRoutes(
       const host = req.headers["host"] || "localhost:5000";
       const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
 
-      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.eu2.make.com/0ifmac54kwkvgc85hlyq8nuxdfl15spu";
+      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.us2.make.com/8cvfysvskqxngepd1aczaaxckbchfv6l";
       try {
         const webhookRes = await fetch(webhookUrl, {
           method: "POST",
