@@ -1,0 +1,103 @@
+Tengo data útil de los logs. Te doy el diagnóstico, una observación crítica, y exactamente qué necesito para confirmar la causa raíz. Mientras tanto, voy a revisar el código en paralelo.
+
+
+3 actions
+Déjame ver cómo arma la URL en el envío real (no en el preview):
+
+
+4 actions
+Espera — veo algo raro en el código. Déjame verificar si los fixes que el otro agente prometió están EFECTIVAMENTE en el código del repo:
+
+
+3 actions
+🚨 Encontré algo muy importante. Déjame verificar una cosa más:
+
+
+3 actions
+Tengo varias cosas importantes que decirte. Te las paso ordenadas.
+
+⚠️ Aclaración importante sobre mi capacidad de diagnóstico
+Mi Replit y la versión que está corriendo en tu VPS están desincronizadas. El otro agente está pusheando directo y ese código no se refleja acá. La prueba: el log muestra el mensaje [STORAGE WARNING] uploads/campaigns es escribible pero está VACÍO en producción, pero ese mensaje NO existe en el código que tengo yo. O sea, el VPS ya tiene fixes que mi Replit no ve.
+
+Implicación: no puedo leer templates.ts o routes.ts desde mi lado y sacar conclusiones sobre lo que está corriendo en producción. Necesito que el otro agente lea el código real desplegado.
+
+✅ Lo que SÍ confirmo desde los logs
+Push 2 SÍ está desplegado — el [STORAGE WARNING] es el log defensivo que pidió implementar. ✓
+
+El volumen SÍ está montado y es escribible — el warning lo confirma textualmente. ✓ (Está vacío al boot porque es volumen named recién creado, normal.)
+
+Las URLs en la DB se están guardando bien — los logs muestran imageUrl: "https://mailing.postialo.com/uploads/campaigns/campaign_53_xxx.jpg". El dominio correcto está ahí. ✓
+
+El CTA está activado en esta campaña (cta_enabled: true en line 44 del log) → la regex CTA NO se ejecutó en este envío, descartado como causa. La imagen rota es por otra razón.
+
+🚨 Anomalía CRÍTICA que nadie está mirando
+Mirá esto. Los versions tienen estos filenames de imagen:
+
+v96: campaign_53_5a08b5fe199325dc0d1c47da.jpg
+v97: campaign_53_99ddd378cfe63ae8c669e8bd.jpg
+v98: campaign_53_99ddd378cfe63ae8c669e8bd.jpg (probablemente)
+Pero el selectedImageUrl de la campaña es:
+
+campaign_53_eec17f33c98be2ffd7c19061.jpg ← un hash que NO coincide con ninguna versión
+Esto sugiere que cuando aprobás la imagen, el sistema copia el archivo a un nuevo filename y guarda ese nuevo filename como selectedImageUrl. Si la copia falla silenciosamente (permission denied al volumen, path equivocado, race condition), el correo referencia un archivo que no existe físicamente en disco, aunque la URL esté formada correctamente.
+
+Esa es mi hipótesis #1 de por qué la imagen aparece rota: el archivo que el correo dice tener (campaign_53_eec17f33c98be2ffd7c19061.jpg) probablemente no está en /app/uploads/campaigns/ en el VPS.
+
+🎯 Las 2 piezas de info que necesito YA para confirmar
+1️⃣ Abrí el correo recibido y miralo el src= del <img> roto
+En tu bandeja de entrada (Gmail/Outlook), abrí el correo de la campaña 53.
+
+Click derecho sobre la imagen rota → "Inspeccionar elemento" (o "Ver código fuente del mensaje").
+Buscá la etiqueta <img> que tiene alt="Imagen del correo".
+Copiame el valor completo del atributo src=.
+Después: copiá ese src y pegalo en una pestaña nueva del navegador. Decime qué pasa: ¿404? ¿403? ¿Carga la imagen? ¿Otro error?
+2️⃣ Verificá si el archivo físicamente existe en el VPS
+Hay 2 formas:
+
+Opción A — Por SSH al VPS (si tenés acceso):
+
+ssh tu-usuario@tu-vps
+docker ps  # buscá el container de postialo-mailing
+docker exec -it <nombre_container> ls -la /app/uploads/campaigns/ | grep campaign_53
+
+Decime qué archivos aparecen.
+
+Opción B — Por la URL pública directamente:
+Probá estas 4 URLs en el navegador, una por una. Decime cuáles dan 200 (cargan imagen) y cuáles dan 404:
+
+https://mailing.postialo.com/uploads/campaigns/campaign_53_5a08b5fe199325dc0d1c47da.jpg
+https://mailing.postialo.com/uploads/campaigns/campaign_53_99ddd378cfe63ae8c669e8bd.jpg
+https://mailing.postialo.com/uploads/campaigns/campaign_53_eec17f33c98be2ffd7c19061.jpg ← el selectedImageUrl
+Y la que aparezca en el src= del paso 1️⃣
+📊 Posibles diagnósticos según lo que reportes
+Resultado del paso 1 + 2	Causa raíz	Fix
+src con URL mailing.postialo.com/... + URL da 404 + archivo no existe en volumen	Bug en "aprobar imagen": copia con nuevo hash pero no escribe al disco	Fix en el endpoint de aprobación
+src con URL mailing.postialo.com/... + URL da 200 (carga en navegador) + cliente de email no la muestra	Problema de rendering del cliente de correo (CSP, hotlinking, etc.)	Diferente fix
+src con URL localhost o vacío	Push 2 incompleto en alguna ruta de código	Refix en el agente
+src con URL mailing.postialo.com/... + URL da 200 + email también la muestra	Problema fue transitorio	Reenvía y verifica
+🤝 Mensaje que le mandaría al otro agente en paralelo
+El bug NO está resuelto. La imagen sigue rota en bandeja del destinatario. Pero algunas cosas SÍ se solucionaron:
+
+✓ Push 2 está desplegado (storage warning aparece en logs).
+✓ Volumen montado y escribible.
+✓ DB guarda URLs con dominio correcto (https://mailing.postialo.com/...).
+✓ La regex CTA no es la causa en este caso (cta_enabled: true).
+Hipótesis nueva que necesito que investigues:
+
+El campo campaign.selectedImageUrl para la campaña 53 es campaign_53_eec17f33c98be2ffd7c19061.jpg. Ese hash NO coincide con ninguna de las versiones generadas (v96, v97, v98 tienen otros hashes). Esto sugiere que el flujo de "aprobar imagen" copia el archivo a un nuevo filename y lo guarda como selectedImageUrl. Necesito que verifiques:
+
+¿Dónde en el código se setea selectedImageUrl con un hash distinto al de la versión seleccionada? Buscá usos de updateCampaign con selectedImageUrl en server/routes.ts.
+En esa ruta de código, ¿se está copiando físicamente el archivo desde el filename original al nuevo? ¿O solo se está renombrando en DB sin tocar el disco?
+Si se copia al disco, ¿se está usando el path correcto (/app/uploads/campaigns/)? ¿Hay manejo de error si la copia falla?
+Listá los archivos físicos del contenedor: docker exec ... ls -la /app/uploads/campaigns/. Verificá si campaign_53_eec17f33c98be2ffd7c19061.jpg existe.
+Esa es mi mejor hipótesis. Si la confirmás, el fix sería garantizar que la operación de aprobación copie el archivo físicamente y maneje errores. Si no la confirmás, reportá qué encontraste y vemos otras vías.
+
+NO toques código todavía. Investigá primero, confirma o descarta la hipótesis, y después acordamos el fix.
+
+📝 Resumen de qué hacer ahora
+Vos: pasame el src= de la imagen rota y los resultados de las 4 URLs del paso 2 (opción B, 5 minutos máximo).
+El otro agente: que investigue el flujo de "aprobar imagen" en server/routes.ts siguiendo el mensaje de arriba.
+Cuando ambos tengan la info, cruzamos y decidimos el fix.
+Mientras esperás, NO mandes la campaña a más destinatarios — vamos a quedar con más correos rotos. Si necesitás mandarla urgente a los clientes de RED Intelfon, mejor hacelo desde Brevo directamente con un envío manual sin usar la app, hasta que esto se resuelva.
+
+¿Empezás por el paso 1 (src= del correo) que es el más rápido?
