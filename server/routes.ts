@@ -821,7 +821,8 @@ export async function registerRoutes(
 
     const [rawImageUrl, emailContent] = await Promise.all([imagePromise, textPromise]);
 
-    const imageUrl = rawImageUrl ? saveBase64Image(rawImageUrl, `campaign_${campaignId}`) : null;
+    const imageFilename = rawImageUrl ? saveBase64Image(rawImageUrl, `campaign_${campaignId}`) : null;
+    const imageUrl = imageFilename ? getImagePublicUrl(imageFilename, req) : null;
 
     const contentJson = emailContent
       ? {
@@ -973,7 +974,7 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error regenerando imagen." });
     }
 
-    const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
 
     const versions = await storage.getCampaignVersions(campaignId);
     const resolved = getResolvedCampaignContent(versions);
@@ -1037,7 +1038,7 @@ export async function registerRoutes(
       return res.status(500).json({ message: err.message || "Error editando imagen." });
     }
 
-    const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
     const resolved = getResolvedCampaignContent(versions);
     const imageVersionNumber = imageVersions.length + 1;
 
@@ -1070,7 +1071,7 @@ export async function registerRoutes(
       if (!imageBase64 || typeof imageBase64 !== "string" || !imageBase64.startsWith("data:image/")) {
         return res.status(400).json({ message: "Imagen inválida. Debe ser una imagen en formato base64." });
       }
-      const imageUrl = saveBase64Image(imageBase64, `campaign_${campaignId}`);
+      const imageUrl = getImagePublicUrl(saveBase64Image(imageBase64, `campaign_${campaignId}`), req);
       const versions = await storage.getCampaignVersions(campaignId);
       const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
       const resolved = getResolvedCampaignContent(versions);
@@ -1170,7 +1171,7 @@ export async function registerRoutes(
       return res.status(isInputError ? 400 : 500).json({ message: msg });
     }
 
-    const imageUrl = saveBase64Image(rawImageUrl, `campaign_${campaignId}`);
+    const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
     const resolved = getResolvedCampaignContent(versions);
     const imageVersionNumber = imageVersions.length + 1;
 
