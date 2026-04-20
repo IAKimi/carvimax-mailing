@@ -218,6 +218,33 @@ async function cleanupCampaignFiles(campaignId: number): Promise<void> {
   }
 }
 
+function normalizeKey(k: string): string {
+  return k
+    .replace(/^\uFEFF/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+const EMAIL_ALIASES = new Set(['email', 'correo', 'correo electronico', 'e-mail', 'mail']);
+const NAME_ALIASES = new Set(['name', 'nombre', 'nombre completo', 'nombres', 'full name']);
+const POSITION_ALIASES = new Set(['position', 'cargo', 'puesto']);
+const SEGMENT_ALIASES = new Set(['segment', 'segmento', 'categoria', 'tipo']);
+
+function resolveContactRow(row: Record<string, string>): { email: string; name: string; position: string; segment: string } {
+  let email = '', name = '', position = '', segment = '';
+  for (const [k, v] of Object.entries(row)) {
+    const nk = normalizeKey(k);
+    const val = String(v ?? '').trim();
+    if (!email && EMAIL_ALIASES.has(nk)) email = val.toLowerCase();
+    else if (!name && NAME_ALIASES.has(nk)) name = val;
+    else if (!position && POSITION_ALIASES.has(nk)) position = val;
+    else if (!segment && SEGMENT_ALIASES.has(nk)) segment = val;
+  }
+  return { email, name, position, segment };
+}
+
 function saveBase64Image(base64DataUrl: string, prefix: string = "img"): string {
   const match = base64DataUrl.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$/);
   if (!match) return base64DataUrl;
@@ -244,8 +271,15 @@ function getImagePublicUrl(filename: string, req?: Request): string {
   } else if (process.env.APP_URL || process.env.PRODUCTION_URL) {
     baseUrl = (process.env.APP_URL || process.env.PRODUCTION_URL)!.replace(/\/$/, "");
   } else {
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
-    baseUrl = `https://${domain}`;
+    if (process.env.NODE_ENV === 'production') {
+      baseUrl = 'https://mailing.postialo.com';
+    } else {
+      const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
+      baseUrl = domain.startsWith('localhost') ? `http://${domain}` : `https://${domain}`;
+    }
+  }
+  if (process.env.NODE_ENV === 'production' && baseUrl.includes('localhost')) {
+    console.error('[getImagePublicUrl] CRITICAL: localhost fallback en producción. Filename:', filename);
   }
   return `${baseUrl}/uploads/campaigns/${filename}`;
 }
@@ -1387,13 +1421,22 @@ export async function registerRoutes(
     if (contactRows.length > 5000) {
       return res.status(400).json({ message: "No se pueden importar más de 5000 contactos a la vez." });
     }
+    if (contactRows.length > 0) {
+      const firstRowKeys = Object.keys(contactRows[0]);
+      const hasEmailColumn = firstRowKeys.some(k => EMAIL_ALIASES.has(normalizeKey(k)));
+      if (!hasEmailColumn) {
+        const detectedCols = firstRowKeys.map(k => k.replace(/^\uFEFF/, '').trim()).join('", "');
+        return res.status(400).json({
+          message: `No encontramos una columna de correo en el archivo. Las columnas detectadas son: "${detectedCols}". Renómbrela como "email" o "correo" e intente de nuevo.`,
+        });
+      }
+    }
     const validContacts: Array<{ email: string; name?: string; position?: string; segment?: string }> = [];
     const errors: string[] = [];
     const seenEmails = new Set<string>();
     let duplicatesInCsv = 0;
     for (let i = 0; i < contactRows.length; i++) {
-      const row = contactRows[i];
-      const email = (row.email || row.Email || row.correo || row.Correo || "").toString().trim().toLowerCase();
+      const { email, name, position, segment } = resolveContactRow(contactRows[i]);
       if (!email || !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(email)) {
         errors.push(`Fila ${i + 1}: email inválido "${email}"`);
         continue;
@@ -1405,9 +1448,9 @@ export async function registerRoutes(
       seenEmails.add(email);
       validContacts.push({
         email,
-        name: (row.name || row.Name || row.nombre || row.Nombre || "").toString().trim() || undefined,
-        position: (row.position || row.Position || row.cargo || row.Cargo || "").toString().trim() || undefined,
-        segment: (row.segment || row.Segment || row.segmento || row.Segmento || "").toString().trim() || undefined,
+        name: name || undefined,
+        position: position || undefined,
+        segment: segment || undefined,
       });
     }
     if (validContacts.length === 0) {

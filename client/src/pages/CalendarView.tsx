@@ -2031,18 +2031,23 @@ export default function CalendarView() {
                     data-testid="iframe-email-preview"
                     srcDoc={(() => {
                       const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
+                      const previewCtaEnabled = (selectedVersion?.contentJson as any)?.cta_enabled !== false && ctaEnabled;
                       const asunto = localAsunto || selectedAsunto || "";
                       const preheader = localPreheader || selectedPreheader || "";
                       const imagen = selectedImageUrl || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
                       const contenido = selectedHtml || "";
-                      const ctaTexto = ctaEnabled ? (localCta || selectedCtaText || "") : "";
-                      const ctaUrl = ctaEnabled ? (localCtaUrl || selectedCtaUrl || "#") : "";
+                      const ctaTexto = previewCtaEnabled ? (localCta || selectedCtaText || "") : "";
+                      const ctaUrl = previewCtaEnabled ? (localCtaUrl || selectedCtaUrl || "#") : "";
                       const logoUrl = brandIdentity?.logoUrl || "";
                       if (tpl?.html) {
                         let rendered = tpl.html;
-                        if (!ctaEnabled) {
+                        if (!previewCtaEnabled) {
                           rendered = rendered.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '');
                           rendered = rendered.replace(/<tr[^>]*>[\s\S]*?\{\{CTA_TEXTO\}\}[\s\S]*?<\/tr>/gi, '');
+                          rendered = rendered.replace(/<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, inner) => {
+                            const imgMatch = inner.match(/<img[\s\S]*?>/i);
+                            return imgMatch ? imgMatch[0] : '';
+                          });
                         }
                         rendered = rendered.replace(/\{\{ASUNTO\}\}/g, asunto);
                         rendered = rendered.replace(/\{\{PREHEADER\}\}/g, preheader);
@@ -2065,7 +2070,7 @@ export default function CalendarView() {
                           ${asunto ? `<div style="padding:16px 24px;background:#002073;color:white"><h2 style="margin:0;font-size:18px">${asunto}</h2>${preheader ? `<p style="margin:4px 0 0;font-size:12px;opacity:0.8">${preheader}</p>` : ""}</div>` : ""}
                           <img src="${imagen}" style="width:100%;height:auto;display:block" onerror="this.alt='[Imagen no disponible]';this.style.background='#f0f0f0';this.style.padding='20px';this.style.textAlign='center';this.style.color='#999';this.style.fontSize='12px';this.style.minHeight='80px'" />
                           <div style="padding:24px">${contenido}</div>
-                          ${ctaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
+                          ${previewCtaEnabled && ctaTexto ? `<div style="padding:0 24px 24px;text-align:center"><a href="${ctaUrl}" style="display:inline-block;padding:12px 32px;background:#002073;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px">${ctaTexto}</a></div>` : ""}
                         </div>
                         <script>
                           function sendHeight(){var h=document.body.scrollHeight;parent.postMessage({type:'preview-height',height:h},'*');}

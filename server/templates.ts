@@ -120,7 +120,10 @@ export function renderTemplateWithContent(
   if (!ctaEnabled) {
     html = html.replace(/<!--\s*(?:BLOQUE\s*\d+\s*:\s*)?Botón CTA\s*-->\s*<tr>[\s\S]*?<\/tr>/i, '<!-- Botón CTA desactivado -->');
     html = html.replace(/<tr[^>]*>[\s\S]*?\{\{CTA_TEXTO\}\}[\s\S]*?<\/tr>/gi, '');
-    html = html.replace(/<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '');
+    html = html.replace(/<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, inner) => {
+      const imgMatch = inner.match(/<img[\s\S]*?>/i);
+      return imgMatch ? imgMatch[0] : '';
+    });
   }
 
   html = html.replace(/\{\{ASUNTO\}\}/g, asunto);

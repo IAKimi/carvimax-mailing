@@ -55,7 +55,7 @@ const EMPTY_NEW_CONTACT: NewContactForm = { name: "", email: "", position: "", s
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
-  const headerLine = lines[0];
+  const headerLine = lines[0].replace(/^\uFEFF/, '');
   const sep = headerLine.includes(";") ? ";" : ",";
   const headers = headerLine.split(sep).map(h => h.trim().replace(/^["']|["']$/g, ""));
   const rows: Record<string, string>[] = [];
@@ -77,7 +77,8 @@ function parseXLSX(data: ArrayBuffer): Record<string, string>[] {
   return jsonData.map(row => {
     const mapped: Record<string, string> = {};
     for (const key of Object.keys(row)) {
-      mapped[key] = String(row[key] ?? "").trim();
+      const cleanKey = String(key).replace(/^\uFEFF/, '').trim();
+      mapped[cleanKey] = String(row[key] ?? "").trim();
     }
     return mapped;
   }).filter(row => Object.values(row).some(v => v));
