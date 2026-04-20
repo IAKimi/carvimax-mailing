@@ -2330,10 +2330,10 @@ export async function registerRoutes(
 
       const imageFilename = resolved.imageUrl;
       const isLocalImage = !!imageFilename && !imageFilename.startsWith("http://") && !imageFilename.startsWith("https://") && !imageFilename.startsWith("data:");
-      const fileExists = isLocalImage
+      const fileExists: boolean | null = isLocalImage
         ? fs.existsSync(path.resolve(process.cwd(), "uploads", "campaigns", imageFilename!))
-        : !!imageFilename;
-      const urlSource = req
+        : null;
+      const source = req
         ? "request-header"
         : process.env.APP_URL
           ? "APP_URL env"
@@ -2346,13 +2346,13 @@ export async function registerRoutes(
         imagePublicUrl,
         fileExists,
         isLocalImage,
-        urlSource,
+        source,
         appUrlEnv: process.env.APP_URL || "(not set)",
         productionUrlEnv: process.env.PRODUCTION_URL || "(not set)",
         nodeEnv: process.env.NODE_ENV,
       });
 
-      if (isLocalImage && !fileExists) {
+      if (isLocalImage && fileExists === false) {
         const errMsg = `La imagen "${imageFilename}" no existe en el servidor (uploads/campaigns/). Regenera o sube la imagen de nuevo antes de enviar.`;
         console.error("[CAMPAIGN SEND] ABORT — archivo de imagen ausente:", { campaignId, imageFilename });
         return { success: false, error: errMsg };
