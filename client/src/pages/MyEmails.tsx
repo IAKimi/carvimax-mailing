@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw, Eye, Trash2, CheckSquare, Square } from "lucide-react";
+import { Mail, Clock, Check, CalendarDays, Send, ArrowRight, Loader2, ChevronDown, Lightbulb, Target, MessageSquare, Database, LayoutTemplate, Image, Users, Filter, X, RefreshCw, Eye, Trash2, CheckSquare, Square, AlertTriangle, XCircle, Ban } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -35,15 +35,22 @@ interface ContactDatabaseType {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
-  scheduled: { label: "Programado", color: "bg-blue-100 text-blue-700", icon: CalendarDays },
-  sent: { label: "Enviado", color: "bg-emerald-100 text-emerald-700", icon: Check },
   draft: { label: "Borrador", color: "bg-gray-100 text-gray-700", icon: Clock },
+  scheduled: { label: "Programado", color: "bg-blue-100 text-blue-700", icon: CalendarDays },
+  sending: { label: "Enviando", color: "bg-amber-100 text-amber-700", icon: Send },
+  sent: { label: "Enviado", color: "bg-emerald-100 text-emerald-700", icon: Check },
+  partial: { label: "Parcial", color: "bg-orange-100 text-orange-700", icon: AlertTriangle },
+  failed: { label: "Fallido", color: "bg-red-100 text-red-700", icon: XCircle },
+  cancelled: { label: "Cancelado", color: "bg-slate-100 text-slate-600", icon: Ban },
 };
+
+const STATUS_ORDER = ["draft", "scheduled", "sending", "sent", "partial", "failed", "cancelled"] as const;
 
 export default function MyEmails() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -136,7 +143,7 @@ export default function MyEmails() {
     queryKey: ["/api/contact-databases"],
   });
 
-  const campaignIds = useMemo(() => campaigns.filter(c => c.status === "sent" || c.status === "scheduled").map(c => c.id), [campaigns]);
+  const campaignIds = useMemo(() => campaigns.filter(c => c.status !== "draft").map(c => c.id), [campaigns]);
 
   const { data: allVersions = [] } = useQuery<CampaignVersion[]>({
     queryKey: ["/api/campaigns/versions-bulk", campaignIds.join(",")],
@@ -173,23 +180,56 @@ export default function MyEmails() {
     return map;
   }, [databases]);
 
-  const hasActiveFilter = dateFrom || dateTo;
+  const baseHistory = useMemo(
+    () => campaigns.filter(c => c.status !== "draft"),
+    [campaigns],
+  );
 
-  const history = campaigns
-    .filter(c => c.status === "sent" || c.status === "scheduled")
-    .filter(c => {
-      if (!hasActiveFilter) return true;
-      if (!c.scheduledAt) return false;
-      const d = new Date(c.scheduledAt).getTime();
-      if (dateFrom && d < new Date(dateFrom).getTime()) return false;
-      if (dateTo && d > new Date(dateTo + "T23:59:59").getTime()) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      const dateA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
-      const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
-      return dateB - dateA;
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of baseHistory) counts[c.status] = (counts[c.status] || 0) + 1;
+    return counts;
+  }, [baseHistory]);
+
+  const hasDateFilter = !!(dateFrom || dateTo);
+  const hasStatusFilter = selectedStatuses.size > 0;
+  const hasActiveFilter = hasDateFilter || hasStatusFilter;
+
+  const history = useMemo(() => {
+    return baseHistory
+      .filter(c => {
+        if (!hasStatusFilter) return true;
+        return selectedStatuses.has(c.status);
+      })
+      .filter(c => {
+        if (!hasDateFilter) return true;
+        if (!c.scheduledAt) return false;
+        const d = new Date(c.scheduledAt).getTime();
+        if (dateFrom && d < new Date(dateFrom).getTime()) return false;
+        if (dateTo && d > new Date(dateTo + "T23:59:59").getTime()) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
+        const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
+        return dateB - dateA;
+      });
+  }, [baseHistory, hasStatusFilter, selectedStatuses, hasDateFilter, dateFrom, dateTo]);
+
+  function toggleStatus(status: string) {
+    setSelectedStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
     });
+  }
+
+  function clearAllFilters() {
+    setDateFrom("");
+    setDateTo("");
+    setSelectedStatuses(new Set());
+  }
 
   function openResendPopup(campaign: Campaign) {
     const version = versionsByCampaign.get(campaign.id);
@@ -289,27 +329,39 @@ export default function MyEmails() {
                       variant="outline"
                       size="sm"
                       className="rounded-xl gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      disabled={deleteAllMutation.isPending}
+                      disabled={deleteAllMutation.isPending || deleteSelectedMutation.isPending || history.length === 0}
                     >
-                      {deleteAllMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      Vaciar Todo
+                      {(deleteAllMutation.isPending || deleteSelectedMutation.isPending) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      {hasActiveFilter ? `Vaciar lo filtrado (${history.length})` : "Vaciar Todo"}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent className="rounded-2xl">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>¿Vaciar todo el historial?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {hasActiveFilter
+                          ? `¿Eliminar las ${history.length} campañas filtradas?`
+                          : "¿Vaciar todo el historial?"}
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta acción eliminará TODOS los correos y sus versiones generadas. No se puede deshacer.
+                        {hasActiveFilter
+                          ? "Solo se eliminarán las campañas que coinciden con los filtros activos (estado y/o fechas). Las demás se conservan. No se puede deshacer."
+                          : "Esta acción eliminará TODOS los correos y sus versiones generadas. No se puede deshacer."}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
                       <AlertDialogAction
                         data-testid="button-confirm-clear-history"
-                        onClick={() => deleteAllMutation.mutate()}
+                        onClick={() => {
+                          if (hasActiveFilter) {
+                            deleteSelectedMutation.mutate(history.map(c => c.id));
+                          } else {
+                            deleteAllMutation.mutate();
+                          }
+                        }}
                         className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
                       >
-                        Sí, vaciar todo
+                        {hasActiveFilter ? `Sí, eliminar ${history.length}` : "Sí, vaciar todo"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -344,7 +396,7 @@ export default function MyEmails() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+              <div className="bg-card rounded-2xl border border-border p-4 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row items-end gap-3">
                   <div className="space-y-1 flex-1 w-full">
                     <Label className="text-xs text-muted-foreground">Desde</Label>
@@ -372,12 +424,48 @@ export default function MyEmails() {
                       variant="ghost"
                       size="sm"
                       className="rounded-xl gap-1 text-muted-foreground hover:text-foreground"
-                      onClick={() => { setDateFrom(""); setDateTo(""); }}
+                      onClick={clearAllFilters}
                     >
                       <X className="w-3.5 h-3.5" />
                       Limpiar
                     </Button>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground" id="status-filter-label">Estado</Label>
+                  <div className="flex flex-wrap gap-2" role="group" aria-labelledby="status-filter-label">
+                    {STATUS_ORDER.map(status => {
+                      const cfg = statusConfig[status];
+                      const Icon = cfg.icon;
+                      const count = statusCounts[status] || 0;
+                      const active = selectedStatuses.has(status);
+                      const disabled = count === 0 && !active;
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          data-testid={`chip-status-${status}`}
+                          onClick={() => toggleStatus(status)}
+                          disabled={disabled}
+                          aria-pressed={active}
+                          aria-label={`${cfg.label} (${count})`}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5 border transition-all ${
+                            active
+                              ? `${cfg.color} border-current shadow-sm`
+                              : disabled
+                                ? "bg-muted/40 text-muted-foreground/50 border-transparent cursor-not-allowed"
+                                : "bg-muted/60 text-muted-foreground border-transparent hover:bg-muted"
+                          }`}
+                        >
+                          <Icon className="w-3 h-3" />
+                          {cfg.label}
+                          <span className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-white/60" : "bg-background/80"}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -440,11 +528,7 @@ export default function MyEmails() {
                       </div>
                     )}
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      {campaign.status === "sent" ? (
-                        <Send className="w-5 h-5 text-primary" />
-                      ) : (
-                        <Clock className="w-5 h-5 text-primary" />
-                      )}
+                      <StatusIcon className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold truncate" data-testid={`text-campaign-subject-${campaign.id}`}>{subject}</h3>
@@ -510,20 +594,20 @@ export default function MyEmails() {
           <div className="text-center py-20">
             <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-2">
-              {hasActiveFilter ? "No hay correos en este rango de fechas" : "No hay correos en el historial"}
+              {hasActiveFilter ? "Ningún correo coincide con los filtros" : "No hay correos en el historial"}
             </h3>
             <p className="text-muted-foreground mb-4">
-              {hasActiveFilter ? "Prueba ajustando el filtro de fechas." : "Los correos que envíe o programe aparecerán aquí."}
+              {hasActiveFilter ? "Prueba quitando o ajustando los filtros activos." : "Los correos que envíe o programe aparecerán aquí."}
             </p>
             {hasActiveFilter ? (
               <Button
                 data-testid="button-clear-filter-empty"
                 variant="outline"
                 className="rounded-xl gap-2"
-                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                onClick={clearAllFilters}
               >
                 <X className="w-4 h-4" />
-                Limpiar filtro
+                Limpiar filtros
               </Button>
             ) : (
               <Link href="/calendar">
