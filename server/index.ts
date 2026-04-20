@@ -3,6 +3,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import helmet from "helmet";
 import path from "path";
+import fs from "fs";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -129,6 +130,31 @@ app.use((req, res, next) => {
 
   await seedProductionDatabase();
   await runMigrations();
+
+  const uploadsDir = path.resolve(process.cwd(), "uploads", "campaigns");
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const testFile = path.join(uploadsDir, `.startup_write_test_${Date.now()}`);
+    fs.writeFileSync(testFile, "ok");
+    fs.unlinkSync(testFile);
+    const fileCount = fs.readdirSync(uploadsDir).filter((f) => !f.startsWith(".")).length;
+    if (process.env.NODE_ENV === "production" && fileCount === 0) {
+      console.warn(
+        "[STORAGE WARNING] uploads/campaigns es escribible pero está VACÍO en producción. " +
+        "Si hay campañas con imágenes en la DB, el volumen Docker puede no estar montado correctamente en Coolify. " +
+        "Verificar: Coolify → Service → Volumes → /app/uploads debe apuntar a un directorio persistente del host.",
+      );
+    } else {
+      log(`uploads/campaigns OK — ${fileCount} archivo(s) presentes`);
+    }
+  } catch (err: any) {
+    console.error(
+      "[STORAGE ERROR] No se puede escribir en uploads/campaigns:", err.message,
+      "— Verificar permisos del volumen Docker en Coolify.",
+    );
+  }
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(

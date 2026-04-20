@@ -98,6 +98,27 @@ Comportamientos no obvios, decisiones contraintuitivas y trampas del proyecto. *
 - **Uploads**: Campaign images and logos stored in `uploads/` and served statically.
 - **Session Security**: Secure cookies and `trust proxy` enabled for Replit.
 
+#### Coolify — Volumen persistente para imágenes (CRÍTICO)
+Las imágenes generadas por IA se guardan en `/app/uploads/` dentro del contenedor Docker. Sin un volumen persistente, **cada redeploy borra todas las imágenes** y las URLs de campañas antiguas quedan rotas.
+
+**Configuración requerida en Coolify:**
+1. Ir a Coolify → Service → la aplicación → pestaña **Volumes** (o "Persistent Storage").
+2. Confirmar que existe un volumen con:
+   - **Container path**: `/app/uploads`
+   - **Host path**: un directorio persistente del host (ej. `/data/postialo/uploads` o el que asigne Coolify).
+3. Si no existe, crearlo y hacer redeploy.
+
+**Cómo verificar después de un redeploy:**
+- Abrir `https://<dominio>/api/health/storage` → debe retornar `"writable": true` y `"fileCount"` > 0 (si ya había imágenes antes).
+- Si `fileCount` es 0 inesperadamente, el volumen no está montado o se montó vacío — restaurar archivos desde backup o remontarlo correctamente.
+- Los logs de arranque del servidor también muestran `[STORAGE WARNING]` si el directorio está vacío en producción.
+
+**Prueba de persistencia manual:**
+1. Crear una campaña con imagen generada por IA.
+2. Verificar que la imagen se ve correctamente en `/uploads/campaigns/<archivo>`.
+3. Hacer un redeploy completo desde Coolify.
+4. Verificar que la misma URL de imagen sigue funcionando después del redeploy.
+
 ## External Dependencies
 - **PostgreSQL**: Primary database.
 - **OpenAI API**: AI text generation and template analysis.

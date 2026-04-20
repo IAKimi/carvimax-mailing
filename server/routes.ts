@@ -365,6 +365,35 @@ export async function registerRoutes(
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  app.get("/api/health/storage", (_req, res) => {
+    const uploadsDir = path.resolve(process.cwd(), "uploads", "campaigns");
+    const isProd = process.env.NODE_ENV === "production";
+    try {
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const testFile = path.join(uploadsDir, `.write_test_${Date.now()}`);
+      fs.writeFileSync(testFile, "ok");
+      fs.unlinkSync(testFile);
+      const files = fs.readdirSync(uploadsDir).filter((f) => !f.startsWith("."));
+      res.json({
+        status: "ok",
+        writable: true,
+        ...(isProd ? {} : { directory: uploadsDir }),
+        fileCount: files.length,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        status: "error",
+        writable: false,
+        ...(isProd ? {} : { directory: uploadsDir }),
+        error: err.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
       const input = registerSchema.parse(req.body);
