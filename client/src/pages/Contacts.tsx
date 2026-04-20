@@ -96,6 +96,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
   const [addingContact, setAddingContact] = useState(false);
   const [newContact, setNewContact] = useState<NewContactForm>(EMPTY_NEW_CONTACT);
   const [deletingContactId, setDeletingContactId] = useState<number | null>(null);
+  const [importColumnError, setImportColumnError] = useState<string[] | null>(null);
   const csvAppendRef = useRef<HTMLInputElement>(null);
   const csvOverwriteRef = useRef<HTMLInputElement>(null);
 
@@ -149,10 +150,12 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
 
   const csvImportMutation = useMutation({
     mutationFn: async ({ contacts: rows, mode }: { contacts: Record<string, string>[]; mode: string }) => {
+      setImportColumnError(null);
       const res = await apiRequest("POST", `/api/contact-databases/${db.id}/import`, { contacts: rows, mode });
       return res.json();
     },
     onSuccess: (result: any) => {
+      setImportColumnError(null);
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases", db.id, "contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
       const parts = [`${result.imported} contacto(s) importado(s).`];
@@ -161,6 +164,18 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
       toast({ title: "Importación completada", description: parts.join(" ") });
     },
     onError: (err: Error) => {
+      const marker = "Las columnas detectadas son:";
+      const markerIdx = err.message.indexOf(marker);
+      if (markerIdx !== -1) {
+        const rest = err.message.slice(markerIdx + marker.length).trim();
+        const colsPart = rest.split(/\.\s/)[0];
+        const cols = colsPart.split(/",\s*"/).map((c) => c.replace(/^"|"$/g, "").trim()).filter(Boolean);
+        if (cols.length > 0) {
+          setImportColumnError(cols);
+          toast({ title: "Columna de correo no encontrada", description: "Revisá las columnas detectadas abajo.", variant: "destructive" });
+          return;
+        }
+      }
       toast({ title: "Error de importación", description: err.message, variant: "destructive" });
     },
   });
@@ -332,6 +347,44 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           }}
         />
       </div>
+
+      {importColumnError && (
+        <div
+          data-testid="import-column-error-panel"
+          className="rounded-md border border-destructive/50 bg-destructive/10 p-4 flex gap-3"
+        >
+          <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-destructive text-sm">No se encontró una columna de correo electrónico</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              El archivo tiene las siguientes columnas detectadas:
+            </p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {importColumnError.map((col) => (
+                <li
+                  key={col}
+                  data-testid={`import-detected-column-${col}`}
+                  className="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground border border-border"
+                >
+                  {col}
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted-foreground mt-3">
+              Renombrá la columna de correo como <span className="font-semibold text-foreground">email</span> o <span className="font-semibold text-foreground">correo</span> en tu archivo y volvé a importar.
+            </p>
+          </div>
+          <button
+            data-testid="button-dismiss-import-column-error"
+            onClick={() => setImportColumnError(null)}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Cerrar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="rounded-md border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
