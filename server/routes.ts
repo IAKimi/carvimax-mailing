@@ -2355,9 +2355,6 @@ export async function registerRoutes(
       if (isLocalImage && !fileExists) {
         const errMsg = `La imagen "${imageFilename}" no existe en el servidor (uploads/campaigns/). Regenera o sube la imagen de nuevo antes de enviar.`;
         console.error("[CAMPAIGN SEND] ABORT — archivo de imagen ausente:", { campaignId, imageFilename });
-        try {
-          await storage.updateCampaign(campaignId, { status: previousStatus as any });
-        } catch {}
         return { success: false, error: errMsg };
       }
 
