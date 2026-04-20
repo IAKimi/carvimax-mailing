@@ -1,0 +1,119 @@
+Acá tenés el mensaje. Está pensado para que el otro agente lo lea como un briefing técnico completo, entienda exactamente el contexto que le faltaba, y sepa qué hacer y qué NO hacer. Le incluyo al final una sección explícita pidiéndole que devuelva preguntas si algo no le cierra antes de tocar código.
+
+📨 BRIEFING TÉCNICO — Continuación de diagnóstico Bug #1 (CSV) y Bug #2 (imagen desaparece)
+Hola. Soy el agente original con el que el dueño del proyecto trabajó la planificación, migración y arquitectura inicial de PostIAlo Mailing. El dueño te está reenviando este mensaje porque tu diagnóstico anterior fue parcialmente correcto pero asumiste un entorno de producción equivocado. Antes de que escribas una sola línea de código, necesito que asimiles este contexto y, si tenés cualquier duda después de leerlo, respondas con preguntas en otro prompt en vez de avanzar a ciegas. El dueño prefiere una iteración más de aclaración antes que un fix mal orientado que después haya que revertir.
+
+1. Contexto de infraestructura (lo más crítico que no sabías)
+1.1. Producción NO está en Replit Deployments
+La aplicación está deployada en un VPS contratado, gestionado con Coolify. El flujo de despliegue es:
+
+El dueño desarrolla en Replit (este entorno).
+Push a un repositorio de GitHub vía la extensión git de Replit.
+Una GitHub App instalada en el VPS detecta el push.
+Coolify rebuildea el contenedor Docker y redeploya automáticamente.
+Implicaciones que afectan tu código:
+
+Las variables de entorno propias de Replit (REPLIT_DOMAINS, REPLIT_DB_URL, REPL_ID, etc.) no existen en producción. Cualquier código que dependa de ellas como fallback va a romperse silenciosamente.
+Replit Object Storage no aplica. Cualquier API o SDK específico de la plataforma Replit no se puede usar en producción.
+El dominio público real de producción es https://mailing.postialo.com.
+El filesystem del contenedor Docker es efímero entre redeploys a menos que Coolify tenga configurado un volumen persistente para la ruta correspondiente. Hoy desconocemos si /app/uploads está montado como volumen — eso hay que verificarlo con el dueño antes de asumir nada.
+1.2. El bundle de producción es CommonJS, no ESM
+El build genera dist/index.cjs.
+En CJS: __dirname y __filename funcionan nativamente, import.meta.url está undefined en runtime y rompe.
+Hubo un incidente reciente donde otro agente reemplazó __dirname por fileURLToPath(import.meta.url) en server/seed.ts "para modernizar" — eso crasheó el contenedor en Coolify y hubo que revertir. No repitas ese error. Si tu código nuevo necesita resolver paths, usá __dirname directamente.
+1.3. Stack y convenciones
+Backend: Express + TypeScript + Drizzle ORM (PostgreSQL).
+Frontend: React + Vite + wouter + TanStack Query v5 + shadcn.
+Schema único compartido en shared/schema.ts (drizzle-zod).
+Proveedores de email: Brevo + Mailchimp (per-user, per-campaign selection). El envío real va directo a api.brevo.com/v3 o a Mailchimp — Make.com NO se usa para envíos, solo para verificación de email en registro.
+IA: OpenAI gpt-4.1-mini (texto principal) + Gemini gemini-2.0-flash (fallback + generación de imágenes).
+UI 100% en español (variante salvadoreña/latam, tono "vos" o "usted" según contexto).
+2. Validación de tu diagnóstico anterior
+2.1. Bug #1 (CSV) → Tu diagnóstico es CORRECTO ✅
+La causa raíz es exactamente lo que identificaste: el parser solo reconoce email, Email, correo, Correo (case-sensitive, exact match). Cualquier variante real del mundo (CORREO, Correo Electrónico, EMAIL, e-mail, Mail) y especialmente el caracter BOM \uFEFF que Excel/Google Sheets prependen a la primera columna al exportar a CSV, hacen que la columna no matchee y todas las filas devuelvan email inválido "".
+
+Esto está confirmado con evidencia repetida en logs:
+
+17-Apr 22:31–22:34 PM, usuario mercadeo@red.com.sv (id 25), 5 intentos consecutivos de importar 39 contactos a base #27 → 5 × HTTP 400 con la misma estructura de error.
+20-Apr 15:23–15:24 PM, mismo usuario, base #29 ("test"), 3 intentos consecutivos de importar 2 contactos → 3 × HTTP 400. El usuario tuvo que cargar los 2 contactos manualmente (POST /api/contact-databases/29/contacts) para poder seguir.
+Te confirmo: este fix está aprobado para implementar. La solución que propusiste (normalizar claves: lowercase + strip BOM \uFEFF + strip acentos + trim de espacios + lista expandida de aliases incluyendo correo electrónico, e-mail, mail, nombre completo, puesto) es la dirección correcta. Aplicalo simétricamente a email, name, position y segment.
+
+Una restricción adicional: el dueño también pidió hace tiempo (pero quedó en backlog) que el importador muestre al usuario qué columnas detectó del archivo antes de procesar, y dé un mensaje específico si ninguna columna matchea como email (algo como "No encontramos una columna llamada email/correo. Las columnas que detectamos son: [X, Y, Z]. Renombrala con uno de los nombres aceptados o agregala manualmente"). Esto es un nice-to-have, no lo metas en el mismo PR del fix de normalización. Limitate al fix de normalización ahora; el preview/mapeo de columnas puede ser una tarea separada después.
+
+2.2. Bug #2 (imagen desaparece al "Probar") → Tu diagnóstico es PARCIALMENTE INCORRECTO ⚠️
+Vos concluiste que la causa más probable es que la carpeta uploads/ se recicla en Replit Deployments y propusiste migrar a Object Storage de Replit. Eso no aplica por dos razones:
+
+Razón 1 — Infraestructura: como expliqué arriba, no estamos en Replit Deployments. Replit Object Storage no es una opción. Las opciones reales para storage persistente serían:
+
+Configurar volumen persistente en Coolify para /app/uploads (cambio de config del VPS, sin tocar código).
+Migrar a S3 / Cloudflare R2 / Backblaze B2 / MinIO autohospedado (cambio de código grande).
+Razón 2 — Timing del síntoma (esto es lo más importante): el dueño reportó que la imagen desaparece al hacer click en "Probar" dentro del editor, en la misma sesión, sin que haya ocurrido ningún redeploy entre la generación de la imagen y el "Probar". Si la causa fuera realmente que el archivo físico se borra del disco, ese síntoma no podría manifestarse en una sola sesión continua sin reinicio del contenedor. El bug es de código, no de infraestructura. O al menos, antes de descartar que sea de código, hay que investigarlo.
+
+2.3. Hipótesis específicas que necesito que investigues ANTES de proponer cualquier fix del Bug #2
+Por favor, investigá estas 4 hipótesis en orden y traeme un reporte con lo que encontraste por cada una. No escribas código de fix todavía. Solo lectura, búsqueda, queries SQL read-only y razonamiento.
+
+Hipótesis A — Inconsistencia en el formato de imageUrl entre tipos de versión
+
+Evidencia: en logs históricos vi que las versiones con type: "initial" guardan imageUrl como filename pelado (ej: "campaign_47_322f9b9e8630746874fb2b3a.jpg"), mientras que las versiones con type: "image" guardan URL completa (ej: "https://mailing.postialo.com/uploads/campaigns/campaign_47_9f5bf6bf90e7f08d1556d1da.jpg").
+
+Tareas:
+
+Verificá en shared/schema.ts y en el código que escribe estas filas (probablemente server/routes.ts y server/services/*) si esto es intencional o un bug histórico.
+Buscá getResolvedCampaignContent (la función que mencionaste antes) y revisá si normaliza imageUrl a URL absoluta cuando está en formato pelado, o si lo inserta tal cual en el HTML.
+Hacé una query a la DB: SELECT id, "campaignId", "versionNumber", type, "imageUrl" FROM campaign_versions WHERE "imageUrl" IS NOT NULL ORDER BY id DESC LIMIT 30; y traeme el output. Quiero ver el patrón actual.
+Hipótesis B — El endpoint que dispara "Probar" en el frontend es distinto al preview del editor
+
+Tareas:
+
+Encontrá en el frontend (probablemente client/src/pages/* o client/src/components/campaigns/*) qué endpoint del backend llama el botón "Probar" exactamente.
+Encontrá qué endpoint usa el preview del editor de imagen+texto (el que SÍ muestra la imagen correctamente).
+Compará: ¿son el mismo endpoint? ¿son endpoints distintos? ¿uno usa el contenido en memoria del frontend y el otro lee de DB?
+Si son distintos, comparame el HTML que devuelve cada uno para una misma campaña/versión y mostrame el diff donde está el <img>.
+Hipótesis C — Plantilla del usuario sin placeholder {{IMAGEN}} o con el placeholder en posición rota
+
+Tareas:
+
+Hacé una query: SELECT id, name, html FROM templates WHERE "userId" = 25; (templates del usuario INTELFON id 25, que es donde está reproduciéndose el bug).
+Buscá literalmente la cadena {{IMAGEN}} (o como sea que se llame el placeholder de imagen — verificá en el código de render qué placeholder usa) en cada plantilla.
+Si el placeholder NO existe en la plantilla, ese ES el bug y la solución es muy distinta (validación al guardar plantilla + UI que avise al usuario).
+Si el placeholder existe, renderizá la plantilla manualmente con un JSON de versión type:"image" y mostrame el HTML resultante. Mirá si el <img src="..."> queda bien armado o queda con src="" / src="undefined" / src="campaign_X_xxx.jpg" (path relativo roto).
+Hipótesis D — getImagePublicUrl cae a fallback REPLIT_DOMAINS que no existe en VPS
+
+Tareas:
+
+Encontrá la función getImagePublicUrl (mencionaste que estaba relacionada). Probablemente vive en server/routes.ts, server/utils/ o server/services/.
+Mostrame el código completo de la función.
+Mostrame el código del lugar donde se llama desde sendCampaignDirect (mencionaste línea ~2250 de server/routes.ts) y desde donde sea que la llame el endpoint de preview/probar.
+Verificá si el fallback final, cuando no hay req ni REPLIT_DOMAINS, devuelve algo sensato o devuelve string vacío / undefined / localhost.
+3. Lo que SÍ podés implementar sin esperar respuesta
+✅ Bug #1 (normalización de headers CSV) — implementalo. Es un cambio aislado al código del importador, no toca infra, no toca DB, no toca el contrato de la API. Recordá:
+
+Strip BOM \uFEFF al inicio de la primera key
+Lowercase
+Strip acentos (á→a, é→e, etc., usando String.prototype.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+Trim espacios
+Aceptar aliases: para email → email, correo, correo electronico, e-mail, mail. Para name → name, nombre, nombre completo, nombres. Para position → position, cargo, puesto. Para segment → segment, segmento, categoria, tipo.
+Aplicalo tanto al parser de CSV como al de Excel (xlsx library). El dueño confirmó que ya se había configurado soporte para Excel pero hay que verificar que funcione end-to-end.
+Agregá tests unitarios si el proyecto los tiene (verificá package.json).
+❌ Bug #2 — NO escribas código todavía. Devolveme el reporte de las 4 hipótesis primero.
+
+4. Restricciones absolutas (no negociables)
+NO modifiques package.json sin pedir permiso explícito al dueño.
+NO uses import.meta.url en código que vaya al bundle de producción. Usá __dirname.
+NO propongas Replit Object Storage, Replit Deployments, ni ninguna API específica de la plataforma Replit para producción.
+NO uses npm run db:push --force sin antes mostrarle al dueño qué cambios va a aplicar y obtener su OK explícito. La DB de producción tiene datos reales de clientes (RED Intelfon ya tiene 3 bases con ~70 contactos y ha enviado campañas reales).
+NO toques vite.config.ts, server/vite.ts, drizzle.config.ts salvo que sea estrictamente necesario y lo justifiques.
+NO crees archivos de documentación (.md, README*) salvo que el dueño los pida explícitamente.
+NO refactorices código que no esté relacionado con estos dos bugs, aunque veas cosas que te molesten. El dueño quiere fixes quirúrgicos, no rewrites.
+5. Formato esperado de tu respuesta
+Si te queda cualquier duda después de leer esto — sobre el contexto, la infra, las hipótesis, el alcance, qué tocar y qué no — respondé con preguntas en otro prompt antes de avanzar. No empieces a editar archivos hasta tener claridad. El dueño prefiere una iteración más de Q&A antes de un fix mal orientado.
+
+Si todo está claro, tu próxima respuesta debería contener:
+
+Confirmación explícita de que entendiste el contexto de VPS + Coolify + CJS bundle.
+Plan de implementación del Bug #1 (lista de archivos que vas a tocar, qué cambios harás en cada uno, qué tests vas a agregar).
+Reporte de investigación de las 4 hipótesis del Bug #2 (A, B, C, D), con los outputs de las queries SQL, los snippets de código relevantes que encontraste, y tu conclusión sobre cuál hipótesis es la causa más probable. Si falta información para concluir, decilo.
+Una recomendación clara sobre el fix del Bug #2 que el dueño y yo podamos evaluar antes de aprobar.
+Después de que el dueño y yo aprobemos, recién ahí escribís el fix del Bug #2.
+
+Gracias. Quedo atento a tu respuesta.

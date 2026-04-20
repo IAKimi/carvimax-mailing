@@ -1,0 +1,48 @@
+📝 Respuesta lista para mandarle al agente
+Acá tenés el texto que le tenés que pegar de vuelta. Es corto, claro y le da las 3 confirmaciones que pidió + autorización para Bug #1:
+
+Aprobaciones y datos confirmados — soy el agente original, vengo de revisar tu reporte con el dueño:
+
+✅ Bug #1 (CSV/Excel): Plan aprobado. Procedé cuando el dueño te ponga en Build mode. Cambios autorizados:
+
+server/routes.ts:1394-1411 (función normalizeRowKeys + error específico con columnas detectadas)
+client/src/pages/Contacts.tsx:55-84 (strip BOM en parseCSV y parseXLSX)
+No agregues tests (no hay framework configurado y no quiero tocar package.json).
+Validación manual con CSV exportado desde Excel (que tiene BOM) y desde Google Sheets.
+✅ Análisis del Bug #2: Diagnóstico aceptado. Bugs C y D son ambos reales y se acumulan. El usuario está percibiendo:
+
+Imagen desaparece en "Probar" → Bug C (regex CTA).
+Imagen llega rota a la bandeja del destinatario → Bug D (APP_URL faltante en VPS).
+📋 Datos que el dueño te va a pasar en el próximo prompt:
+
+HTML completo del template id 67.
+Confirmación de si existe APP_URL en el .env del VPS y a qué apunta.
+Output de esta query para confirmar estado de CTA en versiones enviadas:
+SELECT id, "campaignId", "versionNumber",
+       "contentJson"->>'cta_enabled' as cta_enabled,
+       "contentJson"->>'cta_text' as cta_text
+FROM campaign_versions
+WHERE "campaignId" IN (47, 49) AND "isSelected" = true;
+
+🛠️ Plan de fix Bug #2 pre-aprobado (lo confirmás cuando llegue la info):
+
+Hacer la regex de cleanup CTA preserve-image-aware: replace(/<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi, '$1') — eso desenvuelve lo que esté adentro (incluido <img>) en lugar de eliminarlo.
+Sincronizar cta_enabled editor↔backend (ver tu propia recomendación).
+APP_URL en VPS lo hace el dueño manualmente en Coolify.
+console.error defensivo en getImagePublicUrl cuando baseUrl resuelva a localhost (al boot del server y en el primer envío fallido).
+❌ NO incluir en este PR: la migración de data legacy de filas con URL absoluta. Dejala documentada como follow-up.
+
+❌ NO actualizar el sistema de tareas con esta info — el dueño quiere mantener una sola fuente de verdad y va a manejar la coordinación desde acá.
+
+Cuando recibas las 3 confirmaciones, procedé:
+
+Primero implementás y testeás Bug #1 (independiente, podés pushear ese commit por separado para reducir blast radius).
+Segundo, con la info confirmada, implementás Bug #2 (regex + sync ctaEnabled + console.error defensivo).
+Quedo atento. Si aparece algo inesperado durante la implementación o la query SQL revela algo raro, parate y preguntá antes de codear.
+
+🤔 Mi recomendación de qué hacer ahora
+Ahora mismo (5-10 min): andá a Coolify y verificá si APP_URL está seteada. Si no está, agregala con valor https://mailing.postialo.com y reiniciá el servicio. Eso ya arregla los envíos futuros sin esperar nada de código. Es la acción de mayor impacto y menor riesgo que podés tomar hoy.
+Mientras tanto (5 min): copiá el HTML de la plantilla 67 (Opción A es la más rápida — desde el editor de plantillas en producción).
+Mientras tanto (2 min): corré la query SQL de las versiones de campaña 47/49 contra la DB de producción y guardá el output.
+Después (1 min): pegale al otro agente el mensaje que te armé arriba + los 3 datos.
+Mientras el agente codea: el Bug #1 va a estar listo en un push corto, lo pueden mergear y desplegar primero. El Bug #2 va en un segundo push una vez validado el plan con la info real.

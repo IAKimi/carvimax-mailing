@@ -1,0 +1,45 @@
+Cambio de enfoque: el dueño no quiere acciones manuales (ni Coolify, ni copiar template, ni queries SQL). Hacé el fix 100% code-driven, defensivo, sin esperar los 3 datos. Procedé así cuando te pase a Build mode:
+
+Push 1 — Bug #1 (CSV/Excel): tal como acordamos, sin cambios.
+
+Push 2 — Bug #2 defensivo, todo en un solo PR:
+
+Regex CTA preserve-image-aware: en server/templates.ts línea ~120, modificá la regex que elimina <a href="...{{CTA_URL}}...">...</a> para que primero extraiga cualquier <img> que tenga adentro y lo conserve desenvuelto. Algo en la línea de:
+
+html = html.replace(
+  /<a[^>]*href=["'][^"']*\{\{CTA_URL\}\}[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi,
+  (match, inner) => {
+    const imgMatch = inner.match(/<img[\s\S]*?>/i);
+    return imgMatch ? imgMatch[0] : '';
+  }
+);
+
+Validá la lógica con tu propio criterio — la idea es: si hay <img> adentro, conservarla; si no, eliminar todo el bloque como antes.
+
+Fallback getImagePublicUrl en producción: en server/routes.ts línea ~235, cambiá el último fallback. En vez de:
+
+const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
+baseUrl = `https://${domain}`;
+
+Que sea:
+
+if (process.env.NODE_ENV === 'production') {
+  baseUrl = 'https://mailing.postialo.com';
+} else {
+  const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000";
+  baseUrl = domain.startsWith('localhost') ? `http://${domain}` : `https://${domain}`;
+}
+
+Mantené la prioridad: req.headers.host > APP_URL/PRODUCTION_URL > nuevo fallback hardcodeado por entorno. Así, si en algún momento se setea APP_URL en Coolify, la usa; si no, ya no rompe producción.
+
+Sync cta_enabled editor↔backend: hacé que el srcDoc del editor preview lea el cta_enabled de la versión guardada (no del default true del estado React local) y aplique el mismo cleanup que el backend. Así el WYSIWYG es real: lo que ve el usuario en el editor = lo que recibe el destinatario.
+
+console.error defensivo en getImagePublicUrl: si después de toda la cadena baseUrl contiene localhost y NODE_ENV === 'production', loggear un error claro:
+
+if (process.env.NODE_ENV === 'production' && baseUrl.includes('localhost')) {
+  console.error('[getImagePublicUrl] CRITICAL: localhost fallback en producción. Filename:', filename);
+}
+
+Sin migración de data legacy. Sin tocar el sistema de tareas. Sin tests (no hay framework configurado).
+
+Riesgo asumido: si el diagnóstico estuviera parcialmente equivocado (ej: la imagen del template no está dentro del <a> del CTA), el fix #1 igual no rompe nada (la regex sigue funcionando para casos sin imagen) y el fix #2 igual mejora el estado actual (fallback localhost ya no es viable). Si el bug persiste post-deploy, escalamos con los 3 datos. Procedé.
