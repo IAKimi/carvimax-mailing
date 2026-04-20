@@ -1,0 +1,70 @@
+Contexto: hallazgo definitivo del bug de imagen + plan de fix complementario
+
+Conseguí el HTML real del correo recibido por el destinatario (vía "Mostrar original" de Gmail). El diagnóstico está 100% confirmado y además aparece un patrón importante para el siguiente push.
+
+🔍 Lo que vimos en el HTML del correo entregado
+El <img src="..."> de la imagen hero apunta a:
+
+https://hfddhgb.r.af.d.sendibt2.com/im/7533761/dc4d6bfd91fce5b7ebfcc0fb29a98ad71fe70e256cff2e2e6686192288e849ca.jpg?e=...
+
+Eso es el proxy de imágenes de Brevo (sendibt2.com es su dominio de tracking, ex-Sendinblue). Brevo intercepta todas las imágenes al procesar el HTML: las descarga del origen, las cachea en su CDN, y reescribe el src para apuntar a su proxy. Cuando Brevo no puede descargar el origen, igual genera el proxy URL pero internamente sirve un 404. Eso es lo que está pasando con la hero image.
+
+🧩 Cadena completa del fallo
+App genera HTML con <img src="https://[lo-que-haya-construido-getImagePublicUrl]/uploads/campaigns/campaign_53_xxx.jpg">.
+Brevo recibe el HTML, intenta fetchar la imagen del origen.
+Brevo no la pudo bajar (URL mal armada por APP_URL incorrecta + envío sin req).
+Brevo igual reescribe el src a su proxy y manda el correo.
+Gmail recibe, intenta proxearla a través de su propio proxy (ci3.googleusercontent.com/meips/...), Brevo le devuelve 404 → Gmail también devuelve 404.
+Destinatario ve placeholder de imagen rota.
+🎯 Pista clave: por qué el LOGO sí funciona pero la hero no
+En el mismo correo hay DOS imágenes proxeadas por Brevo:
+
+Imagen	Estado en bandeja
+Logo RED Intelfon	✅ Se ve perfecto
+Imagen hero	❌ 404
+Ambos archivos se hostean en el mismo lugar (mailing.postialo.com/uploads/...). La diferencia está en cuándo se construye la URL absoluta. Mirá el código:
+
+Logo (server/routes.ts línea 1519): cuando el usuario sube el logo, el código guarda en DB la URL completa con dominio ya pegado: ${protocol}://${host}/uploads/logos/${filename}. Como el upload es un POST con req disponible, la URL queda baked en la base. Después, al renderizar el email, se usa tal cual sin recalcular. Cero dependencia de env vars o de req.
+
+Imagen de campaña: se guarda en DB el filename pelado (ej campaign_53_xxx.jpg). La URL absoluta se construye al momento del envío vía getImagePublicUrl(filename) SIN req, dependiendo de APP_URL o del fallback. Por eso rompe.
+
+Esto explica por qué el preview funciona (calcula con req real) pero el envío no (sin req, dependía de env var rota).
+
+🚀 Plan de trabajo
+Push 4 — el que ya estás haciendo (no cambia)
+Pasar req desde POST /api/campaigns/:id/send (línea ~2548) a sendCampaignDirect. Eso resuelve el envío manual. Procedé tal como acordamos.
+
+Push 5 — Opción A: bakear URL absoluta al generar imagen (defensa profunda)
+Después del Push 4, hacé este cambio adicional. Es complementario, no contradictorio. La idea: replicar el patrón del logo en las imágenes de campaña.
+
+Cambio: en TODOS los endpoints donde se genera/guarda una imagen de campaña (donde req SÍ está disponible), guardá la URL absoluta y completa en la DB en vez del filename pelado. Específicamente, los puntos a tocar son los updateCampaign({ selectedImageUrl: imageUrl }) que vi grepeando:
+
+server/routes.ts:781 (después de generación inicial)
+server/routes.ts:929 (edit-image-advanced o equivalente)
+server/routes.ts:990
+server/routes.ts:1024
+server/routes.ts:1123
+Y también donde se crea el campaign_versions.imageUrl por primera vez (después de generar imagen IA o subir manual).
+En vez de guardar imageUrl: filename, guardá imageUrl: getImagePublicUrl(filename, req) — eso devuelve la URL absoluta con dominio. Así, cuando después se lea desde sendCampaignDirect, sea con o sin req, el valor en DB ya es absoluto y getImagePublicUrl lo deja pasar tal cual (línea 236 ya tiene ese fast-path: if (filename.startsWith("https://")) return filename).
+
+Beneficio: elimina permanentemente la categoría completa de bugs "URL construida mal al momento del envío". Funciona incluso si:
+
+APP_URL está mal seteada o ausente.
+El scheduler corre sin req.
+Se agrega una nueva ruta de envío en el futuro.
+El sistema queda con dos capas de defensa independientes (cinturón + tirantes):
+
+Push 4: paridad preview/envío en envío manual.
+Push 5: URL baked en DB, no se recalcula nunca más.
+Importante: NO migrar URLs viejas en DB. El código ya maneja ambos formatos correctamente (filename pelado y URL absoluta) gracias al fast-path de la línea 236. Las imágenes nuevas se guardan con URL absoluta, las viejas siguen funcionando con el cálculo dinámico. Cero migración, cero riesgo.
+
+⚠️ Cosas que NO hay que hacer
+NO migrar data legacy en DB.
+NO cambiar el storage físico (sigue siendo /app/uploads/campaigns/ en el volumen Coolify).
+NO mover a CDN externo (eso es otra discusión, para más adelante).
+NO tocar el flujo del logo (ya funciona bien).
+NO meter Push 4 y Push 5 juntos: hacelos en commits separados para reducir blast radius. Push 4 primero, validás, después Push 5.
+📊 Estado paralelo
+El dueño está corrigiendo APP_URL=https://mailing.postialo.com en Coolify ahora mismo. Eso, combinado con Push 4 + Push 5, deja el sistema robusto por tres frentes independientes.
+
+Avisame cuando Push 4 esté listo, validamos, y procedemos con Push 5.
