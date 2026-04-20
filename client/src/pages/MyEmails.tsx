@@ -143,7 +143,7 @@ export default function MyEmails() {
     queryKey: ["/api/contact-databases"],
   });
 
-  const campaignIds = useMemo(() => campaigns.filter(c => c.status !== "draft").map(c => c.id), [campaigns]);
+  const campaignIds = useMemo(() => campaigns.map(c => c.id), [campaigns]);
 
   const { data: allVersions = [] } = useQuery<CampaignVersion[]>({
     queryKey: ["/api/campaigns/versions-bulk", campaignIds.join(",")],
@@ -180,10 +180,7 @@ export default function MyEmails() {
     return map;
   }, [databases]);
 
-  const baseHistory = useMemo(
-    () => campaigns.filter(c => c.status !== "draft"),
-    [campaigns],
-  );
+  const baseHistory = useMemo(() => campaigns, [campaigns]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
