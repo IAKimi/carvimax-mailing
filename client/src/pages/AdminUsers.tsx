@@ -17,7 +17,7 @@ import {
 import {
   Users, Search, Pencil, KeyRound, Eye, Trash2, Loader2, Shield, BarChart3,
   Mail, CalendarDays, LayoutTemplate, Database, UserX, Plus, Download, Power,
-  ArrowUpDown, Activity, UserPlus, CheckCircle, XCircle
+  ArrowUpDown, Activity, UserPlus, CheckCircle, XCircle, HardDrive, AlertTriangle, RefreshCw
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getQueryFn } from "@/lib/queryClient";
@@ -52,6 +52,15 @@ type ActivityItem = {
   userEmail: string;
 };
 
+type StorageHealth = {
+  status: "ok" | "error";
+  writable: boolean;
+  fileCount?: number;
+  directory?: string;
+  error?: string;
+  timestamp: string;
+};
+
 export default function AdminUsers() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -78,6 +87,12 @@ export default function AdminUsers() {
   const { data: stats } = useQuery<AdminStats>({ queryKey: ["/api/admin/stats"], enabled: isAdmin === true });
   const { data: allUsers = [], isLoading } = useQuery<UserWithStats[]>({ queryKey: ["/api/admin/users"], enabled: isAdmin === true });
   const { data: activity = [] } = useQuery<ActivityItem[]>({ queryKey: ["/api/admin/activity"], enabled: isAdmin === true });
+  const { data: storageHealth, isLoading: storageLoading, isError: storageError, dataUpdatedAt: storageUpdatedAt } = useQuery<StorageHealth>({
+    queryKey: ["/api/health/storage"],
+    enabled: isAdmin === true,
+    refetchInterval: 2 * 60 * 1000,
+    retry: 1,
+  });
 
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
@@ -333,6 +348,61 @@ export default function AdminUsers() {
               <div className="text-xs text-muted-foreground">Bases de Datos</div>
             </Card>
           </div>
+        )}
+
+        {isAdmin && (
+          <Card
+            data-testid="card-storage-health"
+            className={`p-4 border ${storageError || (storageHealth && !storageHealth.writable) ? "border-red-400 bg-red-50 dark:bg-red-950/20" : storageHealth?.writable ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" : "border-border"}`}
+          >
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <HardDrive className={`w-5 h-5 ${storageError || (storageHealth && !storageHealth.writable) ? "text-red-600" : storageHealth?.writable ? "text-emerald-600" : "text-muted-foreground"}`} />
+                <span className="font-semibold text-sm">Almacenamiento</span>
+                {storageLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+              </div>
+              <div className="flex items-center gap-4 flex-wrap">
+                {storageHealth && (
+                  <>
+                    <div className="flex items-center gap-1.5" data-testid="status-storage-writable">
+                      {storageHealth.writable ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-600" />
+                      )}
+                      <span className={`text-sm font-medium ${storageHealth.writable ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                        {storageHealth.writable ? "Escritura OK" : "Sin escritura"}
+                      </span>
+                    </div>
+                    <div className="text-sm text-muted-foreground" data-testid="text-storage-file-count">
+                      <span className="font-medium text-foreground">{storageHealth.fileCount ?? 0}</span> archivos
+                    </div>
+                    {storageUpdatedAt > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="text-storage-last-checked">
+                        <RefreshCw className="w-3 h-3" />
+                        {new Date(storageUpdatedAt).toLocaleTimeString("es-ES")}
+                      </div>
+                    )}
+                  </>
+                )}
+                {storageError && !storageLoading && (
+                  <span className="text-sm text-red-600 font-medium" data-testid="text-storage-error">No se pudo verificar</span>
+                )}
+              </div>
+            </div>
+            {(storageError || (storageHealth && !storageHealth.writable)) && (
+              <div className="mt-3 flex items-start gap-2 rounded-md bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 px-3 py-2" data-testid="alert-storage-warning">
+                <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  {storageHealth?.error
+                    ? `Error de almacenamiento: ${storageHealth.error}`
+                    : storageError
+                    ? "No se pudo conectar con el servicio de almacenamiento. Las imágenes podrían no guardarse correctamente."
+                    : "El directorio de uploads no tiene permisos de escritura. Las imágenes pueden perderse tras un redespliegue."}
+                </p>
+              </div>
+            )}
+          </Card>
         )}
 
         {stats && Object.keys(stats.totalCampaignsByStatus || {}).length > 0 && (
