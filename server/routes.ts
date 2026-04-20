@@ -2270,7 +2270,7 @@ export async function registerRoutes(
     res.json({ html: result.html, missingFields: result.missingFields, templateName: template.name });
   });
 
-  async function sendCampaignDirect(campaignId: number, userId: number): Promise<{ success: boolean; error?: string }> {
+  async function sendCampaignDirect(campaignId: number, userId: number, req?: Request): Promise<{ success: boolean; error?: string }> {
     let previousStatus = "draft";
     try {
       const campaign = await storage.getCampaign(campaignId);
@@ -2319,7 +2319,7 @@ export async function registerRoutes(
       const resolved = getResolvedCampaignContent(versions);
       const brandData = await storage.getBrandIdentity(userId);
 
-      const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl) : null;
+      const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl, req) : null;
 
       const renderedHtml = renderTemplateWithContent(
         template.html,
@@ -2327,6 +2327,39 @@ export async function registerRoutes(
         imagePublicUrl,
         brandData
       ).html;
+
+      const imageFilename = resolved.imageUrl;
+      const isLocalImage = !!imageFilename && !imageFilename.startsWith("http://") && !imageFilename.startsWith("https://") && !imageFilename.startsWith("data:");
+      const fileExists = isLocalImage
+        ? fs.existsSync(path.resolve(process.cwd(), "uploads", "campaigns", imageFilename!))
+        : !!imageFilename;
+      const urlSource = req
+        ? "request-header"
+        : process.env.APP_URL
+          ? "APP_URL env"
+          : process.env.PRODUCTION_URL
+            ? "PRODUCTION_URL env"
+            : "hardcoded fallback";
+      console.log("[CAMPAIGN SEND]", {
+        campaignId,
+        imageFilename,
+        imagePublicUrl,
+        fileExists,
+        isLocalImage,
+        urlSource,
+        appUrlEnv: process.env.APP_URL || "(not set)",
+        productionUrlEnv: process.env.PRODUCTION_URL || "(not set)",
+        nodeEnv: process.env.NODE_ENV,
+      });
+
+      if (isLocalImage && !fileExists) {
+        const errMsg = `La imagen "${imageFilename}" no existe en el servidor (uploads/campaigns/). Regenera o sube la imagen de nuevo antes de enviar.`;
+        console.error("[CAMPAIGN SEND] ABORT — archivo de imagen ausente:", { campaignId, imageFilename });
+        try {
+          await storage.updateCampaign(campaignId, { status: previousStatus as any });
+        } catch {}
+        return { success: false, error: errMsg };
+      }
 
       const textVersions = versions.filter(v => v.type === "initial" || v.type === "text");
       const activeTextVersion = textVersions.find(v => v.isSelected) || textVersions[textVersions.length - 1];
@@ -2565,7 +2598,7 @@ export async function registerRoutes(
     if (campaign.status !== "scheduled" && campaign.status !== "draft") {
       return res.status(400).json({ message: "Solo campañas en estado programado o borrador pueden enviarse." });
     }
-    const result = await sendCampaignDirect(id, req.session.userId!);
+    const result = await sendCampaignDirect(id, req.session.userId!, req);
     if (!result.success) {
       return res.status(400).json({ message: result.error });
     }
