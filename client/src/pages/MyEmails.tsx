@@ -92,7 +92,7 @@ export default function MyEmails() {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setSelectedIds(new Set());
       setSelectionMode(false);
-      toast({ title: "Correos eliminados", description: "Los correos seleccionados han sido eliminados." });
+      toast({ title: "Correos eliminados", description: "Los correos indicados han sido eliminados." });
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudieron eliminar los correos.", variant: "destructive" });
@@ -591,12 +591,12 @@ export default function MyEmails() {
           <div className="text-center py-20">
             <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-2">
-              {hasActiveFilter ? "Ningún correo coincide con los filtros" : "No hay correos en el historial"}
+              {hasActiveFilter && campaigns.length > 0 ? "Ningún correo coincide con los filtros" : "No hay correos en el historial"}
             </h3>
             <p className="text-muted-foreground mb-4">
-              {hasActiveFilter ? "Prueba quitando o ajustando los filtros activos." : "Los correos que envíe o programe aparecerán aquí."}
+              {hasActiveFilter && campaigns.length > 0 ? "Prueba quitando o ajustando los filtros activos." : "Los correos que envíe o programe aparecerán aquí."}
             </p>
-            {hasActiveFilter ? (
+            {hasActiveFilter && campaigns.length > 0 ? (
               <Button
                 data-testid="button-clear-filter-empty"
                 variant="outline"
