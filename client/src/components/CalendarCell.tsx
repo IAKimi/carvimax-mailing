@@ -11,6 +11,7 @@ import {
 interface CalendarCellProps {
   day: number;
   isToday: boolean;
+  isPast: boolean;
   campaigns: Campaign[];
   thumbnails: Record<number, string | null>;
   onDayClick: (day: number) => void;
@@ -37,24 +38,25 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "Borrador",
 };
 
-function CalendarCellInner({ day, isToday, campaigns, thumbnails, onDayClick }: CalendarCellProps) {
+function CalendarCellInner({ day, isToday, isPast, campaigns, thumbnails, onDayClick }: CalendarCellProps) {
   const maxVisible = 2;
   const visibleCampaigns = campaigns.slice(0, maxVisible);
   const overflow = campaigns.length - maxVisible;
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => onDayClick(day)}
+      whileHover={isPast ? {} : { scale: 1.02 }}
+      whileTap={isPast ? {} : { scale: 0.98 }}
+      onClick={() => !isPast && onDayClick(day)}
+      disabled={isPast}
       data-testid={`calendar-day-${day}`}
       className={`
         min-h-[80px] md:min-h-[110px] rounded-xl border border-border p-1.5 flex flex-col items-start justify-start
         text-sm transition-all duration-200 relative w-full
-        ${isToday ? "bg-primary/10 border-primary/30 font-bold" : "bg-card hover:border-primary/30 hover:shadow-sm"}
+        ${isPast ? "bg-muted/30 cursor-not-allowed opacity-50" : isToday ? "bg-primary/10 border-primary/30 font-bold" : "bg-card hover:border-primary/30 hover:shadow-sm"}
       `}
     >
-      <span className={`text-xs font-semibold ${isToday ? "text-primary" : ""}`}>{day}</span>
+      <span className={`text-xs font-semibold ${isToday && !isPast ? "text-primary" : ""}`}>{day}</span>
       {campaigns.length > 0 && (
         <div className="mt-1 w-full flex flex-col gap-1 overflow-hidden flex-1">
           <TooltipProvider delayDuration={200}>
@@ -114,6 +116,7 @@ export const CalendarCell = memo(CalendarCellInner, (prev, next) => {
   return (
     prev.day === next.day &&
     prev.isToday === next.isToday &&
+    prev.isPast === next.isPast &&
     prev.thumbnails === next.thumbnails &&
     prev.campaigns.length === next.campaigns.length &&
     prev.campaigns.every((c, i) => c.id === next.campaigns[i]?.id && c.status === next.campaigns[i]?.status && c.name === next.campaigns[i]?.name)

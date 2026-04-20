@@ -1148,11 +1148,15 @@ export default function CalendarView() {
   }
   for (let day = 1; day <= totalDays; day++) {
     const isToday = todayDay === day && todayMonth === month && todayYear === year;
+    const isPast = year < todayYear
+      || (year === todayYear && month < todayMonth)
+      || (year === todayYear && month === todayMonth && day < todayDay);
     calendarCells.push(
       <CalendarCell
         key={day}
         day={day}
         isToday={isToday}
+        isPast={isPast}
         campaigns={campaignsByDay[day] || []}
         thumbnails={thumbnails}
         onDayClick={handleDayClick}
