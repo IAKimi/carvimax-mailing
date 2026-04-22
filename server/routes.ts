@@ -54,18 +54,21 @@ function getResolvedCampaignContent(versions: ResolverVersion[]): ResolvedCampai
 // Falls back to the current resolved content when no sentHtml exists yet.
 function getSentCampaignContent(versions: ResolverVersion[]): ResolvedCampaignContent {
   const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
+  // Prefer the FIRST version that received a sentHtml stamp — that's the snapshot
+  // that triggered the real send. Later sentHtml stamps (re-sends, retries) shouldn't
+  // shadow the original send for resend prefill purposes.
   const sentVersions = ordered.filter(v => v.sentHtml);
-  const lastSent = sentVersions[sentVersions.length - 1];
-  if (!lastSent) return getResolvedCampaignContent(versions);
+  const firstSent = sentVersions[0];
+  if (!firstSent) return getResolvedCampaignContent(versions);
 
   const imageVersions = ordered.filter(v => v.type === "initial" || v.type === "image");
   // Prefer the image version closest to (and not after) the sent version.
-  const sentVN = lastSent.versionNumber ?? 0;
+  const sentVN = firstSent.versionNumber ?? 0;
   const imageAtOrBeforeSend = [...imageVersions].reverse().find(v => (v.versionNumber ?? 0) <= sentVN);
   const imageSrc = imageAtOrBeforeSend || imageVersions[imageVersions.length - 1];
 
-  const contentJson = (lastSent.contentJson as Record<string, unknown>) || {};
-  const imageUrl = imageSrc?.imageUrl || lastSent.imageUrl || null;
+  const contentJson = (firstSent.contentJson as Record<string, unknown>) || {};
+  const imageUrl = imageSrc?.imageUrl || firstSent.imageUrl || null;
   return { contentJson, imageUrl };
 }
 

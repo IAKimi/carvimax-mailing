@@ -188,8 +188,8 @@ export default function MyEmails() {
       let textSrc: CampaignVersion | undefined = currentSrc;
       if (isHistorical) {
         const sentVersions = ordered.filter(v => v.sentHtml);
-        const lastSent = sentVersions[sentVersions.length - 1];
-        if (lastSent) textSrc = lastSent;
+        const firstSent = sentVersions[0];
+        if (firstSent) textSrc = firstSent;
       }
 
       const imageVersions = ordered.filter(v => v.type === "initial" || v.type === "image");
