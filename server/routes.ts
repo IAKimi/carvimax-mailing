@@ -2659,7 +2659,7 @@ export async function registerRoutes(
       await storage.updateCampaign(id, {
         schedulerRetryCount: 0,
         schedulerLastError: null,
-      } as any);
+      });
     }
     const result = await sendCampaignDirect(id, req.session.userId!, req);
     if (!result.success) {
