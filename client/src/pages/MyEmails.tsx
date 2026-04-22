@@ -26,6 +26,7 @@ interface CampaignVersion {
   imageUrl: string | null;
   isSelected: boolean;
   type: string;
+  sentHtml: string | null;
 }
 
 interface ContactDatabaseType {
@@ -162,15 +163,53 @@ export default function MyEmails() {
     enabled: campaignIds.length > 0,
   });
 
+  const statusByCampaign = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of campaigns) m.set(c.id, c.status);
+    return m;
+  }, [campaigns]);
+
   const versionsByCampaign = useMemo(() => {
-    const map = new Map<number, CampaignVersion>();
+    const grouped = new Map<number, CampaignVersion[]>();
     for (const v of allVersions) {
-      if (v.isSelected || !map.has(v.campaignId)) {
-        map.set(v.campaignId, v);
-      }
+      const arr = grouped.get(v.campaignId) || [];
+      arr.push(v);
+      grouped.set(v.campaignId, arr);
     }
+    const map = new Map<number, { contentJson: any; imageUrl: string | null }>();
+    grouped.forEach((versions, campaignId) => {
+      const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
+      const status = statusByCampaign.get(campaignId);
+      const isHistorical = status === "sent" || status === "partial" || status === "failed";
+
+      const lastSelectedAny = [...ordered].reverse().find(v => v.isSelected);
+      const currentSrc = lastSelectedAny || ordered[ordered.length - 1];
+
+      let textSrc: CampaignVersion | undefined = currentSrc;
+      if (isHistorical) {
+        const sentVersions = ordered.filter(v => v.sentHtml);
+        const lastSent = sentVersions[sentVersions.length - 1];
+        if (lastSent) textSrc = lastSent;
+      }
+
+      const imageVersions = ordered.filter(v => v.type === "initial" || v.type === "image");
+      let imgSrc: CampaignVersion | undefined;
+      if (isHistorical && textSrc?.sentHtml) {
+        const sentVN = textSrc.versionNumber ?? 0;
+        imgSrc = [...imageVersions].reverse().find(v => (v.versionNumber ?? 0) <= sentVN);
+        if (!imgSrc) imgSrc = imageVersions[imageVersions.length - 1];
+      } else {
+        const lastSelectedImage = [...imageVersions].reverse().find(v => v.isSelected);
+        imgSrc = lastSelectedImage || imageVersions[imageVersions.length - 1];
+      }
+
+      map.set(campaignId, {
+        contentJson: (textSrc?.contentJson as any) || {},
+        imageUrl: imgSrc?.imageUrl || textSrc?.imageUrl || null,
+      });
+    });
     return map;
-  }, [allVersions]);
+  }, [allVersions, statusByCampaign]);
 
   const dbNameMap = useMemo(() => {
     const map = new Map<string, string>();

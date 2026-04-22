@@ -24,17 +24,56 @@ interface ResolvedCampaignContent {
   imageUrl: string | null;
 }
 
-function getResolvedCampaignContent(versions: Array<{ type: string; isSelected: boolean | null; contentJson: unknown; imageUrl: string | null }>): ResolvedCampaignContent {
-  const textVersions = versions.filter(v => v.type === "initial" || v.type === "text");
-  const imageVersions = versions.filter(v => v.type === "initial" || v.type === "image");
+type ResolverVersion = { id?: number; type: string; isSelected: boolean | null; contentJson: unknown; imageUrl: string | null; versionNumber?: number; sentHtml?: string | null };
 
-  const selectedText = textVersions.find(v => v.isSelected) || textVersions[textVersions.length - 1];
-  const selectedImage = imageVersions.find(v => v.isSelected) || imageVersions[imageVersions.length - 1];
+function pickResolvedSourceVersion(versions: ResolverVersion[]): ResolverVersion | undefined {
+  const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
+  const lastSelectedAny = [...ordered].reverse().find(v => v.isSelected);
+  return lastSelectedAny || ordered[ordered.length - 1];
+}
+
+function getResolvedCampaignContent(versions: ResolverVersion[]): ResolvedCampaignContent {
+  const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
+
+  // Text snapshot lives in the latest selected version regardless of type:
+  // regenerate-image / edit-image-advanced bake the current text into image-type versions.
+  const selectedText = pickResolvedSourceVersion(ordered);
+
+  // Image source must be a version that actually carries an image (initial or image type).
+  const imageVersions = ordered.filter(v => v.type === "initial" || v.type === "image");
+  const lastSelectedImage = [...imageVersions].reverse().find(v => v.isSelected);
+  const selectedImage = lastSelectedImage || imageVersions[imageVersions.length - 1];
 
   const contentJson = (selectedText?.contentJson as Record<string, unknown>) || {};
   const imageUrl = selectedImage?.imageUrl || selectedText?.imageUrl || null;
 
   return { contentJson, imageUrl };
+}
+
+// Resolves what was actually sent, for historical fidelity (resend popup, duplications of sent campaigns).
+// Falls back to the current resolved content when no sentHtml exists yet.
+function getSentCampaignContent(versions: ResolverVersion[]): ResolvedCampaignContent {
+  const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
+  const sentVersions = ordered.filter(v => v.sentHtml);
+  const lastSent = sentVersions[sentVersions.length - 1];
+  if (!lastSent) return getResolvedCampaignContent(versions);
+
+  const imageVersions = ordered.filter(v => v.type === "initial" || v.type === "image");
+  // Prefer the image version closest to (and not after) the sent version.
+  const sentVN = lastSent.versionNumber ?? 0;
+  const imageAtOrBeforeSend = [...imageVersions].reverse().find(v => (v.versionNumber ?? 0) <= sentVN);
+  const imageSrc = imageAtOrBeforeSend || imageVersions[imageVersions.length - 1];
+
+  const contentJson = (lastSent.contentJson as Record<string, unknown>) || {};
+  const imageUrl = imageSrc?.imageUrl || lastSent.imageUrl || null;
+  return { contentJson, imageUrl };
+}
+
+function pickContentByStatus(status: string | null | undefined, versions: ResolverVersion[]): ResolvedCampaignContent {
+  if (status === "sent" || status === "partial" || status === "failed") {
+    return getSentCampaignContent(versions);
+  }
+  return getResolvedCampaignContent(versions);
 }
 
 function broadcastWs(type: string, data: any) {
@@ -1229,7 +1268,9 @@ export async function registerRoutes(
     const { subject, preheader, body, cta, ctaUrl, targetDatabase, scheduledAt } = req.body || {};
 
     const originalVersions = await storage.getCampaignVersions(id);
-    const resolved = originalVersions.length > 0 ? getResolvedCampaignContent(originalVersions) : { contentJson: {}, imageUrl: null };
+    const resolved = originalVersions.length > 0
+      ? pickContentByStatus(original.status, originalVersions)
+      : { contentJson: {}, imageUrl: null };
     const origContent = resolved.contentJson;
     const selectedVersion = originalVersions.find(v => v.isSelected) || originalVersions[0];
 
@@ -2366,10 +2407,11 @@ export async function registerRoutes(
         return { success: false, error: errMsg };
       }
 
-      const textVersions = versions.filter(v => v.type === "initial" || v.type === "text");
-      const activeTextVersion = textVersions.find(v => v.isSelected) || textVersions[textVersions.length - 1];
-      if (activeTextVersion) {
-        await storage.updateCampaignVersion(activeTextVersion.id, { sentHtml: renderedHtml } as any);
+      // Stamp sentHtml on the version that was actually resolved as the text source,
+      // so future resends can recover exactly what was sent (Task #17).
+      const sourceVersion = pickResolvedSourceVersion(versions);
+      if (sourceVersion?.id) {
+        await storage.updateCampaignVersion(sourceVersion.id, { sentHtml: renderedHtml } as any);
       }
 
       const dbId = parseInt(campaign.targetDatabase, 10);
