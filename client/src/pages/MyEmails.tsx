@@ -287,7 +287,7 @@ export default function MyEmails() {
       toast({ title: "Fecha requerida", description: "Seleccione fecha y hora para programar el reenvío.", variant: "destructive" });
       return;
     }
-    const scheduledAt = `${resendDate}T${resendTime}:00`;
+    const scheduledAt = new Date(`${resendDate}T${resendTime}:00`).toISOString();
     resendMutation.mutate({
       campaignId: resendCampaign.id,
       subject: resendSubject,
