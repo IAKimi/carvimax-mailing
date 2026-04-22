@@ -286,9 +286,16 @@ function getImagePublicUrl(filename: string, req?: Request): string {
 
 function loadImageAsBase64(imageUrl: string): string {
   if (imageUrl.startsWith("data:")) return imageUrl;
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-  const basename = path.basename(imageUrl);
-  if (basename !== imageUrl || basename.includes("..")) return imageUrl;
+  let candidate = imageUrl;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+    if (imageUrl.includes("/uploads/campaigns/")) {
+      candidate = imageUrl.split("/uploads/campaigns/").pop() || imageUrl;
+    } else {
+      return imageUrl;
+    }
+  }
+  const basename = path.basename(candidate);
+  if (basename !== candidate || basename.includes("..")) return imageUrl;
   const uploadsDir = path.resolve(process.cwd(), "uploads", "campaigns");
   const filePath = path.join(uploadsDir, basename);
   if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) return imageUrl;
