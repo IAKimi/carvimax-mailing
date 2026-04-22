@@ -200,12 +200,12 @@ const updateTemplateSchema = z.object({
 
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   draft: ["scheduled", "cancelled"],
-  scheduled: ["scheduled", "cancelled", "sending", "sent"],
+  scheduled: ["scheduled", "draft", "cancelled", "sending", "sent"],
   sending: ["sent", "partial", "failed", "cancelled"],
   sent: [],
-  partial: [],
+  partial: ["draft", "scheduled"],
   failed: ["draft", "scheduled"],
-  cancelled: [],
+  cancelled: ["draft", "scheduled"],
 };
 
 
@@ -735,8 +735,11 @@ export async function registerRoutes(
         }
         if (existing.status === "scheduled" && existing.scheduledAt) {
           const existingTime = new Date(existing.scheduledAt).getTime();
-          const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
-          if (existingTime <= fifteenMinFromNow) {
+          const now = Date.now();
+          const fifteenMinFromNow = now + 15 * 60 * 1000;
+          // Only block when the scheduled send is still in the future but within the 15-min window.
+          // If the scheduled time has already passed, allow rescheduling — the user needs that path.
+          if (existingTime > now && existingTime <= fifteenMinFromNow) {
             return res.status(400).json({ message: "No puedes cambiar la fecha porque estás a menos de 15 minutos del envío programado." });
           }
         }
@@ -2645,8 +2648,18 @@ export async function registerRoutes(
     if (sendImageUrl.includes("placehold.co")) {
       return res.status(400).json({ message: "No se puede enviar con una imagen placeholder. Regenere o cargue una imagen real primero." });
     }
-    if (campaign.status !== "scheduled" && campaign.status !== "draft") {
-      return res.status(400).json({ message: "Solo campañas en estado programado o borrador pueden enviarse." });
+    const retryableStatuses = ["scheduled", "draft", "failed", "partial", "cancelled"];
+    if (!retryableStatuses.includes(campaign.status)) {
+      return res.status(400).json({ message: "Solo campañas en estado programado, borrador, fallido, parcial o cancelado pueden enviarse." });
+    }
+    // Note: sendCampaignDirect resets sentCount/failedCount after passing all preconditions
+    // (provider, template, contacts), so we don't wipe historical counts here on a failed retry.
+    // We only clear the scheduler-side bookkeeping which has no display value.
+    if (["failed", "partial", "cancelled"].includes(campaign.status)) {
+      await storage.updateCampaign(id, {
+        schedulerRetryCount: 0,
+        schedulerLastError: null,
+      } as any);
     }
     const result = await sendCampaignDirect(id, req.session.userId!, req);
     if (!result.success) {

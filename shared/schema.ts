@@ -30,7 +30,7 @@ export const campaigns = pgTable("campaigns", {
   selectedImageUrl: text("selected_image_url"),
   targetAudience: text("target_audience"),
   templateId: integer("template_id"),
-  scheduledAt: timestamp("scheduled_at"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   totalExpectedSends: integer("total_expected_sends").default(0),
   sentCount: integer("sent_count").default(0),
   failedCount: integer("failed_count").default(0),

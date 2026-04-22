@@ -1019,13 +1019,19 @@ export default function CalendarView() {
     if (!editingCampaignId || !editingCampaign) return;
     if (editingCampaign.status === "scheduled" && editingCampaign.scheduledAt) {
       const existingTime = new Date(editingCampaign.scheduledAt).getTime();
-      const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
-      if (existingTime <= fifteenMinFromNow) {
+      const now = Date.now();
+      const fifteenMinFromNow = now + 15 * 60 * 1000;
+      if (existingTime > now && existingTime <= fifteenMinFromNow) {
         toast({ title: "No se puede reprogramar", description: "No puedes cambiar la fecha porque estás a menos de 15 minutos del envío programado.", variant: "destructive" });
         return;
       }
+      if (existingTime <= now) {
+        toast({ title: "Hora de envío vencida", description: "La hora programada ya pasó. Elegí una nueva fecha y hora." });
+      }
     }
-    const current = editingCampaign.scheduledAt ? new Date(editingCampaign.scheduledAt) : new Date();
+    const current = editingCampaign.scheduledAt && new Date(editingCampaign.scheduledAt).getTime() > Date.now()
+      ? new Date(editingCampaign.scheduledAt)
+      : new Date();
     const localDateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}T${String(current.getHours()).padStart(2, "0")}:${String(current.getMinutes()).padStart(2, "0")}`;
     setRescheduleDate(localDateStr);
     setShowRescheduleDialog(true);
@@ -1258,7 +1264,10 @@ export default function CalendarView() {
                   </AlertDialogContent>
                 </AlertDialog>
               )}
-              {textApproved && imageApproved && !isLocked && editingCampaign?.scheduledAt && editingCampaign.status === "scheduled" && (
+              {textApproved && imageApproved && editingCampaign && (
+                ((!isLocked && editingCampaign.status === "scheduled" && editingCampaign.scheduledAt) ||
+                  editingCampaign.status === "failed" || editingCampaign.status === "partial" || editingCampaign.status === "cancelled")
+              ) && (
                 <Button
                   data-testid="button-reschedule"
                   variant="outline"
@@ -1270,14 +1279,17 @@ export default function CalendarView() {
                   Reprogramar
                 </Button>
               )}
-              {textApproved && imageApproved && !isLocked && (
+              {textApproved && imageApproved && editingCampaign && (
+                (!isLocked && (editingCampaign.status === "draft" || editingCampaign.status === "scheduled")) ||
+                  editingCampaign.status === "failed" || editingCampaign.status === "partial" || editingCampaign.status === "cancelled"
+              ) && (
                 <Button
                   data-testid="button-publish-now"
                   onClick={handlePublishNow}
                   className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <Send className="w-4 h-4" />
-                  Publicar Ahora
+                  {editingCampaign.status === "failed" || editingCampaign.status === "partial" || editingCampaign.status === "cancelled" ? "Reintentar Envío" : "Publicar Ahora"}
                 </Button>
               )}
             </div>
