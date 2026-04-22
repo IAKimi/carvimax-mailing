@@ -2652,11 +2652,13 @@ export async function registerRoutes(
     if (!retryableStatuses.includes(campaign.status)) {
       return res.status(400).json({ message: "Solo campañas en estado programado, borrador, fallido, parcial o cancelado pueden enviarse." });
     }
-    // Note: sendCampaignDirect resets sentCount/failedCount after passing all preconditions
-    // (provider, template, contacts), so we don't wipe historical counts here on a failed retry.
-    // We only clear the scheduler-side bookkeeping which has no display value.
+    // Reset progress counters so the retry starts clean (per Task #18 spec).
+    // sendCampaignDirect also resets sentCount/failedCount after preconditions pass, but doing
+    // it here too ensures the visible counts reflect the new attempt immediately.
     if (["failed", "partial", "cancelled"].includes(campaign.status)) {
       await storage.updateCampaign(id, {
+        sentCount: 0,
+        failedCount: 0,
         schedulerRetryCount: 0,
         schedulerLastError: null,
       });
