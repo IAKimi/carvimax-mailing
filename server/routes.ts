@@ -64,28 +64,43 @@ const USER_SAFE_MESSAGES: Record<string, string> = {
   template_generate: "Error al generar la plantilla. Por favor intenta de nuevo.",
 };
 
-// Any message matching these patterns exposes provider name, HTTP code or raw SDK detail
-// and must be replaced with the generic message.
-const TECHNICAL_ERROR_PATTERNS = [
-  /\(\d{3}\)/,         // "(400)", "(500)" HTTP status codes in parentheses
-  /\bgemini\b/i,       // Gemini provider name
-  /\bopenai\b/i,       // OpenAI provider name
-  /\bgoogle\b/i,       // Google (API context)
-  /\bbrevo\b/i,        // Brevo provider
-  /\bmailchimp\b/i,    // Mailchimp provider
-  /base64/i,           // "Base64 decoding failed"
-  /api.?key/i,         // raw API key messages
-  /\bquota\b/i,        // quota-exceeded messages
-  /\btoken\b.*limit/i, // token limit messages
+// Allowlist of message prefixes produced by our own modules (gemini.ts / openai.ts)
+// that are safe to show users: clean Spanish, no provider names, no HTTP codes.
+const SAFE_MESSAGE_ALLOWLIST = [
+  "El prompt fue bloqueado por políticas de recitación",
+  "Imagen bloqueada por filtros de seguridad en las categorías",
+  "El contenido solicitado está prohibido",
+  "La idea fue rechazada por las políticas de contenido",
+  "El contenido fue rechazado por las políticas de contenido",
 ];
 
 function toUserSafeMessage(err: any, kind: keyof typeof USER_SAFE_MESSAGES): string {
   const msg: string = typeof err?.message === "string" ? err.message : "";
-  const isTechnical = !msg || TECHNICAL_ERROR_PATTERNS.some(p => p.test(msg));
-  if (isTechnical) {
-    return USER_SAFE_MESSAGES[kind] ?? "Ocurrió un error. Por favor intenta de nuevo.";
-  }
-  return msg;
+  const status: number | undefined = err?.status;
+
+  // Always log the full technical detail internally for diagnosis.
+  console.error(`[AI][${kind}]`, {
+    message: msg || "(empty)",
+    status,
+    code: err?.code,
+    type: err?.type,
+    name: err?.name,
+  });
+
+  const fallback = USER_SAFE_MESSAGES[kind] ?? "Ocurrió un error. Por favor intenta de nuevo.";
+
+  // Map known HTTP status codes to user-safe Spanish messages.
+  if (status === 401) return "La configuración del servicio de IA no está activa. Contacta al administrador.";
+  if (status === 429) return "El servicio de IA está temporalmente saturado. Intenta de nuevo en unos minutos.";
+  if (status === 503 || status === 500) return fallback;
+
+  if (!msg) return fallback;
+
+  // Only let through messages explicitly on the allowlist (safe, no provider names).
+  if (SAFE_MESSAGE_ALLOWLIST.some(safe => msg.startsWith(safe))) return msg;
+
+  // Block everything else — provider names, HTTP codes, English text, raw SDK details.
+  return fallback;
 }
 
 // Returns true when the image URL cannot be loaded as real base64 by Gemini:
@@ -955,7 +970,6 @@ export async function registerRoutes(
     });
     res.status(201).json(newVersion);
     } catch (err: any) {
-      console.error("[AI][text_generate] Error inesperado en generate:", err.message);
       return res.status(500).json({ message: toUserSafeMessage(err, "text_generate") });
     }
   });
@@ -1005,7 +1019,7 @@ export async function registerRoutes(
     let contentJson;
     try {
       if (!isOpenAIConfigured()) {
-        return res.status(400).json({ message: "OpenAI no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const emailContent = await regenerateEmailContent(
@@ -1026,7 +1040,6 @@ export async function registerRoutes(
         cta_enabled: previousContent?.cta_enabled !== false,
       };
     } catch (err: any) {
-      console.error("[AI][text_regenerate] Error regenerando texto:", err.message);
       return res.status(500).json({ message: toUserSafeMessage(err, "text_regenerate") });
     }
 
@@ -1072,11 +1085,10 @@ export async function registerRoutes(
     let rawImageUrl: string;
     try {
       if (!isGeminiConfigured()) {
-        return res.status(400).json({ message: "Gemini no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
       rawImageUrl = await generateImage(imagePrompt);
     } catch (err: any) {
-      console.error("[Image API][image_generate] Error regenerando imagen:", err.message);
       return res.status(500).json({ message: toUserSafeMessage(err, "image_generate") });
     }
 
@@ -1139,11 +1151,10 @@ export async function registerRoutes(
     let rawImageUrl: string;
     try {
       if (!isGeminiConfigured()) {
-        return res.status(400).json({ message: "Gemini no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
       rawImageUrl = await editImage(currentImageBase64, editPrompt);
     } catch (err: any) {
-      console.error("[Image API][image_edit] Error editando imagen:", err.message);
       return res.status(500).json({ message: toUserSafeMessage(err, "image_edit") });
     }
 
@@ -1268,7 +1279,7 @@ export async function registerRoutes(
     let rawImageUrl: string;
     try {
       if (!isGeminiConfigured()) {
-        return res.status(400).json({ message: "Gemini no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
       rawImageUrl = await editImageAdvanced({
         currentImageBase64,
@@ -1277,10 +1288,13 @@ export async function registerRoutes(
         selectedAction: selectedAction as AdvancedAction,
       });
     } catch (err: any) {
-      console.error("[Image API][image_edit] Error en edición avanzada:", err.message);
-      const msg: string = err.message || "";
+      const msg: string = err?.message || "";
       const isInputError = msg.includes("no soportado") || msg.includes("excede el límite") || msg.includes("no válida") || msg.includes("bloqueado") || msg.includes("prohibido");
-      return res.status(isInputError ? 400 : 500).json({ message: isInputError ? msg : toUserSafeMessage(err, "image_edit") });
+      if (isInputError) {
+        console.error(`[AI][image_edit]`, { message: msg });
+        return res.status(400).json({ message: msg });
+      }
+      return res.status(500).json({ message: toUserSafeMessage(err, "image_edit") });
     }
 
     const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
@@ -2201,7 +2215,7 @@ export async function registerRoutes(
     }
     try {
       if (!isOpenAIConfigured()) {
-        return res.status(400).json({ message: "OpenAI no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const result = await generateTemplateHtml(prompt, brandData || null);
@@ -2239,7 +2253,6 @@ export async function registerRoutes(
 
       res.status(201).json(confirmed);
     } catch (err: any) {
-      console.error("[AI][template_generate] Error generando plantilla:", err.message);
       return res.status(500).json({ message: toUserSafeMessage(err, "template_generate") });
     }
   });
@@ -2268,7 +2281,7 @@ export async function registerRoutes(
     }
     try {
       if (!isOpenAIConfigured()) {
-        return res.status(400).json({ message: "OpenAI no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const editedHtml = await editTemplateHtml(tpl.html, instructions, brandData || null);
@@ -2296,7 +2309,6 @@ export async function registerRoutes(
       });
       res.status(201).json(newVersion);
     } catch (err: any) {
-      console.error("[AI][template_generate] Error editando plantilla:", err.message);
       return res.status(500).json({ message: toUserSafeMessage(err, "template_generate") });
     }
   });
@@ -2306,7 +2318,7 @@ export async function registerRoutes(
     if (!html || typeof html !== "string") return res.status(400).json({ message: "HTML requerido." });
     try {
       if (!isOpenAIConfigured()) {
-        return res.status(400).json({ message: "OpenAI no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const result = await analyzeTemplatePlaceholders(html, brandData || null);
@@ -2327,7 +2339,7 @@ export async function registerRoutes(
     if (tpl.hasAllPlaceholders) return res.status(400).json({ message: "Esta plantilla ya tiene todos los placeholders." });
     try {
       if (!isOpenAIConfigured()) {
-        return res.status(400).json({ message: "OpenAI no está configurado." });
+        return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const result = await analyzeTemplatePlaceholders(tpl.html, brandData || null);
