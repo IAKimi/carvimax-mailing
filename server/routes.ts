@@ -57,19 +57,26 @@ function getResolvedCampaignContent(versions: ResolverVersion[]): ResolvedCampai
 // Messages from AI providers (Gemini, OpenAI) are never shown directly to users.
 // We log the raw error internally and return a clean Spanish generic message.
 const USER_SAFE_MESSAGES: Record<string, string> = {
-  image_generate: "Error al generar tu imagen. Por favor intenta de nuevo en unos minutos.",
-  image_edit:     "Error al editar la imagen. Por favor intenta de nuevo en unos minutos.",
-  text_generate:  "No pudimos generar el texto en este momento. Por favor intenta de nuevo.",
-  text_regenerate:"No pudimos regenerar el texto en este momento. Por favor intenta de nuevo.",
+  image_generate:    "Error al generar tu imagen. Por favor intenta de nuevo en unos minutos.",
+  image_edit:        "Error al editar la imagen. Por favor intenta de nuevo en unos minutos.",
+  text_generate:     "No pudimos generar el texto en este momento. Por favor intenta de nuevo.",
+  text_regenerate:   "No pudimos regenerar el texto en este momento. Por favor intenta de nuevo.",
   template_generate: "Error al generar la plantilla. Por favor intenta de nuevo.",
 };
 
-// Patterns that indicate a raw / technical error from the provider SDK.
+// Any message matching these patterns exposes provider name, HTTP code or raw SDK detail
+// and must be replaced with the generic message.
 const TECHNICAL_ERROR_PATTERNS = [
-  /\(\d{3}\)/,   // "(400)", "(500)" – raw HTTP status codes
-  /base64/i,     // "Base64 decoding failed"
-  /api key/i,    // raw key validation messages
-  /quota/i,      // raw quota messages
+  /\(\d{3}\)/,         // "(400)", "(500)" HTTP status codes in parentheses
+  /\bgemini\b/i,       // Gemini provider name
+  /\bopenai\b/i,       // OpenAI provider name
+  /\bgoogle\b/i,       // Google (API context)
+  /\bbrevo\b/i,        // Brevo provider
+  /\bmailchimp\b/i,    // Mailchimp provider
+  /base64/i,           // "Base64 decoding failed"
+  /api.?key/i,         // raw API key messages
+  /\bquota\b/i,        // quota-exceeded messages
+  /\btoken\b.*limit/i, // token limit messages
 ];
 
 function toUserSafeMessage(err: any, kind: keyof typeof USER_SAFE_MESSAGES): string {
@@ -81,10 +88,15 @@ function toUserSafeMessage(err: any, kind: keyof typeof USER_SAFE_MESSAGES): str
   return msg;
 }
 
-// Helper: returns true when a URL (or local filename) points to a placehold.co placeholder.
-function isPlaceholderImage(url: string | null | undefined): boolean {
-  if (!url) return false;
-  return url.includes("placehold.co");
+// Returns true when the image URL cannot be loaded as real base64 by Gemini:
+// placehold.co placeholders and external URLs that are not from our own uploads dir.
+function isInvalidImageSource(url: string | null | undefined): boolean {
+  if (!url) return true;
+  if (url.includes("placehold.co")) return true;
+  // External URLs not from our own /uploads/campaigns/ can't be loaded as base64
+  if ((url.startsWith("http://") || url.startsWith("https://")) &&
+      !url.includes("/uploads/campaigns/")) return true;
+  return false;
 }
 
 // Resolves what was actually sent, for historical fidelity (resend popup, duplications of sent campaigns).
@@ -866,12 +878,13 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
     }
 
+    try {
     const imagePromise = (async () => {
       if (campaign.imagePrompt && isGeminiConfigured()) {
         try {
           return await generateImage(campaign.imagePrompt);
         } catch (err: any) {
-          console.error("Error generando imagen con Gemini:", err.message);
+          console.error("[Image API][image_generate] Error generando imagen inicial:", err.message);
           return "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
         }
       }
@@ -941,6 +954,10 @@ export async function registerRoutes(
       isSelected: versionNumber === 1
     });
     res.status(201).json(newVersion);
+    } catch (err: any) {
+      console.error("[AI][text_generate] Error inesperado en generate:", err.message);
+      return res.status(500).json({ message: toUserSafeMessage(err, "text_generate") });
+    }
   });
 
   app.post("/api/campaigns/:id/regenerate-text", requireAuth, aiLimiter, async (req, res) => {
@@ -1113,7 +1130,7 @@ export async function registerRoutes(
     if (!selectedImageVersion?.imageUrl) {
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
-    if (isPlaceholderImage(selectedImageVersion.imageUrl)) {
+    if (isInvalidImageSource(selectedImageVersion.imageUrl)) {
       return res.status(400).json({ message: "Primero genera o sube una imagen real antes de editarla con IA." });
     }
 
@@ -1242,7 +1259,7 @@ export async function registerRoutes(
     if (!selectedImageVersion?.imageUrl) {
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
-    if (isPlaceholderImage(selectedImageVersion.imageUrl)) {
+    if (isInvalidImageSource(selectedImageVersion.imageUrl)) {
       return res.status(400).json({ message: "Primero genera o sube una imagen real antes de editarla con IA." });
     }
 
