@@ -64,15 +64,23 @@ const USER_SAFE_MESSAGES: Record<string, string> = {
   template_generate: "Error al generar la plantilla. Por favor intenta de nuevo.",
 };
 
-// Allowlist of message prefixes produced by our own modules (gemini.ts / openai.ts)
-// that are safe to show users: clean Spanish, no provider names, no HTTP codes.
+// Allowlist of message prefixes produced by our own modules (gemini.ts / openai.ts).
+// IMPORTANT: a message must also pass the secondary PROVIDER_TERMS_RE check below.
 const SAFE_MESSAGE_ALLOWLIST = [
   "El prompt fue bloqueado por políticas de recitación",
   "Imagen bloqueada por filtros de seguridad en las categorías",
-  "El contenido solicitado está prohibido",
+  "La edición fue bloqueada por políticas de recitación",
+  "Edición bloqueada por filtros de seguridad en las categorías",
   "La idea fue rechazada por las políticas de contenido",
   "El contenido fue rechazado por las políticas de contenido",
+  "Tipo de imagen no soportado",
+  "Imagen de referencia",
+  "El peso total de las imágenes",
 ];
+
+// Secondary blocklist applied even on allowlisted messages — catches any provider name
+// or HTTP code that slipped through despite matching an allowlist prefix.
+const PROVIDER_TERMS_RE = /\b(gemini|openai|google|base64|api[\s\-]?key)\b|\(\d{3}\)/i;
 
 function toUserSafeMessage(err: any, kind: keyof typeof USER_SAFE_MESSAGES): string {
   const msg: string = typeof err?.message === "string" ? err.message : "";
@@ -96,10 +104,14 @@ function toUserSafeMessage(err: any, kind: keyof typeof USER_SAFE_MESSAGES): str
 
   if (!msg) return fallback;
 
-  // Only let through messages explicitly on the allowlist (safe, no provider names).
-  if (SAFE_MESSAGE_ALLOWLIST.some(safe => msg.startsWith(safe))) return msg;
+  // Only allow through messages that:
+  //   1) Match an explicit allowlist prefix (known internal module message), AND
+  //   2) Contain no provider names, HTTP codes, or technical terms (secondary guard).
+  if (SAFE_MESSAGE_ALLOWLIST.some(safe => msg.startsWith(safe)) && !PROVIDER_TERMS_RE.test(msg)) {
+    return msg;
+  }
 
-  // Block everything else — provider names, HTTP codes, English text, raw SDK details.
+  // Block everything else — provider names, HTTP codes, English SDK text, raw errors.
   return fallback;
 }
 
@@ -1289,10 +1301,16 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       const msg: string = err?.message || "";
-      const isInputError = msg.includes("no soportado") || msg.includes("excede el límite") || msg.includes("no válida") || msg.includes("bloqueado") || msg.includes("prohibido");
-      if (isInputError) {
-        console.error(`[AI][image_edit]`, { message: msg });
-        return res.status(400).json({ message: msg });
+      // Detect user-input validation errors (format, size, action type) that warrant a 400.
+      // These specific prefixes come from gemini.ts and never contain provider names.
+      const is400 = msg.startsWith("Tipo de imagen no soportado")
+        || msg.startsWith("Imagen de referencia")
+        || msg.startsWith("El peso total de las imágenes")
+        || msg.startsWith("Acción no válida");
+      if (is400) {
+        // Even for 400s, run through the sanitizer — it logs and applies the secondary
+        // provider-term guard, guaranteeing no provider name ever reaches the user.
+        return res.status(400).json({ message: toUserSafeMessage(err, "image_edit") });
       }
       return res.status(500).json({ message: toUserSafeMessage(err, "image_edit") });
     }
