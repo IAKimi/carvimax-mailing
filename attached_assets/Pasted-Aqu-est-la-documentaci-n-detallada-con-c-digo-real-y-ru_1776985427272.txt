@@ -1,0 +1,352 @@
+Aquí está la documentación detallada con código real y rutas exactas. Importante de entrada: este proyecto NO tiene fallback cruzado entre proveedores distintos (OpenAI ↔ Gemini ↔ Anthropic). Lo que sí existe es un fallback entre dos modelos del mismo proveedor (Gemini) y reintentos con backoff. Texto e imagen son dos proveedores fijos sin alternativa.
+
+1. Inventario de proveedores
+Solo dos proveedores integrados:
+
+Proveedor	Modelos	Propósito	Variable de entorno	Archivo
+OpenAI	gpt-4.1-mini (Responses API + Chat Completions); además vector store OPENAI_VECTOR_STORE_ID para file_search	Generar/regenerar copy de posts, plantillas, refinar prompts de imagen, sugerir contenido masivo, asistente de soporte (streaming + RAG)	OPENAI_API_KEY (+ OPENAI_VECTOR_STORE_ID opcional)	artifacts/api-server/src/lib/openai.ts y artifacts/api-server/src/lib/assistant.ts
+Gemini	Primario: gemini-3.1-flash-image-preview. Fallback: gemini-2.0-flash	Generar imágenes, editar imagen única, edición avanzada con imágenes de referencia	GEMINI_API_KEY	artifacts/api-server/src/lib/gemini.ts
+No hay Anthropic/Claude, no hay Stability/Replicate/Midjourney, no hay TTS, no hay STT. Las únicas referencias a Anthropic/Stability en el repo son en la skill de Replit .local/skills/..., no en código de producción.
+
+Helpers de detección de configuración (mismo patrón en los 3 módulos):
+
+// artifacts/api-server/src/lib/openai.ts (línea 507)
+export function isOpenAIConfigured(): boolean {
+  return !!process.env.OPENAI_API_KEY;
+}
+// artifacts/api-server/src/lib/gemini.ts (línea 360)
+export function isGeminiConfigured(): boolean {
+  return !!process.env.GEMINI_API_KEY;
+}
+// artifacts/api-server/src/lib/assistant.ts (líneas 16-22)
+export function isAssistantConfigured(): boolean {
+  return !!process.env.OPENAI_API_KEY;
+}
+export function getVectorStoreId(): string | null {
+  return process.env.OPENAI_VECTOR_STORE_ID || null;
+}
+
+2. Orden y configuración del fallback
+Solo aplica a imágenes (Gemini). El orden está hardcodeado al inicio de artifacts/api-server/src/lib/gemini.ts:
+
+// artifacts/api-server/src/lib/gemini.ts (líneas 1-4)
+const PRIMARY_MODEL = "gemini-3.1-flash-image-preview";
+const FALLBACK_MODEL = "gemini-2.0-flash";
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const RETRYABLE_STATUS_CODES = [500, 502, 503, 429];
+
+No hay variable de entorno, ni BD, ni archivo de config para cambiarlo: hay que editar el código.
+
+Reintentos por modelo (dentro de fetchWithRetries):
+
+Modelo primario: hasta 3 intentos (línea 80: fetchWithRetries(primaryUrl, body, 3))
+Modelo de fallback: hasta 2 intentos (línea 92: fetchWithRetries(fallbackUrl, body, 2))
+Capa adicional para imágenes "vacías" en generateImage (sólo generateImage, no en los editImage*): hasta 3 intentos completos del flujo entero (primary+fallback) con delays preconfigurados:
+
+// artifacts/api-server/src/lib/gemini.ts (líneas 156-201)
+export async function generateImage(_userId: number, prompt: string, aspectRatio: string = "1:1"): Promise<string> {
+  const apiKey = getApiKey();
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [2000, 4000, 8000];
+  // ...
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const response = await fetchWithFailsafe(body, apiKey);
+    // ...
+    try {
+      return handleGeminiResponse(data);
+    } catch (err) {
+      const isEmptyContent = err instanceof Error && err.message.includes("Respuesta sin contenido");
+      const isNoImage = err instanceof Error && err.message.includes("No se generó una imagen");
+      if ((isEmptyContent || isNoImage) && attempt < MAX_RETRIES - 1) {
+        console.warn(`generateImage: empty response on attempt ${attempt + 1}, retrying in ${RETRY_DELAYS[attempt]}ms...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("No se pudo generar la imagen después de varios intentos.");
+}
+
+Reintentos en OpenAI: solo 1 reintento adicional cuando la respuesta llega con status === "incomplete". No hay fallback a otro modelo ni a otro proveedor.
+
+// artifacts/api-server/src/lib/openai.ts (líneas 401-428)
+async function callOpenAI(client: OpenAI, params: OpenAIResponseParams, maxRetries = 1, prefs?: ContentPreferencesData | null): Promise<PostContent> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const raw = await client.responses.create(params as Parameters<typeof client.responses.create>[0]);
+    const response = raw as unknown as OpenAIResponseResult;
+    const refusalItem = response.output?.find(
+      (item) => item.type === "message" && item.content?.some((c) => c.type === "refusal")
+    );
+    if (refusalItem) {
+      const refusalText = refusalItem.content?.find((c) => c.type === "refusal")?.refusal || "";
+      console.warn("[AI] Refusal detectado:", refusalText);
+      throw new Error("La idea fue rechazada por los filtros de seguridad. Intente con una idea diferente.");
+    }
+    if (response.status === "incomplete" && attempt < maxRetries) {
+      console.warn(`[AI] Respuesta incompleta (intento ${attempt + 1}), reintentando...`);
+      continue;
+    }
+    if (response.status === "incomplete") {
+      console.warn("[AI] Respuesta incompleta tras reintentos — incomplete_details:", JSON.stringify(response.incomplete_details));
+    }
+    return parsePostResponse(response.output_text, prefs);
+  }
+  throw new Error("No se pudo completar la generación. Intente de nuevo.");
+}
+
+Timeout por intento: NO hay timeout explícito en el código. Se usa el fetch nativo de Node y el cliente OpenAI SDK por defecto (≈10 minutos cada uno). No hay AbortController.
+
+3. Lógica de detección de fallo
+3.1 Gemini — fetchWithRetries (mismo proveedor, mismo modelo)
+// artifacts/api-server/src/lib/gemini.ts (líneas 48-75)
+async function fetchWithRetries(url: string, body: Record<string, unknown>, maxRetries: number): Promise<Response> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (response.ok || !RETRYABLE_STATUS_CODES.includes(response.status) || attempt === maxRetries) {
+        return response;
+      }
+      const delayMs = Math.pow(2, attempt) * 1000;
+      console.warn(`Image API returned ${response.status}, retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    } catch (err: unknown) {
+      lastError = err;
+      if (attempt === maxRetries) {
+        throw err;
+      }
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const delayMs = Math.pow(2, attempt) * 1000;
+      console.warn(`Image API network error (${errMsg}), retrying in ${delayMs / 1000}s (attempt ${attempt}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError || new Error("Reintentos agotados.");
+}
+
+Reintenta SOLO si: HTTP en RETRYABLE_STATUS_CODES = [500, 502, 503, 429] o la fetch lanza excepción de red. Cualquier otro 4xx (401, 400, 403, 404…) sale inmediatamente sin reintento y sin saltar al fallback.
+
+3.2 Gemini — fetchWithFailsafe (salto entre modelos)
+// artifacts/api-server/src/lib/gemini.ts (líneas 77-104)
+async function fetchWithFailsafe(body: Record<string, unknown>, apiKey: string): Promise<Response> {
+  const primaryUrl = buildModelUrl(PRIMARY_MODEL, apiKey);
+  try {
+    const response = await fetchWithRetries(primaryUrl, body, 3);
+    if (response.ok || !RETRYABLE_STATUS_CODES.includes(response.status)) {
+      return response;
+    }
+    console.warn(`[FAILSAFE] Primary model exhausted retries with status ${response.status}. Trying fallback...`);
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn(`[FAILSAFE] Primary model failed: ${errMsg}. Trying fallback...`);
+  }
+  const fallbackUrl = buildModelUrl(FALLBACK_MODEL, apiKey);
+  try {
+    const fallbackResponse = await fetchWithRetries(fallbackUrl, body, 2);
+    if (fallbackResponse.ok) {
+      console.info(`[FAILSAFE] Fallback model responded successfully.`);
+    } else {
+      console.error(`[FAILSAFE] Fallback model also failed with status ${fallbackResponse.status}.`);
+    }
+    return fallbackResponse;
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Image API] Network error after failsafe:", errMsg);
+    throw new Error("Error de red en el servicio de generación de imágenes. Intente de nuevo.");
+  }
+}
+
+Salta al fallback cuando: el primario terminó con un status retryable después de agotar sus 3 intentos, o el primario lanzó excepción de red.
+
+3.3 Gemini — clasificación de errores semánticos en la respuesta
+// artifacts/api-server/src/lib/gemini.ts (líneas 106-153)
+function handleGeminiResponse(data: GeminiImageResponse): string {
+  if (data.error) {
+    console.error("[Image API] Error:", data.error.message);
+    throw new Error("Error del servicio de generación de imágenes. Intente de nuevo.");
+  }
+  if (data.promptFeedback?.blockReason) {
+    throw new Error(`El prompt fue bloqueado por los filtros de seguridad (${data.promptFeedback.blockReason}). Intente con un prompt diferente.`);
+  }
+  if (!data.candidates || data.candidates.length === 0) {
+    throw new Error("El servicio no devolvió resultados. El prompt puede haber sido bloqueado. Intente con uno diferente.");
+  }
+  const candidate = data.candidates[0];
+  const finishReason = candidate.finishReason;
+  if (finishReason === "SAFETY") {
+    throw new Error("El prompt fue bloqueado por los filtros de seguridad. Intente con un prompt diferente.");
+  }
+  if (finishReason === "RECITATION") {
+    throw new Error("El prompt fue bloqueado por políticas de contenido. Intente reformularlo.");
+  }
+  if (finishReason === "PROHIBITED_CONTENT") {
+    throw new Error("El contenido solicitado está prohibido. Intente con un prompt diferente.");
+  }
+  const parts = candidate.content?.parts;
+  if (!parts || parts.length === 0) {
+    const blockedCategories = candidate.safetyRatings
+      ?.filter(r => r.blocked)
+      .map(r => r.category)
+      .join(", ");
+    if (blockedCategories) {
+      throw new Error(`Imagen bloqueada por filtros de seguridad en las categorías: ${blockedCategories}. Intente con un prompt diferente.`);
+    }
+    throw new Error("Respuesta sin contenido. Intente con un prompt más descriptivo.");
+  }
+  for (const part of parts) {
+    if (part.inlineData) {
+      const { mimeType, data: base64Data } = part.inlineData;
+      return `data:${mimeType};base64,${base64Data}`;
+    }
+  }
+  throw new Error("No se generó una imagen. Intente con un prompt más descriptivo.");
+}
+
+3.4 OpenAI — clasificación por status HTTP
+// artifacts/api-server/src/lib/openai.ts (líneas 270-293)
+function handleOpenAIError(err: unknown): never {
+  const e = err as Record<string, unknown>;
+  const status = typeof e.status === "number" ? e.status : 0;
+  const message = typeof e.message === "string" ? e.message : "";
+  const code = typeof e.code === "string" ? e.code : "";
+  if (status === 401) {
+    throw new Error("La clave de acceso al servicio de IA no es válida. Contacte al administrador.");
+  }
+  if (status === 429) {
+    throw new Error("Se alcanzó el límite de solicitudes. Intente de nuevo en unos minutos.");
+  }
+  if (status === 400 && message.includes("content_policy")) {
+    throw new Error("El contenido fue rechazado por las políticas de seguridad. Intente con una idea diferente.");
+  }
+  if (status === 500 || status === 503) {
+    throw new Error("El servicio de generación no está disponible en este momento. Intente de nuevo más tarde.");
+  }
+  if (code === "ETIMEDOUT" || code === "ECONNABORTED" || status === 408) {
+    throw new Error("La solicitud tardó demasiado. Intente de nuevo.");
+  }
+  console.error("[AI] Unhandled error:", err);
+  throw new Error("Error inesperado del servicio de generación. Intente de nuevo más tarde.");
+}
+
+OpenAI no clasifica entre "reintentar mismo proveedor" vs "saltar al siguiente": solo traduce el error a un mensaje de usuario y termina. La única condición que reintenta es status === "incomplete" en la respuesta (no por status HTTP), mostrada arriba en callOpenAI.
+
+4. Backoff y rate-limiting
+Hay dos esquemas de backoff distintos en gemini.ts:
+
+Exponencial dentro de fetchWithRetries (línea 60 y 69): Math.pow(2, attempt) * 1000 ms. Para maxRetries=3 da delays de 2s, 4s antes del 3er intento. Para maxRetries=2 da 2s antes del 2do intento.
+
+Tabla fija dentro de generateImage (líneas 158, 196): RETRY_DELAYS = [2000, 4000, 8000] ms — solo se aplica cuando la respuesta llegó OK pero el contenido vino vacío.
+
+OpenAI: no hay backoff. El reintento por incomplete es inmediato (siguiente iteración del for).
+
+No hay caché de "proveedor caído", no hay circuit breaker, no hay registro de tasa de fallo. Cada llamada parte de cero.
+
+5. Manejo de errores hacia el usuario
+Los mensajes finales son genéricos en español, sin mencionar el nombre del proveedor. Ejemplos exactos hardcodeados:
+
+"El servicio de generación de imágenes no está disponible. Contacte al administrador." (gemini.ts línea 9)
+"Error de red en el servicio de generación de imágenes. Intente de nuevo." (gemini.ts línea 102)
+"No se pudo generar la imagen después de varios intentos." (gemini.ts línea 203)
+"Error del servicio de imágenes (${response.status}). Intente de nuevo." (gemini.ts línea 184) — este sí filtra el status code al usuario
+"El servicio de generación de texto no está disponible. Contacte al administrador." (openai.ts línea 8)
+"Se alcanzó el límite de solicitudes. Intente de nuevo en unos minutos." (openai.ts línea 280)
+"El servicio de generación no está disponible en este momento. Intente de nuevo más tarde." (openai.ts línea 286)
+Logs internos (server-side, nunca expuestos al usuario) usan estos prefijos para diagnosticar:
+
+[Image API] — errores de red o respuesta de Gemini
+[FAILSAFE] — saltos entre modelos primario/fallback de Gemini
+[AI] — errores no manejados de OpenAI y refusals
+[AI:template] — errores en generación de plantillas
+Los console.warn / console.error son los únicos canales (Pino HTTP captura los req/res pero estos errores se loggean por separado vía console).
+
+6. Estructura de código
+No existe un wrapper único tipo generateImageWithFallback o callAIWithFallback. El "fallback" vive dentro de los módulos por proveedor:
+
+fetchWithRetries (gemini.ts:48) → reintentos sobre el mismo modelo
+fetchWithFailsafe (gemini.ts:77) → salto entre los 2 modelos de Gemini
+callOpenAI (openai.ts:401) y callOpenAIForTemplate (openai.ts:571) → bucle por respuesta incomplete de OpenAI
+Las rutas (routes/posts.ts, routes/templates.ts, routes/batch.ts, routes/assistant.ts) importan directamente las funciones de alto nivel de cada módulo y las llaman secuencialmente sin orquestación cruzada:
+
+// artifacts/api-server/src/routes/posts.ts (líneas 8-9)
+import { generatePostContent, regeneratePostContent, isOpenAIConfigured, refineImagePrompt } from "../lib/openai";
+import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "../lib/gemini";
+
+Inyección de dependencias: patrón singleton lazy por módulo. Cada uno mantiene let globalClient: OpenAI | null = null; y hace lazy init en getClient(). No hay DI container, no hay factory, no hay tests con mocks vía DI.
+
+// artifacts/api-server/src/lib/openai.ts (líneas 3-14)
+let globalClient: OpenAI | null = null;
+function getClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("El servicio de generación de texto no está disponible. Contacte al administrador.");
+  }
+  if (!globalClient) {
+    globalClient = new OpenAI({ apiKey });
+  }
+  return globalClient;
+}
+
+// artifacts/api-server/src/lib/gemini.ts (líneas 6-12)
+function getApiKey(): string {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error("El servicio de generación de imágenes no está disponible. Contacte al administrador.");
+  }
+  return key;
+}
+
+Gemini ni siquiera tiene SDK: usa fetch directo contra https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}.
+
+7. Telemetría y observabilidad
+Casi nula. Solo console.warn/console.error con los prefijos mencionados arriba. Ejemplos relevantes:
+
+console.warn(\[FAILSAFE] Primary model exhausted retries with status ${response.status}. Trying fallback...`)` — gemini.ts:84
+console.info(\[FAILSAFE] Fallback model responded successfully.`)` — gemini.ts:94 (única línea que indica qué modelo terminó respondiendo)
+console.error(\[FAILSAFE] Fallback model also failed with status ${fallbackResponse.status}.`)` — gemini.ts:96
+No se persiste en BD qué modelo respondió ni cuánto tardó. No hay tabla de métricas, no hay tasas de fallo trackeadas, no hay alertas, no hay Prometheus/Sentry/Datadog. El logger Pino del servidor (pino-http) registra cada request HTTP con responseTime pero no distingue qué proveedor se usó internamente.
+
+8. Configuración por entorno
+No cambia entre dev/prod. La lista de proveedores activos depende solo de qué env vars estén seteadas (OPENAI_API_KEY, GEMINI_API_KEY, OPENAI_VECTOR_STORE_ID).
+
+Forma de desactivar temporalmente: la única manera SIN redeploy es borrar la API key del entorno y reiniciar el proceso. No hay flag en BD ni feature toggle. El código consulta process.env en cada llamada vía getClient()/getApiKey(), así que un nuevo deploy con la key removida deshabilita el módulo, pero un proceso ya corriendo seguiría usando la key cacheada en memoria solo si fue inicializado con ella (y de hecho leería process.env.X cada vez en gemini.ts, así que un cambio de env vivo SÍ sería respetado en Gemini; en OpenAI también, porque getClient() lee la env en cada llamada antes de devolver el singleton).
+
+routes/config.ts expone el estado al frontend para mostrar/ocultar funciones de IA:
+
+// artifacts/api-server/src/routes/config.ts (líneas 3-4)
+import { isOpenAIConfigured } from "../lib/openai";
+import { isGeminiConfigured } from "../lib/gemini";
+
+9. Costos y límites
+No hay control de costo monetario por proveedor antes de la llamada. El control de cuota es funcional, no de costo, y vive en BD/storage:
+
+Cupo mensual de 14 publicaciones totales por usuario (compartido entre programación individual y masiva)
+Cupo masivo: 3 generaciones de contenido IA + 3 generaciones de imágenes IA por mes desde Publicación Masiva
+Estos límites se chequean en las rutas (routes/posts.ts, routes/batch.ts) consultando storage.getMonthlyQuota(userId) y similares, no en los módulos de IA. Cuando se excede, se devuelve un error antes de tocar el SDK del proveedor.
+
+No hay estrategia "barato → caro": el modelo primario de Gemini (gemini-3.1-flash-image-preview) es el de imagen, más caro. El fallback (gemini-2.0-flash) es más barato pero también es más limitado para imágenes — el comentario implícito del código sugiere que el "failsafe" es por disponibilidad, no por costo. OpenAI usa siempre gpt-4.1-mini (el más barato de la familia 4.1).
+
+10. Archivos clave para copiar/adaptar
+Lista exacta y propósito de cada uno (todos relativos a la raíz del repo):
+
+Archivo	Propósito
+artifacts/api-server/src/lib/gemini.ts	El más importante para fallback. Contiene PRIMARY_MODEL, FALLBACK_MODEL, RETRYABLE_STATUS_CODES, fetchWithRetries, fetchWithFailsafe, handleGeminiResponse, generateImage, editImage, editImageAdvanced. Patrón completo de retry+failsafe sin SDK.
+artifacts/api-server/src/lib/openai.ts	Cliente OpenAI singleton, handleOpenAIError (clasificación de status HTTP), callOpenAI/callOpenAIForTemplate (reintentos por respuesta incompleta), todas las funciones de generación de texto, schemas JSON-strict para responses.create, refineImagePrompt (Chat Completions clásico).
+artifacts/api-server/src/lib/assistant.ts	Cliente OpenAI Responses API en modo streaming + integración con Vector Store (OPENAI_VECTOR_STORE_ID) para RAG con file_search. Útil si quieres replicar el patrón de asistente con base de conocimiento.
+artifacts/api-server/src/routes/config.ts	Endpoint que expone isOpenAIConfigured/isGeminiConfigured al frontend para mostrar u ocultar funciones según qué keys estén configuradas.
+artifacts/api-server/src/routes/posts.ts	Ejemplo de cómo se llaman OpenAI y Gemini secuencialmente desde una ruta (sin wrapper unificado).
+artifacts/api-server/src/routes/batch.ts	Ejemplo de uso de suggestBatchContent y suggestBatchImagePrompts (OpenAI) seguido de generación de imágenes (Gemini) en pipeline.
+artifacts/api-server/src/routes/templates.ts	Ejemplo de uso de generateTemplateContent/generateTemplateHtml/editTemplateHtml (OpenAI con json_schema strict).
+artifacts/api-server/src/routes/assistant.ts	Ejemplo de consumo del streaming del asistente.
+artifacts/api-server/src/__tests__/parsePostResponse.test.ts	Test del parser de respuesta de OpenAI — muestra cómo validar la estructura de salida.
+artifacts/api-server/src/docs/troubleshooting.md	Documentación interna que incluye pistas sobre fallos de IA.
+docs/PostIAlo_RRSS_API_OpenAI.md y docs/PostIAlo_RRSS_API_Gemini.md	Documentación textual de las integraciones (referencias generales, no código).
+Variables de entorno a copiar (sin valores, sólo nombres):
+
+OPENAI_API_KEY
+OPENAI_VECTOR_STORE_ID (opcional, sólo para RAG del asistente)
+GEMINI_API_KEY
