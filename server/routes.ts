@@ -2326,7 +2326,7 @@ export async function registerRoutes(
       const validation = validateTemplatePlaceholders(sanitizedResult, result.lockedFields);
       res.json({ html: sanitizedResult, valid: validation.valid, missing: validation.missing, lockedFields: result.lockedFields });
     } catch (err: any) {
-      res.status(500).json({ message: err.message || "Error al analizar la plantilla." });
+      return res.status(500).json({ message: toUserSafeMessage(err, "template_generate") });
     }
   });
 
@@ -2352,8 +2352,7 @@ export async function registerRoutes(
       } as any);
       res.json({ ...updated, missingPlaceholders: validation.missing });
     } catch (err: any) {
-      console.error("Error analizando plantilla:", err.message);
-      return res.status(500).json({ message: err.message || "Error analizando plantilla." });
+      return res.status(500).json({ message: toUserSafeMessage(err, "template_generate") });
     }
   });
 
