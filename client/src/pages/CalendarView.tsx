@@ -1676,16 +1676,18 @@ export default function CalendarView() {
                         }}
                       />
                       {((editingCampaign as any)?.imageRegenCount || 0) < 2 && (
+                      <span title={selectedImageUrl.includes("placehold.co") ? "Primero genera o sube una imagen real antes de usar Edición con IA" : undefined}>
                       <Button
                         data-testid="button-nano-banana"
                         size="sm"
                         className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={handleEditWithNanoBanana}
-                        disabled={isCancelled || isSent || editImageMutation.isPending || uploadImageMutation.isPending || !selectedImageVersion?.imageUrl}
+                        disabled={isCancelled || isSent || editImageMutation.isPending || uploadImageMutation.isPending || !selectedImageVersion?.imageUrl || selectedImageUrl.includes("placehold.co")}
                       >
                         {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
                         Nano Banana
                       </Button>
+                      </span>
                       )}
                     </div>
                   )}

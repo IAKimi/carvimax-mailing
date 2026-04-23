@@ -26,18 +26,21 @@ interface ResolvedCampaignContent {
 
 type ResolverVersion = { id?: number; type: string; isSelected: boolean | null; contentJson: unknown; imageUrl: string | null; versionNumber?: number; sentHtml?: string | null };
 
-function pickResolvedSourceVersion(versions: ResolverVersion[]): ResolverVersion | undefined {
+// Returns the active text-type version (initial or text). User edits always land on these versions.
+// image-type versions bake in a text snapshot at creation time but never receive user edits.
+function pickTextSourceVersion(versions: ResolverVersion[]): ResolverVersion | undefined {
   const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
-  const lastSelectedAny = [...ordered].reverse().find(v => v.isSelected);
-  return lastSelectedAny || ordered[ordered.length - 1];
+  const textVersions = ordered.filter(v => v.type === "initial" || v.type === "text");
+  const lastSelected = [...textVersions].reverse().find(v => v.isSelected);
+  return lastSelected || textVersions[textVersions.length - 1];
 }
 
 function getResolvedCampaignContent(versions: ResolverVersion[]): ResolvedCampaignContent {
   const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
 
-  // Text snapshot lives in the latest selected version regardless of type:
-  // regenerate-image / edit-image-advanced bake the current text into image-type versions.
-  const selectedText = pickResolvedSourceVersion(ordered);
+  // Text MUST come from initial/text-type versions only — the frontend edits land there.
+  // image-type versions carry a stale text snapshot and must never override user edits.
+  const selectedText = pickTextSourceVersion(ordered);
 
   // Image source must be a version that actually carries an image (initial or image type).
   const imageVersions = ordered.filter(v => v.type === "initial" || v.type === "image");
@@ -48,6 +51,40 @@ function getResolvedCampaignContent(versions: ResolverVersion[]): ResolvedCampai
   const imageUrl = selectedImage?.imageUrl || selectedText?.imageUrl || null;
 
   return { contentJson, imageUrl };
+}
+
+// ─── Error sanitisation helper ────────────────────────────────────────────────
+// Messages from AI providers (Gemini, OpenAI) are never shown directly to users.
+// We log the raw error internally and return a clean Spanish generic message.
+const USER_SAFE_MESSAGES: Record<string, string> = {
+  image_generate: "Error al generar tu imagen. Por favor intenta de nuevo en unos minutos.",
+  image_edit:     "Error al editar la imagen. Por favor intenta de nuevo en unos minutos.",
+  text_generate:  "No pudimos generar el texto en este momento. Por favor intenta de nuevo.",
+  text_regenerate:"No pudimos regenerar el texto en este momento. Por favor intenta de nuevo.",
+  template_generate: "Error al generar la plantilla. Por favor intenta de nuevo.",
+};
+
+// Patterns that indicate a raw / technical error from the provider SDK.
+const TECHNICAL_ERROR_PATTERNS = [
+  /\(\d{3}\)/,   // "(400)", "(500)" – raw HTTP status codes
+  /base64/i,     // "Base64 decoding failed"
+  /api key/i,    // raw key validation messages
+  /quota/i,      // raw quota messages
+];
+
+function toUserSafeMessage(err: any, kind: keyof typeof USER_SAFE_MESSAGES): string {
+  const msg: string = typeof err?.message === "string" ? err.message : "";
+  const isTechnical = !msg || TECHNICAL_ERROR_PATTERNS.some(p => p.test(msg));
+  if (isTechnical) {
+    return USER_SAFE_MESSAGES[kind] ?? "Ocurrió un error. Por favor intenta de nuevo.";
+  }
+  return msg;
+}
+
+// Helper: returns true when a URL (or local filename) points to a placehold.co placeholder.
+function isPlaceholderImage(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.includes("placehold.co");
 }
 
 // Resolves what was actually sent, for historical fidelity (resend popup, duplications of sent campaigns).
@@ -972,8 +1009,8 @@ export async function registerRoutes(
         cta_enabled: previousContent?.cta_enabled !== false,
       };
     } catch (err: any) {
-      console.error("Error regenerando texto con OpenAI:", err.message);
-      return res.status(500).json({ message: err.message || "Error regenerando texto." });
+      console.error("[AI][text_regenerate] Error regenerando texto:", err.message);
+      return res.status(500).json({ message: toUserSafeMessage(err, "text_regenerate") });
     }
 
     const resolved = getResolvedCampaignContent(versions);
@@ -1022,8 +1059,8 @@ export async function registerRoutes(
       }
       rawImageUrl = await generateImage(imagePrompt);
     } catch (err: any) {
-      console.error("Error regenerando imagen con Gemini:", err.message);
-      return res.status(500).json({ message: err.message || "Error regenerando imagen." });
+      console.error("[Image API][image_generate] Error regenerando imagen:", err.message);
+      return res.status(500).json({ message: toUserSafeMessage(err, "image_generate") });
     }
 
     const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
@@ -1076,6 +1113,9 @@ export async function registerRoutes(
     if (!selectedImageVersion?.imageUrl) {
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
+    if (isPlaceholderImage(selectedImageVersion.imageUrl)) {
+      return res.status(400).json({ message: "Primero genera o sube una imagen real antes de editarla con IA." });
+    }
 
     const currentImageBase64 = loadImageAsBase64(selectedImageVersion.imageUrl);
 
@@ -1086,8 +1126,8 @@ export async function registerRoutes(
       }
       rawImageUrl = await editImage(currentImageBase64, editPrompt);
     } catch (err: any) {
-      console.error("Error editando imagen con Gemini:", err.message);
-      return res.status(500).json({ message: err.message || "Error editando imagen." });
+      console.error("[Image API][image_edit] Error editando imagen:", err.message);
+      return res.status(500).json({ message: toUserSafeMessage(err, "image_edit") });
     }
 
     const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
@@ -1202,6 +1242,9 @@ export async function registerRoutes(
     if (!selectedImageVersion?.imageUrl) {
       return res.status(400).json({ message: "No hay imagen previa para editar." });
     }
+    if (isPlaceholderImage(selectedImageVersion.imageUrl)) {
+      return res.status(400).json({ message: "Primero genera o sube una imagen real antes de editarla con IA." });
+    }
 
     const currentImageBase64 = loadImageAsBase64(selectedImageVersion.imageUrl);
 
@@ -1217,10 +1260,10 @@ export async function registerRoutes(
         selectedAction: selectedAction as AdvancedAction,
       });
     } catch (err: any) {
-      console.error("Error en edición avanzada con Gemini:", err.message);
-      const msg = err.message || "Error editando imagen.";
+      console.error("[Image API][image_edit] Error en edición avanzada:", err.message);
+      const msg: string = err.message || "";
       const isInputError = msg.includes("no soportado") || msg.includes("excede el límite") || msg.includes("no válida") || msg.includes("bloqueado") || msg.includes("prohibido");
-      return res.status(isInputError ? 400 : 500).json({ message: msg });
+      return res.status(isInputError ? 400 : 500).json({ message: isInputError ? msg : toUserSafeMessage(err, "image_edit") });
     }
 
     const imageUrl = getImagePublicUrl(saveBase64Image(rawImageUrl, `campaign_${campaignId}`), req);
@@ -1350,8 +1393,16 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No se puede modificar versiones de un correo enviado o cancelado." });
     }
     try {
-      const input = updateVersionSchema.parse(req.body);
-      if (input.isSelected) {
+      const rawInput = updateVersionSchema.parse(req.body);
+      // When text content is edited on an initial/text version, auto-promote it
+      // as the active text source so the resolver picks up the user's changes.
+      let autoSelect = false;
+      if (rawInput.contentJson && (versionData.type === "initial" || versionData.type === "text")) {
+        await storage.deselectVersionsByType(versionData.campaignId, ["initial", "text"]);
+        autoSelect = true;
+      }
+      const input = autoSelect ? { ...rawInput, isSelected: true } : rawInput;
+      if (input.isSelected && !autoSelect) {
         if (versionData) {
           await storage.deselectAllVersions(versionData.campaignId);
           if (versionData.imageUrl) {
@@ -2171,8 +2222,8 @@ export async function registerRoutes(
 
       res.status(201).json(confirmed);
     } catch (err: any) {
-      console.error("Error generando plantilla con OpenAI:", err.message);
-      return res.status(500).json({ message: err.message || "Error generando plantilla." });
+      console.error("[AI][template_generate] Error generando plantilla:", err.message);
+      return res.status(500).json({ message: toUserSafeMessage(err, "template_generate") });
     }
   });
 
@@ -2228,8 +2279,8 @@ export async function registerRoutes(
       });
       res.status(201).json(newVersion);
     } catch (err: any) {
-      console.error("Error editando plantilla con OpenAI:", err.message);
-      return res.status(500).json({ message: err.message || "Error editando plantilla." });
+      console.error("[AI][template_generate] Error editando plantilla:", err.message);
+      return res.status(500).json({ message: toUserSafeMessage(err, "template_generate") });
     }
   });
 
@@ -2413,9 +2464,9 @@ export async function registerRoutes(
         return { success: false, error: errMsg };
       }
 
-      // Stamp sentHtml on the version that was actually resolved as the text source,
+      // Stamp sentHtml on the text-type version that contributed the content,
       // so future resends can recover exactly what was sent (Task #17).
-      const sourceVersion = pickResolvedSourceVersion(versions);
+      const sourceVersion = pickTextSourceVersion(versions);
       if (sourceVersion?.id) {
         await storage.updateCampaignVersion(sourceVersion.id, { sentHtml: renderedHtml } as any);
       }
