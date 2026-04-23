@@ -483,6 +483,9 @@ SISTEMA DE PLACEHOLDERS OBLIGATORIOS (los 6 deben estar presentes):
 4. {{CONTENIDO}} — Bloque de texto principal en el BLOQUE 3. Ya viene en HTML, NO envolver en <p>.
 5. {{CTA_TEXTO}} — Texto del botón en el BLOQUE 4.
 6. {{CTA_URL}} — href="" del botón en el BLOQUE 4.
+7. {{UNSUBSCRIBE_LINK}} — href="" del enlace de cancelación en el footer.
+
+⚠️ SOLO ESTOS 7 PLACEHOLDERS ESTÁN SOPORTADOS. NO inventes ni uses ningún otro placeholder (como {{NOMBRE}}, {{FECHA}}, {{EMPRESA}}, {{PRODUCTO}}, etc.). El sistema de sustitución solo reconoce los 7 anteriores; cualquier placeholder no reconocido quedará visible como texto sin reemplazar en el correo final.
 
 REGLAS TÉCNICAS DE HTML PARA EMAIL:
 1. SOLO estilos inline (style="..."). Los clientes de email ignoran <style> y CSS externo.

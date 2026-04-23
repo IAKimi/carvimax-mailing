@@ -187,7 +187,7 @@ export default function Dashboard() {
                 <Card data-testid="card-total-campaigns">
                   <CardContent className="p-5">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-muted-foreground">Total Campañas</span>
+                      <span className="text-sm font-medium text-muted-foreground">Total Correos</span>
                       <Mail className="w-4 h-4 text-[#002073]" />
                     </div>
                     <div className="text-3xl font-bold text-foreground">{totalAll}</div>
@@ -251,7 +251,7 @@ export default function Dashboard() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                         <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={formatDate} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                        <Tooltip labelFormatter={formatDate} formatter={(value: number) => [value, "Campañas"]} />
+                        <Tooltip labelFormatter={formatDate} formatter={(value: number) => [value, "Correos"]} />
                         <Line type="monotone" dataKey="count" stroke="#002073" strokeWidth={2} dot={{ fill: "#002073", r: 4 }} activeDot={{ r: 6, fill: "#e3001b" }} />
                       </LineChart>
                     </ResponsiveContainer>
@@ -267,7 +267,7 @@ export default function Dashboard() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <BarChart3 className="w-4 h-4 text-[#002073]" />
-                    Campañas por Mes
+                    Correos por Mes
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -276,7 +276,7 @@ export default function Dashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="month" tick={{ fontSize: 11 }} tickFormatter={formatMonth} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                      <Tooltip labelFormatter={formatMonth} formatter={(value: number) => [value, "Campañas"]} />
+                      <Tooltip labelFormatter={formatMonth} formatter={(value: number) => [value, "Correos"]} />
                       <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                         {metrics.campaignsByMonth.map((_, index) => (
                           <Cell key={index} fill={index === metrics.campaignsByMonth.length - 1 ? "#e3001b" : "#002073"} />
@@ -368,7 +368,7 @@ export default function Dashboard() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-6">Sin campañas recientes</p>
+                    <p className="text-sm text-muted-foreground text-center py-6">Sin correos recientes</p>
                   )}
                 </CardContent>
               </Card>

@@ -596,6 +596,23 @@ export default function CalendarView() {
     },
   });
 
+  const sendTestMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/campaigns/${id}/send-test`);
+      return res.json();
+    },
+    onSuccess: (data: { to?: string }) => {
+      toast({
+        title: "Prueba enviada",
+        description: `Se envió un correo de prueba a ${data?.to || "su dirección de correo"}.`,
+        duration: 8000,
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al enviar prueba", description: err.message, variant: "destructive" });
+    },
+  });
+
   interface EmailProviderInfo { id: number; provider: string; isActive: boolean; isDefault: boolean; senderEmail: string | null; senderName: string | null }
   const { data: rawProviders, isLoading: isLoadingProviders } = useQuery<EmailProviderInfo[]>({
     queryKey: ["/api/email-provider/status"],
@@ -1279,6 +1296,19 @@ export default function CalendarView() {
                   Reprogramar
                 </Button>
               )}
+              {isGenerated && !isSending && editingCampaignId && (
+                <Button
+                  data-testid="button-send-test"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => sendTestMutation.mutate(editingCampaignId)}
+                  disabled={sendTestMutation.isPending}
+                  className="rounded-xl gap-1.5"
+                >
+                  {sendTestMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  Enviar prueba
+                </Button>
+              )}
               {textApproved && imageApproved && editingCampaign && (
                 (!isLocked && (editingCampaign.status === "draft" || editingCampaign.status === "scheduled")) ||
                   editingCampaign.status === "failed" || editingCampaign.status === "partial" || editingCampaign.status === "cancelled"
@@ -1566,8 +1596,17 @@ export default function CalendarView() {
               </div>
             </div>
           ) : versionsLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="rounded-xl bg-muted/50 animate-pulse h-64" />
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-8 w-3/4" />
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-full" />
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-5/6" />
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-4/6" />
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-24 w-full mt-4" />
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -1617,7 +1656,7 @@ export default function CalendarView() {
                       <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
                         <Loader2 className="w-8 h-8 animate-spin text-white" />
                         <span className="text-white text-sm font-medium">
-                          {editImageMutation.isPending ? "Editando imagen con Nano Banana..." : "Generando imagen con IA..."}
+                          {editImageMutation.isPending ? "Editando imagen con IA..." : "Generando imagen con IA..."}
                         </span>
                       </div>
                     )}
@@ -1680,12 +1719,12 @@ export default function CalendarView() {
                       <Button
                         data-testid="button-nano-banana"
                         size="sm"
-                        className="rounded-xl gap-1 bg-amber-500 hover:bg-amber-600 text-white"
+                        className="rounded-xl gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleEditWithNanoBanana}
                         disabled={isCancelled || isSent || editImageMutation.isPending || uploadImageMutation.isPending || !selectedImageVersion?.imageUrl || selectedImageUrl.includes("placehold.co")}
                       >
                         {editImageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                        Nano Banana
+                        Edición con IA
                       </Button>
                       </span>
                       )}
@@ -2324,7 +2363,7 @@ export default function CalendarView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-amber-500" />
-                Compositor Avanzado — Nano Banana
+                Compositor Avanzado — Edición con IA
               </DialogTitle>
               <DialogDescription>
                 Seleccione una acción, agregue imágenes de referencia si lo necesita, y describa lo que desea hacer.
@@ -2721,6 +2760,11 @@ export default function CalendarView() {
                     )}
                   </SelectContent>
                 </Select>
+                {!form.templateId && (
+                  <p className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    Puede crear el correo sin plantilla y asignarle una después desde el editor.
+                  </p>
+                )}
                 {form.templateId && (
                   <div className="border border-border rounded-xl overflow-hidden bg-white">
                     <iframe

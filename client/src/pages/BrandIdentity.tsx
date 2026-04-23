@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -16,7 +15,7 @@ import {
   Upload,
   Save,
   Check,
-  ChevronDown,
+  AlertTriangle,
   Loader2,
   X,
   ArrowRight,
@@ -153,8 +152,7 @@ export default function BrandIdentity() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [saved, setSaved] = useState(false);
-  const [leftOpen, setLeftOpen] = useState(false);
-  const [rightOpen, setRightOpen] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [brand, setBrand] = useState({ ...DEFAULT_BRAND });
   const [initialized, setInitialized] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -164,13 +162,6 @@ export default function BrandIdentity() {
   useEffect(() => {
     setCurrentSection("brand");
   }, [setCurrentSection]);
-
-  useEffect(() => {
-    if (tutorialActive && currentSection === "brand") {
-      setLeftOpen(true);
-      setRightOpen(true);
-    }
-  }, [tutorialActive, currentSection]);
 
   useEffect(() => {
     if (tutorialActive && currentSection === "brand" && initialized) {
@@ -192,16 +183,12 @@ export default function BrandIdentity() {
     for (let i = currentIdx + 1; i < steps.length; i++) {
       if (isFieldEmpty(brand, steps[i].fieldId)) {
         setCurrentStepIndex(i);
-        if (LEFT_SECTION_FIELDS.has(steps[i].fieldId)) setLeftOpen(true);
-        if (RIGHT_SECTION_FIELDS.has(steps[i].fieldId)) setRightOpen(true);
         return;
       }
     }
     for (let i = 0; i < currentIdx; i++) {
       if (isFieldEmpty(brand, steps[i].fieldId)) {
         setCurrentStepIndex(i);
-        if (LEFT_SECTION_FIELDS.has(steps[i].fieldId)) setLeftOpen(true);
-        if (RIGHT_SECTION_FIELDS.has(steps[i].fieldId)) setRightOpen(true);
         return;
       }
     }
@@ -209,6 +196,17 @@ export default function BrandIdentity() {
       setCurrentStepIndex(currentIdx + 1);
     }
   }, [tutorialActive, currentSection, brand, setCurrentStepIndex]);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasUnsavedChanges]);
 
   const { data: brandData, isLoading } = useQuery<BrandIdentityType | null>({
     queryKey: ["/api/brand-identity"],
@@ -255,6 +253,7 @@ export default function BrandIdentity() {
     },
     onSuccess: () => {
       setSaved(true);
+      setHasUnsavedChanges(false);
       queryClient.invalidateQueries({ queryKey: ["/api/brand-identity"] });
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       toast({
@@ -274,6 +273,7 @@ export default function BrandIdentity() {
   function updateField(field: string, value: string) {
     setBrand(prev => ({ ...prev, [field]: value }));
     setSaved(false);
+    setHasUnsavedChanges(true);
   }
 
   function handleSave() {
@@ -368,30 +368,25 @@ export default function BrandIdentity() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Collapsible open={leftOpen} onOpenChange={setLeftOpen}>
-            <div className="bg-card rounded-2xl border border-border shadow-sm" data-testid="collapsible-mi-empresa">
-              <CollapsibleTrigger data-testid="dropdown-mi-empresa" className="w-full flex items-center justify-between p-5 cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Building2 className="w-4 h-4 text-primary" />
-                  </div>
-                  <span className="font-bold text-base">Mi Empresa</span>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${leftOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="px-5 pb-6 space-y-2">
+          <div className="bg-card rounded-2xl border border-border shadow-sm" data-testid="section-mi-empresa">
+            <div className="flex items-center gap-3 p-5 border-b border-border">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-primary" />
+              </div>
+              <span className="font-bold text-base">Mi Empresa</span>
+            </div>
+            <div className="px-5 pb-6 pt-4 space-y-2">
                   <SectionDivider label="Información General" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <TutorialHighlight fieldId="companyName">
                       <div className="space-y-2">
-                        <Label>Nombre de la Empresa</Label>
+                        <Label>Nombre de la Empresa <span className="text-red-500">*</span></Label>
                         <Input data-testid="input-company-name" placeholder="Ej: Mi Empresa S.A." value={brand.companyName} onChange={e => updateField("companyName", e.target.value)} onBlur={() => handleTutorialBlur("companyName")} maxLength={200} className="rounded-xl" />
                       </div>
                     </TutorialHighlight>
                     <TutorialHighlight fieldId="industry">
                       <div className="space-y-2">
-                        <Label>Industria / Rubro</Label>
+                        <Label>Industria / Rubro <span className="text-red-500">*</span></Label>
                         <Input data-testid="input-industry" placeholder="Ej: Tecnología, Salud, Retail" value={brand.industry} onChange={e => updateField("industry", e.target.value)} onBlur={() => handleTutorialBlur("industry")} maxLength={200} className="rounded-xl" />
                       </div>
                     </TutorialHighlight>
@@ -454,24 +449,17 @@ export default function BrandIdentity() {
                       <Textarea data-testid="input-history" placeholder="¿Cómo surgió la empresa? ¿Cuáles son sus logros más importantes?" value={brand.history} onChange={e => updateField("history", e.target.value)} onBlur={() => handleTutorialBlur("history")} maxLength={2000} className="rounded-xl min-h-[120px]" />
                     </div>
                   </TutorialHighlight>
-                </div>
-              </CollapsibleContent>
             </div>
-          </Collapsible>
+          </div>
 
-          <Collapsible open={rightOpen} onOpenChange={setRightOpen}>
-            <div className="bg-card rounded-2xl border border-border shadow-sm" data-testid="collapsible-lineamientos-branding">
-              <CollapsibleTrigger data-testid="dropdown-lineamientos-branding" className="w-full flex items-center justify-between p-5 cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Palette className="w-4 h-4 text-primary" />
-                  </div>
-                  <span className="font-bold text-base">Lineamientos y Branding</span>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${rightOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="px-5 pb-6 space-y-2">
+          <div className="bg-card rounded-2xl border border-border shadow-sm" data-testid="section-lineamientos-branding">
+            <div className="flex items-center gap-3 p-5 border-b border-border">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Palette className="w-4 h-4 text-primary" />
+              </div>
+              <span className="font-bold text-base">Lineamientos y Branding</span>
+            </div>
+            <div className="px-5 pb-6 pt-4 space-y-2">
                   <SectionDivider label="Lineamientos de Redacción" />
                   <div className="space-y-4">
                     <TutorialHighlight fieldId="styleGuide">
@@ -669,6 +657,44 @@ export default function BrandIdentity() {
                         <div
                           data-testid="dropzone-logo"
                           onClick={() => logoInputRef.current?.click()}
+                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-primary/60", "bg-primary/5"); }}
+                          onDragLeave={(e) => { e.currentTarget.classList.remove("border-primary/60", "bg-primary/5"); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.classList.remove("border-primary/60", "bg-primary/5");
+                            const file = e.dataTransfer.files?.[0];
+                            if (!file) return;
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast({ title: "El archivo excede 2MB", variant: "destructive" });
+                              return;
+                            }
+                            if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+                              toast({ title: "Formato no soportado. Use PNG, JPG o WebP", variant: "destructive" });
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                              const base64 = reader.result as string;
+                              try {
+                                const res = await apiRequest("POST", "/api/brand/logo-upload", { base64 });
+                                const data = await res.json();
+                                setBrand(b => ({ ...b, logoUrl: data.logoUrl }));
+                                setHasUnsavedChanges(true);
+                                setSaved(false);
+                                if (data.converted) {
+                                  toast({ title: "Logo convertido a PNG", description: "Se convirtió automáticamente para mejor compatibilidad con plantillas de email." });
+                                } else {
+                                  toast({ title: "Logo subido correctamente" });
+                                }
+                              } catch {
+                                setBrand(b => ({ ...b, logoUrl: base64 }));
+                                setHasUnsavedChanges(true);
+                                setSaved(false);
+                                toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
                           className="border-2 border-dashed border-border rounded-2xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer"
                         >
                           <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
@@ -710,12 +736,33 @@ export default function BrandIdentity() {
                       </div>
                     </TutorialHighlight>
                   </div>
-                </div>
-              </CollapsibleContent>
             </div>
-          </Collapsible>
+          </div>
         </div>
       </div>
+      {hasUnsavedChanges && (
+        <div className="sticky bottom-0 z-20 bg-background border-t border-amber-200 px-4 py-3 shadow-lg flex items-center justify-between gap-3 mt-4 -mx-6">
+          <span className="text-sm text-amber-700 font-medium flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Tiene cambios sin guardar
+          </span>
+          <Button
+            data-testid="button-save-brand-sticky"
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="rounded-xl gap-2"
+          >
+            {saveMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saved ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saveMutation.isPending ? "Guardando..." : "Guardar Cambios"}
+          </Button>
+        </div>
+      )}
       {saved && brand.companyName?.trim() && brand.industry?.trim() && !onboardingStatus?.hasTemplates && (
         <div className="flex justify-end mt-6">
           <Button

@@ -275,27 +275,15 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
           />
         </div>
         <Button
-          data-testid={`button-edit-db-${db.id}`}
-          variant={isEditMode ? "default" : "outline"}
+          data-testid={`button-add-contact-${db.id}`}
+          variant="outline"
           size="sm"
           className="gap-2"
-          onClick={() => toggleEditMode(db.id)}
+          onClick={() => setAddingContact(!addingContact)}
         >
-          <Pencil className="w-4 h-4" />
-          {isEditMode ? "Salir de Edición" : "Editar"}
+          <UserPlus className="w-4 h-4" />
+          Agregar Contacto
         </Button>
-        {isEditMode && (
-          <Button
-            data-testid={`button-add-contact-${db.id}`}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setAddingContact(!addingContact)}
-          >
-            <UserPlus className="w-4 h-4" />
-            Agregar Contacto
-          </Button>
-        )}
         <TutorialHighlight fieldId="import-contacts">
           <Button
             data-testid={`button-add-csv-${db.id}`}
@@ -395,7 +383,7 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Cargo</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Segmento</th>
                 <th className="px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-right">
-                  {isEditMode ? "Acciones" : "Agregado"}
+                  Acciones
                 </th>
               </tr>
             </thead>
@@ -416,11 +404,11 @@ function ContactsTable({ db, isEditMode, editModeDbId, toggleEditMode, toast }: 
                     <Input
                       data-testid={`input-new-contact-email-${db.id}`}
                       type="email"
-                      placeholder="correo@ejemplo.com"
+                      placeholder="correo@ejemplo.com *"
                       maxLength={255}
                       value={newContact.email}
                       onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
-                      className="text-sm"
+                      className="text-sm border-red-200 focus-visible:ring-red-400/30"
                     />
                   </td>
                   <td className="px-4 py-2">
@@ -844,7 +832,7 @@ export default function Contacts() {
                   {isExpanded && (
                     <ContactsTable
                       db={db}
-                      isEditMode={isEditMode}
+                      isEditMode={true}
                       editModeDbId={editModeDbId}
                       toggleEditMode={toggleEditMode}
                       toast={toast}

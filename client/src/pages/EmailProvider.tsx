@@ -202,6 +202,21 @@ export default function EmailProvider() {
               <p className="text-amber-600 mt-1 text-xs italic">Asegúrese de tener consentimiento antes de importar contactos a su cuenta.</p>
             </div>
           </div>
+          <div className="flex items-start gap-2.5">
+            <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">Error "IP no autorizada"</p>
+              <p className="text-amber-700 mt-0.5">Si Brevo rechaza sus envíos por IP no autorizada, siga estos pasos:</p>
+              <ol className="list-decimal list-inside text-amber-700 text-xs space-y-1 mt-1.5">
+                <li>Ingrese a su cuenta de <strong>Brevo</strong></li>
+                <li>Vaya a <strong>Configuración → Seguridad → IPs autorizadas</strong></li>
+                <li>Haga clic en <strong>"Añadir una IP"</strong></li>
+                <li>Marque la opción <strong>"Autorizar todas las IPs"</strong> o agregue la IP que le indica el error</li>
+                <li>Guarde los cambios e intente el envío nuevamente</li>
+              </ol>
+              <p className="text-amber-600 mt-1 text-xs italic">Esta restricción solo aplica a cuentas con seguridad de IP activada en Brevo.</p>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -269,7 +284,7 @@ export default function EmailProvider() {
         queryClient.invalidateQueries({ queryKey: ["/api/email-provider/mailchimp/audiences"] });
       }
       const name = variables.provider === "brevo" ? "Brevo" : "Mailchimp";
-      toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.` });
+      toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.`, duration: 8000 });
       if (data?.warning) {
         toast({ title: "Aviso", description: data.warning, variant: "destructive" });
       }

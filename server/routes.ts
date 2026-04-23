@@ -2642,7 +2642,7 @@ export async function registerRoutes(
         }
 
         const finalStatus = batchResult.failed === 0 ? "sent" : "partial";
-        await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+        await storage.updateCampaign(campaignId, { status: finalStatus, sentAt: new Date() } as any);
         broadcastWs("campaign-progress", {
           campaignId,
           totalExpectedSends: contactsList.length,
@@ -2704,7 +2704,7 @@ export async function registerRoutes(
           failedCount: 0,
         }).where(eq(campaignsTable.id, campaignId));
 
-        await storage.updateCampaign(campaignId, { status: "sent" });
+        await storage.updateCampaign(campaignId, { status: "sent", sentAt: new Date() } as any);
         broadcastWs("campaign-progress", {
           campaignId,
           totalExpectedSends: contactsList.length,
@@ -2765,6 +2765,67 @@ export async function registerRoutes(
       return res.status(400).json({ message: result.error });
     }
     res.json({ message: "Campaña enviada exitosamente." });
+  });
+
+  app.post("/api/campaigns/:id/send-test", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const campaign = await storage.getCampaign(id);
+    if (!campaign || campaign.userId !== req.session.userId) {
+      return res.status(404).json({ message: "Campaña no encontrada." });
+    }
+    const user = await storage.getUserById(req.session.userId!);
+    if (!user?.email) return res.status(400).json({ message: "No se pudo obtener el correo del usuario." });
+
+    const providers = await storage.getEmailProviders(req.session.userId!);
+    const activeProvider = providers.find(p => p.isDefault) || providers.find(p => p.isActive) || null;
+    if (!activeProvider?.isActive) {
+      return res.status(400).json({ message: "No hay proveedor de email configurado." });
+    }
+
+    const subject = (campaign as any).contentJson?.asunto || campaign.name || "Prueba de correo";
+    const preheader = (campaign as any).contentJson?.preheader || "";
+    const contenido = (campaign as any).contentJson?.cuerpo || "";
+    const ctaTexto = (campaign as any).contentJson?.cta_texto || "";
+    const ctaUrl = (campaign as any).contentJson?.cta_url || "#";
+    const imageUrl = campaign.selectedImageUrl || "";
+
+    let htmlBody = campaign.templateHtml || "";
+    if (htmlBody) {
+      htmlBody = htmlBody
+        .replace(/\{\{ASUNTO\}\}/g, subject)
+        .replace(/\{\{PREHEADER\}\}/g, preheader)
+        .replace(/\{\{IMAGEN_URL\}\}/g, imageUrl)
+        .replace(/\{\{CONTENIDO\}\}/g, contenido)
+        .replace(/\{\{CTA_TEXTO\}\}/g, ctaTexto)
+        .replace(/\{\{CTA_URL\}\}/g, ctaUrl)
+        .replace(/\{\{UNSUBSCRIBE_LINK\}\}/g, "#");
+    } else {
+      htmlBody = `<p>${contenido}</p>`;
+    }
+
+    try {
+      if (activeProvider.provider === "brevo") {
+        const result = await sendBatchEmails({
+          apiKey: activeProvider.apiKey,
+          senderEmail: activeProvider.senderEmail || user.email,
+          senderName: activeProvider.senderName || user.email,
+          contacts: [{ email: user.email, firstName: "", lastName: "" }],
+          subject: `[PRUEBA] ${subject}`,
+          htmlContent: htmlBody,
+          tags: [],
+        });
+        if (result.sent === 0) {
+          return res.status(500).json({ message: result.errors[0]?.error || "No se pudo enviar el correo de prueba." });
+        }
+      } else if (activeProvider.provider === "mailchimp") {
+        return res.status(400).json({ message: "El envío de prueba solo está disponible para Brevo en este momento." });
+      }
+      res.json({ to: user.email });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error interno.";
+      res.status(500).json({ message });
+    }
   });
 
   const brevoWebhookLimiter = rateLimit({
