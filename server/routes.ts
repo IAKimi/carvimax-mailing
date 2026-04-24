@@ -2832,15 +2832,14 @@ export async function registerRoutes(
       if (activeProvider.provider === "brevo") {
         const senderName = activeProvider.senderName || "PostIAlo Mailing";
         const senderEmail = activeProvider.senderEmail || user.email;
-        const result = await sendBatchEmails({
+        const result = await sendBatchEmails(
           apiKey,
-          senderEmail,
-          senderName,
-          contacts: [{ email: user.email, firstName: "", lastName: "" }],
-          subject: `[PRUEBA] ${subject}`,
-          htmlContent: htmlBody,
-          tags: [],
-        });
+          { name: senderName, email: senderEmail },
+          `[PRUEBA] ${subject}`,
+          htmlBody,
+          [{ name: user.name || "", email: user.email }],
+          `postialo_test_${id}`
+        );
         if (result.sent === 0) {
           return res.status(500).json({ message: result.errors[0]?.error || "No se pudo enviar el correo de prueba." });
         }
