@@ -643,6 +643,9 @@ export default function Contacts() {
   const [newDbName, setNewDbName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editModeDbId, setEditModeDbId] = useState<number | null>(null);
+  const [renamingDbId, setRenamingDbId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { setCurrentSection, tutorialActive } = useTutorial();
 
@@ -697,6 +700,45 @@ export default function Contacts() {
       toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
+
+  const renameDatabaseMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const res = await apiRequest("PATCH", `/api/contact-databases/${id}`, { name });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contact-databases"] });
+      setRenamingDbId(null);
+      setRenameValue("");
+      toast({ title: "Base de datos renombrada", description: "El nombre ha sido actualizado correctamente." });
+    },
+    onError: (err: any) => {
+      let msg = "No se pudo renombrar la base de datos.";
+      try {
+        const raw = err?.message || "";
+        const jsonPart = raw.substring(raw.indexOf("{"));
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.message) msg = parsed.message;
+      } catch {}
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  function startRename(db: ContactDatabaseType) {
+    setRenamingDbId(db.id);
+    setRenameValue(db.name);
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  }
+
+  function saveRename() {
+    if (!renamingDbId || !renameValue.trim()) return;
+    renameDatabaseMutation.mutate({ id: renamingDbId, name: renameValue.trim() });
+  }
+
+  function cancelRename() {
+    setRenamingDbId(null);
+    setRenameValue("");
+  }
 
   function handleCreateDatabase() {
     if (!newDbName.trim()) return;
@@ -787,47 +829,99 @@ export default function Contacts() {
               const isExpanded = expandedId === db.id;
               const isEditMode = editModeDbId === db.id;
 
+              const isRenaming = renamingDbId === db.id;
+
               return (
                 <Card key={db.id} data-testid={`card-database-${db.id}`} className="overflow-visible">
                   <div className="flex items-center justify-between gap-3 p-4">
-                    <button
-                      data-testid={`button-expand-db-${db.id}`}
-                      className="flex-1 flex items-center gap-3 text-left"
-                      onClick={() => toggleExpand(db.id)}
-                    >
-                      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Database className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="font-semibold" data-testid={`text-db-name-${db.id}`}>{db.name}</span>
-                      </div>
-                      {isExpanded ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
-                    </button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button data-testid={`button-delete-db-${db.id}`} variant="ghost" size="icon" className="text-red-500 h-8 w-8">
-                          <Trash2 className="w-4 h-4" />
+                    {isRenaming ? (
+                      <>
+                        <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Database className="w-5 h-5 text-primary" />
+                        </div>
+                        <Input
+                          ref={renameInputRef}
+                          data-testid={`input-rename-db-${db.id}`}
+                          className="flex-1 font-semibold h-8"
+                          maxLength={100}
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveRename();
+                            if (e.key === "Escape") cancelRename();
+                          }}
+                        />
+                        <Button
+                          data-testid={`button-save-rename-db-${db.id}`}
+                          variant="ghost"
+                          size="icon"
+                          className="text-green-600 h-8 w-8"
+                          onClick={saveRename}
+                          disabled={!renameValue.trim() || renameDatabaseMutation.isPending}
+                        >
+                          {renameDatabaseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Eliminar base de datos</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta acci\u00f3n eliminar\u00e1 la base de datos "{db.name}" y todos sus contactos. No se puede deshacer.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            data-testid={`button-confirm-delete-db-${db.id}`}
-                            className="bg-red-600 hover:bg-red-700"
-                            onClick={() => deleteDbMutation.mutate(db.id)}
-                          >
-                            Eliminar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                        <Button
+                          data-testid={`button-cancel-rename-db-${db.id}`}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={cancelRename}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          data-testid={`button-expand-db-${db.id}`}
+                          className="flex-1 flex items-center gap-3 text-left"
+                          onClick={() => toggleExpand(db.id)}
+                        >
+                          <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Database className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold" data-testid={`text-db-name-${db.id}`}>{db.name}</span>
+                          </div>
+                          {isExpanded ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+                        </button>
+                        <Button
+                          data-testid={`button-rename-db-${db.id}`}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => startRename(db)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button data-testid={`button-delete-db-${db.id}`} variant="ghost" size="icon" className="text-red-500 h-8 w-8">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Eliminar base de datos</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción eliminará la base de datos "{db.name}" y todos sus contactos. No se puede deshacer.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                data-testid={`button-confirm-delete-db-${db.id}`}
+                                className="bg-red-600 hover:bg-red-700"
+                                onClick={() => deleteDbMutation.mutate(db.id)}
+                              >
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
+                    )}
                   </div>
                   {isExpanded && (
                     <ContactsTable

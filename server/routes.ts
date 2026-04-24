@@ -1498,6 +1498,27 @@ export async function registerRoutes(
     res.status(201).json(db);
   });
 
+  app.patch("/api/contact-databases/:id", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const name = req.body.name;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ message: "Nombre es requerido." });
+    }
+    if (name.trim().length > 100) {
+      return res.status(400).json({ message: "El nombre no puede exceder 100 caracteres." });
+    }
+    const dbs = await storage.getContactDatabases(req.session.userId!);
+    if (!dbs.some(d => d.id === id)) {
+      return res.status(404).json({ message: "Base de datos no encontrada." });
+    }
+    if (dbs.some(d => d.id !== id && d.name.toLowerCase() === name.trim().toLowerCase())) {
+      return res.status(409).json({ message: "Ya existe una base de datos con ese nombre." });
+    }
+    const updated = await storage.updateContactDatabase(id, name.trim());
+    res.json(updated);
+  });
+
   app.delete("/api/contact-databases/:id", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });

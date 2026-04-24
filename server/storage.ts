@@ -45,6 +45,7 @@ export interface IStorage {
 
   getContactDatabases(userId: number): Promise<ContactDatabase[]>;
   createContactDatabase(data: InsertContactDatabase): Promise<ContactDatabase>;
+  updateContactDatabase(id: number, name: string): Promise<ContactDatabase | undefined>;
   deleteContactDatabase(id: number): Promise<void>;
 
   getContacts(databaseId: number): Promise<Contact[]>;
@@ -449,6 +450,11 @@ export class DatabaseStorage implements IStorage {
   async createContactDatabase(contactDb: InsertContactDatabase): Promise<ContactDatabase> {
     const [created] = await db.insert(contactDatabases).values(contactDb).returning();
     return created;
+  }
+
+  async updateContactDatabase(id: number, name: string): Promise<ContactDatabase | undefined> {
+    const [updated] = await db.update(contactDatabases).set({ name }).where(eq(contactDatabases.id, id)).returning();
+    return updated;
   }
 
   async deleteContactDatabase(id: number): Promise<void> {
