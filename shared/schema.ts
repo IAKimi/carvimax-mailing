@@ -156,6 +156,7 @@ export const TEMPLATE_PLACEHOLDERS = {
   CTA_TEXTO: { key: "{{CTA_TEXTO}}", field: "cta_text", label: "Texto del botón", description: "Texto visible del botón de acción (CTA)" },
   CTA_URL: { key: "{{CTA_URL}}", field: "cta_url", label: "Enlace del botón", description: "URL de destino del botón de acción" },
   IMAGEN_URL: { key: "{{IMAGEN_URL}}", field: "imageUrl", label: "Imagen principal", description: "URL de la imagen hero del correo" },
+  LOGO_URL: { key: "{{LOGO_URL}}", field: "logoUrl", label: "Logo de la empresa", description: "URL del logo de la empresa en la cabecera" },
 } as const;
 
 export const ALL_PLACEHOLDER_KEYS = Object.values(TEMPLATE_PLACEHOLDERS).map(p => p.key);

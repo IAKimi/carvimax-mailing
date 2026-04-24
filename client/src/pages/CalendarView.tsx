@@ -415,6 +415,7 @@ export default function CalendarView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns", editingCampaignId, "versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setShowRegenTextModal(false);
       setLastTextCorrections(regenTextCorrections);
       setRegenTextCorrections("");
@@ -2790,12 +2791,12 @@ export default function CalendarView() {
                   </p>
                 )}
                 {form.templateId && (
-                  <div className="border border-border rounded-xl overflow-hidden bg-white" style={{ height: "180px" }}>
+                  <div className="border border-border rounded-xl overflow-hidden bg-white" style={{ height: "220px" }}>
                     <iframe
                       srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
                       sandbox=""
                       title="template-mini-preview"
-                      style={{ width: "200%", height: "200%", transform: "scale(0.5)", transformOrigin: "top left", pointerEvents: "none", border: "none" }}
+                      style={{ width: "200%", height: "200%", transform: "scale(0.5)", transformOrigin: "top left", border: "none", pointerEvents: "none", display: "block" }}
                     />
                   </div>
                 )}
