@@ -139,6 +139,9 @@ export function renderTemplateWithContent(
     if (brandData?.logoUrl) {
       html = html.replace(/\{\{LOGO_URL\}\}/g, brandData.logoUrl);
     } else {
+      // Remove img tags that reference {{LOGO_URL}} so no broken-image icon appears
+      html = html.replace(/<img[^>]*src=["'][^"']*\{\{LOGO_URL\}\}[^"']*["'][^>]*>/gi, "");
+      // Also replace any remaining raw {{LOGO_URL}} occurrences (e.g. as data attributes)
       html = html.replace(/\{\{LOGO_URL\}\}/g, "");
     }
   }

@@ -1068,6 +1068,7 @@ export async function registerRoutes(
     });
     await storage.incrementRegenCount(campaignId, "textRegenCount");
     await storage.updateCampaign(campaignId, { textApproved: false } as any);
+    console.log(`[Approval] campaign #${campaignId} textApproved → false (text regenerated)`);
     res.status(201).json(newVersion);
   });
 
@@ -1122,6 +1123,7 @@ export async function registerRoutes(
     });
     await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
     await storage.incrementRegenCount(campaignId, "imageRegenCount");
+    console.log(`[Approval] campaign #${campaignId} imageApproved → false (image regenerated)`);
     res.status(201).json(newVersion);
   });
 
@@ -1185,6 +1187,7 @@ export async function registerRoutes(
     });
     await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
     await storage.incrementRegenCount(campaignId, "imageRegenCount");
+    console.log(`[Approval] campaign #${campaignId} imageApproved → false (image edited with AI)`);
     res.status(201).json(newVersion);
   });
 
@@ -1218,6 +1221,7 @@ export async function registerRoutes(
         type: "image",
       });
       await storage.updateCampaign(campaignId, { selectedImageUrl: imageUrl, imageApproved: false } as any);
+      console.log(`[Approval] campaign #${campaignId} imageApproved → false (image uploaded)`);
       res.json({ version: newVersion, imageUrl });
     } catch (err: any) {
       console.error("Error subiendo imagen:", err.message);
@@ -1395,6 +1399,7 @@ export async function registerRoutes(
         imageApproved: true,
         ...(scheduledAt ? { status: "scheduled" } : {}),
       });
+      console.log(`[Approval] campaign #${newCampaign.id} textApproved + imageApproved → true (resend from original #${original.id})`);
     } else if (scheduledAt) {
       await storage.updateCampaign(newCampaign.id, { status: "draft" });
     }
@@ -3266,7 +3271,16 @@ export async function registerRoutes(
         for (const campaign of allCampaigns) {
           if (campaign.status === "scheduled" && campaign.scheduledAt && new Date(campaign.scheduledAt) <= now) {
             if (!campaign.textApproved || !campaign.imageApproved) {
-              console.warn(`Scheduler: campaign #${campaign.id} skipped — missing approvals (text: ${campaign.textApproved}, image: ${campaign.imageApproved}). Keeping status "scheduled".`);
+              console.warn(`Scheduler: campaign #${campaign.id} lost approval after scheduling (text: ${campaign.textApproved}, image: ${campaign.imageApproved}). Reverting to draft.`);
+              await storage.updateCampaign(campaign.id, { status: "draft" } as any);
+              await db.update(campaignsTable).set({
+                schedulerLastError: "Esta campaña fue reprogramada a borrador porque el contenido fue regenerado después de programar el envío. Aprueba nuevamente la imagen y el texto para volver a programarla.",
+              }).where(eq(campaignsTable.id, campaign.id));
+              broadcastWs("campaign-progress", {
+                campaignId: campaign.id,
+                status: "draft",
+                completed: true,
+              });
               continue;
             }
             const schedulerImageUrl = campaign.selectedImageUrl || "";

@@ -89,6 +89,7 @@ export default function EmailProvider() {
   const [showMailchimpInstructions, setShowMailchimpInstructions] = useState(false);
   const [showMailchimpRequirements, setShowMailchimpRequirements] = useState(false);
   const [showBrevoRequirements, setShowBrevoRequirements] = useState(false);
+  const [showIpAnalogy, setShowIpAnalogy] = useState(false);
 
   const { data: outboundIpData } = useQuery<{ ip: string | null }>({
     queryKey: ["/api/system/outbound-ip"],
@@ -217,32 +218,54 @@ export default function EmailProvider() {
           </div>
           <div className="flex items-start gap-2.5">
             <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="w-full">
-              <p className="font-semibold text-amber-800">Error "IP no autorizada"</p>
-              <p className="text-amber-700 mt-0.5">Si Brevo rechaza sus envíos por IP no autorizada, siga estos pasos:</p>
-              <ol className="list-decimal list-inside text-amber-700 text-xs space-y-1 mt-1.5">
-                <li>Ingrese a su cuenta de <strong>Brevo</strong></li>
-                <li>Vaya a <strong>Configuración → Seguridad → IPs autorizadas</strong></li>
-                <li>Haga clic en <strong>"Añadir una IP"</strong></li>
-                <li>Agregue la IP de PostIAlo:
-                  <span className="inline-flex items-center gap-1.5 ml-1.5 bg-amber-100 border border-amber-300 rounded px-2 py-0.5 font-mono text-amber-900 text-xs">
-                    {outboundIp || "cargando…"}
-                    {outboundIp && (
-                      <button
-                        type="button"
-                        data-testid="button-copy-outbound-ip"
-                        onClick={copyIpToClipboard}
-                        className="text-amber-600 hover:text-amber-800 transition-colors"
-                        title="Copiar IP"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    )}
-                  </span>
-                </li>
-                <li>Guarde los cambios e intente el envío nuevamente</li>
+            <div className="w-full space-y-2">
+              <p className="font-semibold text-amber-800">⚠️ Autoriza a PostIAlo para conectarse con tu cuenta</p>
+              <p className="text-amber-700 text-xs">
+                Tu cuenta de Brevo tiene activada una medida de seguridad que funciona como un <strong>"guardaespaldas"</strong>: no solo verifica tu API key (la llave maestra de tu cuenta), sino que también revisa <em>desde qué dirección IP</em> se hace la conexión. Si el sistema no reconoce la IP de PostIAlo, la bloquea automáticamente aunque tengas la llave correcta.
+              </p>
+              <button
+                type="button"
+                data-testid="button-toggle-ip-analogy"
+                onClick={() => setShowIpAnalogy(!showIpAnalogy)}
+                className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-800 hover:underline transition-colors"
+              >
+                {showIpAnalogy ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                {showIpAnalogy ? "Ocultar explicación de IPs" : "¿Qué diferencia hay entre una IP compartida y una dedicada?"}
+              </button>
+              {showIpAnalogy && (
+                <div className="text-xs text-amber-700 bg-amber-100/60 rounded-lg p-3 space-y-1.5">
+                  <p><strong>IP compartida (plan gratuito/básico):</strong> Es como viajar en un autobús público — tu empresa comparte el mismo servidor de envío con otras. Es económico, pero si otro pasajero hace spam, Gmail/Outlook puede "detener el autobús" y tus correos podrían ir al spam por culpa de otros.</p>
+                  <p><strong>IP dedicada (planes avanzados):</strong> Es como tener tu propio auto privado — solo tú construyes la reputación de esa IP. Si envías correos legítimos, siempre llegás directo a la bandeja de entrada. Recomendado para empresas que envían miles de correos al mes.</p>
+                </div>
+              )}
+              <p className="text-amber-700 text-xs font-medium">Pasos para solucionarlo (menos de 1 minuto):</p>
+              <ol className="list-decimal list-inside text-amber-700 text-xs space-y-1.5">
+                <li>Inicia sesión en Brevo y ve a <strong>Configuración → Seguridad → IPs autorizadas</strong></li>
+                <li>Haz clic en <strong>"Añadir una IP"</strong> y pega exactamente este número:</li>
               </ol>
-              <p className="text-amber-600 mt-1 text-xs italic">Esta restricción solo aplica a cuentas con seguridad de IP activada en Brevo.</p>
+              <div className="ml-4">
+                <span className="inline-flex items-center gap-1.5 bg-amber-100 border border-amber-300 rounded px-2 py-1 font-mono text-amber-900 text-xs">
+                  {outboundIp || "cargando…"}
+                  {outboundIp && (
+                    <button
+                      type="button"
+                      data-testid="button-copy-outbound-ip"
+                      onClick={copyIpToClipboard}
+                      className="text-amber-600 hover:text-amber-800 transition-colors"
+                      title="Copiar IP"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  )}
+                </span>
+              </div>
+              <ol className="list-decimal list-inside text-amber-700 text-xs space-y-1.5" start={3}>
+                <li>Guarda los cambios en Brevo</li>
+                <li>Regresa aquí y vuelve a intentar conectar tu cuenta</li>
+              </ol>
+              <p className="text-amber-600 text-xs italic">
+                Alternativa: si preferís, podés simplemente <strong>desactivar la restricción de IPs</strong> en esa misma pantalla de Brevo y la conexión funcionará de inmediato.
+              </p>
             </div>
           </div>
         </div>
@@ -314,11 +337,11 @@ export default function EmailProvider() {
       const name = variables.provider === "brevo" ? "Brevo" : "Mailchimp";
       toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.`, duration: 8000 });
       if (data?.warning) {
-        toast({ title: "Aviso", description: data.warning, variant: "destructive" });
+        toast({ title: "Aviso", description: data.warning, variant: "destructive", duration: 8000 });
       }
     },
     onError: (err: Error) => {
-      toast({ title: "Error de conexión", description: err.message || "No se pudo conectar. Verifique su API key.", variant: "destructive" });
+      toast({ title: "Error de conexión", description: err.message || "No se pudo conectar. Verifique su API key.", variant: "destructive", duration: 8000 });
     },
   });
 
@@ -334,7 +357,7 @@ export default function EmailProvider() {
       toast({ title: "Proveedor desconectado", description: `Su cuenta de ${name} ha sido desvinculada.` });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message || "No se pudo desconectar.", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "No se pudo desconectar.", variant: "destructive", duration: 8000 });
     },
   });
 
@@ -351,7 +374,7 @@ export default function EmailProvider() {
       toast({ title: "Remitente actualizado", description: "El remitente por defecto ha sido actualizado." });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive", duration: 8000 });
     },
   });
 
@@ -369,7 +392,7 @@ export default function EmailProvider() {
       toast({ title: "Predeterminado actualizado" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive", duration: 8000 });
     },
   });
 

@@ -32,6 +32,12 @@ function checkPlaceholders(html: string) {
   return { valid: missing.length === 0, present, missing };
 }
 
+function detectUnsupportedPlaceholders(html: string): string[] {
+  const matches = html.match(/\{\{[A-Z][A-Z0-9_]*\}\}/g) || [];
+  const unique = [...new Set(matches)];
+  return unique.filter(p => !ALL_PLACEHOLDER_KEYS.includes(p));
+}
+
 export default function Templates() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -460,6 +466,8 @@ export default function Templates() {
   const editingTemplate = templates.find(t => t.id === editingTemplateId);
   const newHtmlValidation = newHtml.trim() ? checkPlaceholders(newHtml) : null;
   const manualHtmlValidation = manualHtml.trim() ? checkPlaceholders(manualHtml) : null;
+  const newHtmlUnsupported = newHtml.trim() ? detectUnsupportedPlaceholders(newHtml) : [];
+  const manualHtmlUnsupported = manualHtml.trim() ? detectUnsupportedPlaceholders(manualHtml) : [];
 
   const placeholderList = Object.values(TEMPLATE_PLACEHOLDERS);
 
@@ -963,6 +971,23 @@ export default function Templates() {
                     </div>
                   </div>
                 )}
+                {newHtmlUnsupported.length > 0 && (
+                  <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <X className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-red-800 dark:text-red-300">Placeholders no soportados ({newHtmlUnsupported.length}):</p>
+                        <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">Estos no serán reemplazados al enviar el correo — quedarán visibles como texto sin procesar.</p>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {newHtmlUnsupported.map(p => (
+                            <code key={p} className="text-[10px] font-mono bg-red-100 dark:bg-red-900/50 text-red-700 rounded px-1 py-0.5">{p}</code>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-red-600 mt-1.5">Solo se admiten: {ALL_PLACEHOLDER_KEYS.join(", ")}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <Button
                   data-testid="button-save-new-template"
                   onClick={handleSaveTemplate}
@@ -1152,6 +1177,23 @@ export default function Templates() {
               <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                 <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Todos los placeholders presentes.</p>
+              </div>
+            )}
+            {manualHtmlUnsupported.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <X className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-red-800 dark:text-red-300">Placeholders no soportados ({manualHtmlUnsupported.length}):</p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">Estos no serán reemplazados al enviar el correo — quedarán visibles como texto sin procesar.</p>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {manualHtmlUnsupported.map(p => (
+                        <code key={p} className="text-[10px] font-mono bg-red-100 dark:bg-red-900/50 text-red-700 rounded px-1 py-0.5">{p}</code>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-red-600 mt-1.5">Solo se admiten: {ALL_PLACEHOLDER_KEYS.join(", ")}</p>
+                  </div>
+                </div>
               </div>
             )}
             {manualHtml && (

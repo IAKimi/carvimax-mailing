@@ -149,6 +149,10 @@ export class DatabaseStorage implements IStorage {
       failedCount: campaigns.failedCount,
       textApproved: campaigns.textApproved,
       imageApproved: campaigns.imageApproved,
+      imageRegenCount: campaigns.imageRegenCount,
+      textRegenCount: campaigns.textRegenCount,
+      providerId: campaigns.providerId,
+      schedulerLastError: campaigns.schedulerLastError,
       createdAt: campaigns.createdAt,
       subject: sql<string | null>`(
         SELECT content_json->>'asunto'

@@ -537,6 +537,16 @@ export default function CalendarView() {
     setImageApprovedLocal(camp?.imageApproved ?? false);
     setApprovedImageUrl(null);
     setHasUnsavedChanges(false);
+    if (camp?.status === "draft" && camp?.schedulerLastError) {
+      setTimeout(() => {
+        toast({
+          title: "⚠️ Campaña revertida a borrador",
+          description: camp.schedulerLastError ?? undefined,
+          variant: "destructive",
+          duration: 10000,
+        });
+      }, 400);
+    }
   }
 
   function handleBackToCalendar() {
@@ -1439,8 +1449,15 @@ export default function CalendarView() {
                   </div>
                   )}
                   <div className="bg-muted/50 rounded-xl p-4">
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Versión</p>
-                    <p className="text-sm font-semibold">V{selectedVersion.versionNumber}</p>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Versión de texto</p>
+                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                      V{selectedVersion.versionNumber}
+                      {textApproved && selectedVersion.isSelected && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5">
+                          <CheckCircle2 className="w-2.5 h-2.5" /> aprobada
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <div className="bg-muted/50 rounded-xl p-4">
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Estado</p>
@@ -2773,13 +2790,12 @@ export default function CalendarView() {
                   </p>
                 )}
                 {form.templateId && (
-                  <div className="border border-border rounded-xl overflow-hidden bg-white">
+                  <div className="border border-border rounded-xl overflow-hidden bg-white" style={{ height: "180px" }}>
                     <iframe
                       srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
                       sandbox=""
-                      className="w-full h-24 pointer-events-none"
-                      style={{ transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
                       title="template-mini-preview"
+                      style={{ width: "200%", height: "200%", transform: "scale(0.5)", transformOrigin: "top left", pointerEvents: "none", border: "none" }}
                     />
                   </div>
                 )}
