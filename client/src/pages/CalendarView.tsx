@@ -2791,14 +2791,14 @@ export default function CalendarView() {
                   </p>
                 )}
                 {form.templateId && (
-                  <div className="border border-border rounded-xl bg-white" style={{ height: "300px", overflow: "hidden", position: "relative" }}>
-                    <div style={{ position: "absolute", top: 0, left: 0, width: "200%", transformOrigin: "top left", transform: "scale(0.5)", pointerEvents: "none" }}>
+                  <div className="border border-border rounded-xl bg-white" style={{ height: "260px", overflow: "hidden", position: "relative" }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, width: "200%", transformOrigin: "top left", transform: "scale(0.5)" }}>
                       <iframe
                         srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
                         sandbox=""
                         title="template-mini-preview"
-                        scrolling="no"
-                        style={{ width: "100%", height: "1200px", border: "none", display: "block" }}
+                        scrolling="yes"
+                        style={{ width: "100%", height: "520px", border: "none", display: "block", overflowY: "auto" }}
                       />
                     </div>
                   </div>
