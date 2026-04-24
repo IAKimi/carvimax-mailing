@@ -2626,7 +2626,7 @@ export async function registerRoutes(
         }
 
         if (batchResult.noCredits && batchResult.sent > 0) {
-          await storage.updateCampaign(campaignId, { status: "partial" } as any);
+          await storage.updateCampaign(campaignId, { status: "partial", sentAt: new Date() } satisfies UpdateCampaign);
           broadcastWs("campaign-progress", {
             campaignId,
             totalExpectedSends: contactsList.length,
@@ -2921,7 +2921,8 @@ export async function registerRoutes(
       const total = updatedCampaign.totalExpectedSends || 0;
       if (total > 0 && (sent + failed) >= total && updatedCampaign.status === "sending") {
         const finalStatus = failed === 0 ? "sent" : (sent === 0 ? "failed" : "partial");
-        await storage.updateCampaign(campaignId, { status: finalStatus } as any);
+        const isFinalSentState = finalStatus === "sent" || finalStatus === "partial";
+        await storage.updateCampaign(campaignId, { status: finalStatus, ...(isFinalSentState ? { sentAt: new Date() } : {}) } satisfies UpdateCampaign);
         broadcastWs("campaign-progress", { campaignId, totalExpectedSends: total, sentCount: sent, failedCount: failed, status: finalStatus, completed: true });
       } else {
         broadcastWs("campaign-progress", { campaignId, totalExpectedSends: total, sentCount: sent, failedCount: failed, status: updatedCampaign.status });
@@ -3248,7 +3249,8 @@ export async function registerRoutes(
           if (noProgressMinutes >= 30) {
             const finalStatus = sent > 0 ? (failed > 0 ? "partial" : "sent") : "failed";
             console.log(`Scheduler: campaign #${stuck.id} no progress for ${Math.round(noProgressMinutes)}min, forcing to '${finalStatus}' (sent=${sent}, failed=${failed})`);
-            await storage.updateCampaign(stuck.id, { status: finalStatus } as any);
+            const isSchedulerSentState = finalStatus === "sent" || finalStatus === "partial";
+            await storage.updateCampaign(stuck.id, { status: finalStatus, ...(isSchedulerSentState ? { sentAt: new Date() } : {}) } satisfies UpdateCampaign);
             broadcastWs("campaign-progress", {
               campaignId: stuck.id,
               totalExpectedSends: stuck.totalExpectedSends || 0,
