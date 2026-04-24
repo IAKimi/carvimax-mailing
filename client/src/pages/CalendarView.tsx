@@ -2846,7 +2846,9 @@ export default function CalendarView() {
                         checked={generateImage}
                         onChange={e => {
                           setGenerateImage(e.target.checked);
-                          if (!e.target.checked) {
+                          if (e.target.checked) {
+                            setImageSourceMode("prompt");
+                          } else {
                             setForm(f => ({ ...f, imagePrompt: "" }));
                             setImageSourceMode(null);
                             setUploadedImageFile(null);
@@ -2862,7 +2864,7 @@ export default function CalendarView() {
             </div>
 
             {/* 5. Image section: shown when (useTemplate && template doesn't lock imagen) OR (!useTemplate && generateImage) */}
-            {((useTemplate && !(form.templateId && (userTemplates.find(t => t.id === parseInt(form.templateId)) as any)?.lockedFields?.includes("imagen"))) || (!useTemplate && generateImage)) && (
+            {useTemplate && !(form.templateId && (userTemplates.find(t => t.id === parseInt(form.templateId)) as any)?.lockedFields?.includes("imagen")) && (
               <TutorialHighlight fieldId="imagePrompt">
                 <div className="space-y-2">
                   <Label>Imagen del Correo</Label>
@@ -2949,6 +2951,19 @@ export default function CalendarView() {
                   </AnimatePresence>
                 </div>
               </TutorialHighlight>
+            )}
+            {!useTemplate && generateImage && (
+              <div className="space-y-2">
+                <Label>Prompt de imagen</Label>
+                <Textarea
+                  data-testid="input-calendar-image-prompt"
+                  placeholder="Ej: Una imagen profesional con colores corporativos mostrando un equipo de trabajo colaborando"
+                  value={form.imagePrompt}
+                  onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
+                  className="rounded-xl min-h-[70px]"
+                  maxLength={1200}
+                />
+              </div>
             )}
 
             {/* 6. Audience */}
