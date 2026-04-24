@@ -2788,43 +2788,54 @@ export async function registerRoutes(
     if (!user?.email) return res.status(400).json({ message: "No se pudo obtener el correo del usuario." });
 
     const providers = await storage.getEmailProviders(req.session.userId!);
-    const activeProvider = providers.find(p => p.isDefault) || providers.find(p => p.isActive) || null;
-    if (!activeProvider?.isActive) {
+    const activeProvider = providers.find(p => p.isDefault && p.isActive)
+      || providers.find(p => p.isActive)
+      || null;
+    if (!activeProvider) {
       return res.status(400).json({ message: "No hay proveedor de email configurado." });
     }
 
-    const versions = await storage.getCampaignVersions(id);
-    const selectedVersion = versions.find(v => v.isSelected && v.type !== "image")
-      || versions.find(v => v.type !== "image")
-      || versions[0];
-    const cj = (selectedVersion?.contentJson ?? {}) as Record<string, unknown>;
-    const subject = (cj.asunto as string) || (cj.subject as string) || campaign.name || "Prueba de correo";
-    const preheader = (cj.preheader as string) || "";
-    const contenido = (cj.cuerpo as string) || "";
-    const ctaTexto = (cj.cta_texto as string) || "";
-    const ctaUrl = (cj.cta_url as string) || "#";
-    const imageUrl = campaign.selectedImageUrl || "";
+    let apiKey: string;
+    try {
+      apiKey = decryptApiKey(activeProvider.encryptedApiKey, activeProvider.iv, activeProvider.authTag);
+    } catch {
+      return res.status(500).json({ message: "Error al descifrar la API key del proveedor. Reconecta tu proveedor de email." });
+    }
 
-    let htmlBody = campaign.templateHtml || "";
-    if (htmlBody) {
-      htmlBody = htmlBody
-        .replace(/\{\{ASUNTO\}\}/g, subject)
-        .replace(/\{\{PREHEADER\}\}/g, preheader)
-        .replace(/\{\{IMAGEN_URL\}\}/g, imageUrl)
-        .replace(/\{\{CONTENIDO\}\}/g, contenido)
-        .replace(/\{\{CTA_TEXTO\}\}/g, ctaTexto)
-        .replace(/\{\{CTA_URL\}\}/g, ctaUrl)
-        .replace(/\{\{UNSUBSCRIBE_LINK\}\}/g, "#");
+    const versions = await storage.getCampaignVersions(id);
+    if (versions.length === 0) {
+      return res.status(400).json({ message: "No hay contenido generado para esta campaña. Genera el correo primero." });
+    }
+    const resolved = getResolvedCampaignContent(versions);
+    const contentJson = (resolved.contentJson ?? {}) as Record<string, unknown>;
+    const subject = (contentJson.asunto as string) || campaign.name || "Prueba de correo";
+
+    const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl, req) : null;
+
+    let htmlBody: string;
+    if (campaign.templateId) {
+      const tpls = await storage.getTemplates(req.session.userId!);
+      const template = tpls.find(t => t.id === campaign.templateId);
+      if (template) {
+        const brandData = await storage.getBrandIdentity(req.session.userId!);
+        htmlBody = renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html;
+      } else {
+        const body = (contentJson.cuerpo_html as string) || "";
+        htmlBody = `<div style="font-family:sans-serif;max-width:600px;margin:auto">${body}</div>`;
+      }
     } else {
-      htmlBody = `<p>${contenido}</p>`;
+      const body = (contentJson.cuerpo_html as string) || "";
+      htmlBody = `<div style="font-family:sans-serif;max-width:600px;margin:auto">${body}</div>`;
     }
 
     try {
       if (activeProvider.provider === "brevo") {
+        const senderName = activeProvider.senderName || "PostIAlo Mailing";
+        const senderEmail = activeProvider.senderEmail || user.email;
         const result = await sendBatchEmails({
-          apiKey: activeProvider.apiKey,
-          senderEmail: activeProvider.senderEmail || user.email,
-          senderName: activeProvider.senderName || user.email,
+          apiKey,
+          senderEmail,
+          senderName,
           contacts: [{ email: user.email, firstName: "", lastName: "" }],
           subject: `[PRUEBA] ${subject}`,
           htmlContent: htmlBody,

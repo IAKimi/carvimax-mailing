@@ -1587,26 +1587,26 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {!isSent && !isSending && !isFailed && !isPartial && ((generateVersionMutation.isPending || createCampaignMutation.isPending) ? (
-            <div data-testid="overlay-generating" className="flex flex-col items-center justify-center py-24 gap-4">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-              </div>
-              <div className="text-center space-y-1">
-                <p className="text-lg font-semibold text-foreground">Generando tu correo con IA...</p>
-                <p className="text-sm text-muted-foreground">Estamos creando la imagen y el texto. Esto puede tardar unos segundos.</p>
-              </div>
-            </div>
-          ) : versionsLoading ? (
-            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+          {!isSent && !isSending && !isFailed && !isPartial && ((generateVersionMutation.isPending || createCampaignMutation.isPending || versionsLoading) ? (
+            <div data-testid="overlay-generating" className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-xl bg-muted/50 animate-pulse h-64" />
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+                    Generando imagen...
+                  </div>
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-56" />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+                    Generando texto...
+                  </div>
                   <div className="rounded-xl bg-muted/50 animate-pulse h-8 w-3/4" />
                   <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-full" />
                   <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-5/6" />
                   <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-4/6" />
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-24 w-full mt-4" />
+                  <div className="rounded-xl bg-muted/50 animate-pulse h-20 w-full mt-2" />
                 </div>
               </div>
             </div>
