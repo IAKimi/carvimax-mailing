@@ -166,8 +166,25 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(campaigns.userId, userId),
           or(
-            and(gte(campaigns.scheduledAt, startDate), lt(campaigns.scheduledAt, endDate)),
-            isNull(campaigns.scheduledAt)
+            // Sent/partial: use sentAt as canonical date
+            and(
+              or(eq(campaigns.status, "sent"), eq(campaigns.status, "partial")),
+              gte(campaigns.sentAt, startDate),
+              lt(campaigns.sentAt, endDate)
+            ),
+            // Other statuses: use scheduledAt
+            and(
+              ne(campaigns.status, "sent"),
+              ne(campaigns.status, "partial"),
+              gte(campaigns.scheduledAt, startDate),
+              lt(campaigns.scheduledAt, endDate)
+            ),
+            // Drafts/unscheduled without any date
+            and(
+              ne(campaigns.status, "sent"),
+              ne(campaigns.status, "partial"),
+              isNull(campaigns.scheduledAt)
+            )
           )
         )
       );

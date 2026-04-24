@@ -151,8 +151,10 @@ const STATUS_MAP: Record<string, string> = { draft: "borrador", scheduled: "prog
 const STATUS_REVERSE: Record<string, string> = { borrador: "draft", programado: "scheduled", enviando: "sending", enviado: "sent", parcial: "partial", fallido: "failed", cancelado: "cancelled" };
 
 function campaignToDateStr(c: Campaign): string {
-  if (!c.scheduledAt) return "";
-  const d = new Date(c.scheduledAt);
+  const isSentState = c.status === "sent" || c.status === "partial";
+  const rawDate = (isSentState && c.sentAt) ? c.sentAt : c.scheduledAt;
+  if (!rawDate) return "";
+  const d = new Date(rawDate);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -1147,9 +1149,12 @@ export default function CalendarView() {
 
   const campaignsByDay = useMemo(() => {
     const map: Record<number, CampaignWithSubject[]> = {};
+    const sentStatuses = new Set(["sent", "partial"]);
     for (const c of campaigns) {
-      if (!c.scheduledAt) continue;
-      const d = new Date(c.scheduledAt);
+      const isSentState = sentStatuses.has(c.status);
+      const rawDate = isSentState && c.sentAt ? c.sentAt : c.scheduledAt;
+      if (!rawDate) continue;
+      const d = new Date(rawDate);
       if (d.getFullYear() === year && d.getMonth() === month) {
         const day = d.getDate();
         if (!map[day]) map[day] = [];

@@ -11,7 +11,7 @@ import bcrypt from "bcryptjs";
 import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, validateTemplateStructure, renderTemplateWithContent } from "./templates";
-import { campaigns as campaignsTable } from "@shared/schema";
+import { campaigns as campaignsTable, type UpdateCampaign } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { decryptApiKey } from "./encryption";
@@ -2652,7 +2652,7 @@ export async function registerRoutes(
         }
 
         const finalStatus = batchResult.failed === 0 ? "sent" : "partial";
-        await storage.updateCampaign(campaignId, { status: finalStatus, sentAt: new Date() } as any);
+        await storage.updateCampaign(campaignId, { status: finalStatus, sentAt: new Date() } satisfies UpdateCampaign);
         broadcastWs("campaign-progress", {
           campaignId,
           totalExpectedSends: contactsList.length,
@@ -2714,7 +2714,7 @@ export async function registerRoutes(
           failedCount: 0,
         }).where(eq(campaignsTable.id, campaignId));
 
-        await storage.updateCampaign(campaignId, { status: "sent", sentAt: new Date() } as any);
+        await storage.updateCampaign(campaignId, { status: "sent", sentAt: new Date() } satisfies UpdateCampaign);
         broadcastWs("campaign-progress", {
           campaignId,
           totalExpectedSends: contactsList.length,
