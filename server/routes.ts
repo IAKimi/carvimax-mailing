@@ -2486,17 +2486,8 @@ export async function registerRoutes(
       } catch {
         return { success: false, error: "Error al descifrar la API key del proveedor. Reconecta tu proveedor de email." };
       }
-      if (!campaign.templateId) {
-        return { success: false, error: "La campaña no tiene plantilla asignada." };
-      }
       if (!campaign.targetDatabase) {
         return { success: false, error: "La campaña no tiene base de datos de contactos asignada." };
-      }
-
-      const tpls = await storage.getTemplates(userId);
-      const template = tpls.find(t => t.id === campaign.templateId);
-      if (!template) {
-        return { success: false, error: "Plantilla no encontrada." };
       }
 
       const versions = await storage.getCampaignVersions(campaignId);
@@ -2509,12 +2500,22 @@ export async function registerRoutes(
 
       const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl, req) : null;
 
-      const renderedHtml = renderTemplateWithContent(
-        template.html,
-        resolved.contentJson,
-        imagePublicUrl,
-        brandData
-      ).html;
+      let renderedHtml: string;
+      if (campaign.templateId) {
+        const tpls = await storage.getTemplates(userId);
+        const template = tpls.find(t => t.id === campaign.templateId);
+        if (!template) {
+          return { success: false, error: "Plantilla no encontrada." };
+        }
+        renderedHtml = renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html;
+      } else {
+        const body = (resolved.contentJson?.cuerpo_html as string) || "";
+        if (imagePublicUrl) {
+          renderedHtml = `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px"><img src="${imagePublicUrl}" style="width:100%;max-width:560px;display:block;margin:0 auto 24px" alt="" />${body}</div>`;
+        } else {
+          renderedHtml = `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${body}</div>`;
+        }
+      }
 
       const imageFilename = resolved.imageUrl;
       const isLocalImage = !!imageFilename && !imageFilename.startsWith("http://") && !imageFilename.startsWith("https://") && !imageFilename.startsWith("data:");
@@ -2774,7 +2775,8 @@ export async function registerRoutes(
     if (campaign.status === "sending") {
       return res.status(400).json({ message: "La campaña ya se está enviando. Espere a que termine." });
     }
-    if (!campaign.textApproved || !campaign.imageApproved) {
+    const requiresImageApproval = campaign.templateId ? true : !!campaign.imagePrompt;
+    if (!campaign.textApproved || (requiresImageApproval && !campaign.imageApproved)) {
       return res.status(400).json({ message: "Ambas aprobaciones (texto e imagen) son requeridas antes de enviar." });
     }
     const sendImageUrl = campaign.selectedImageUrl || "";
@@ -2851,7 +2853,11 @@ export async function registerRoutes(
       }
     } else {
       const body = (contentJson.cuerpo_html as string) || "";
-      htmlBody = `<div style="font-family:sans-serif;max-width:600px;margin:auto">${body}</div>`;
+      if (imagePublicUrl) {
+        htmlBody = `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px"><img src="${imagePublicUrl}" style="width:100%;max-width:560px;display:block;margin:0 auto 24px" alt="" />${body}</div>`;
+      } else {
+        htmlBody = `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${body}</div>`;
+      }
     }
 
     try {

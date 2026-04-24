@@ -177,8 +177,10 @@ export default function CalendarView() {
   const [textApproved, setTextApprovedLocal] = useState(false);
   const [imageApproved, setImageApprovedLocal] = useState(false);
   const [approvedImageUrl, setApprovedImageUrl] = useState<string | null>(null);
-  const [form, setForm] = useState({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "", providerId: "" });
+  const [form, setForm] = useState({ campaignName: "", idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "", providerId: "" });
   const [showTargetAudience, setShowTargetAudience] = useState(false);
+  const [useTemplate, setUseTemplate] = useState(true);
+  const [generateImage, setGenerateImage] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<"prompt" | "upload" | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [editorLocalImageUrl, setEditorLocalImageUrl] = useState<string | null>(null);
@@ -511,8 +513,10 @@ export default function CalendarView() {
       }
     }
     const defaultProviderId = defaultProvider ? String(defaultProvider.id) : (allEmailProviders.length === 1 ? String(allEmailProviders[0].id) : "");
-    setForm({ idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "", providerId: defaultProviderId });
+    setForm({ campaignName: "", idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "", providerId: defaultProviderId });
     setShowTargetAudience(false);
+    setUseTemplate(true);
+    setGenerateImage(false);
     setImageSourceMode(null);
     setUploadedImageFile(null);
 
@@ -657,10 +661,6 @@ export default function CalendarView() {
       });
       return;
     }
-    if (!editingCampaign?.templateId) {
-      toast({ title: "Plantilla requerida", description: "Debe seleccionar una plantilla antes de enviar el correo.", variant: "destructive" });
-      return;
-    }
     if (!editingCampaign?.targetDatabase) {
       toast({ title: "Base de datos requerida", description: "Debe seleccionar una base de datos de contactos antes de enviar.", variant: "destructive" });
       return;
@@ -671,7 +671,8 @@ export default function CalendarView() {
     }
     const publishTemplate = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
     const publishImageLocked = ((publishTemplate as any)?.lockedFields || []).includes("imagen");
-    if (!imageApproved && !publishImageLocked) {
+    const publishImageRequired = editingCampaign?.templateId ? !publishImageLocked : !!editingCampaign?.imagePrompt;
+    if (publishImageRequired && !imageApproved) {
       toast({ title: "Imagen no aprobada", description: "Debe aprobar la imagen del correo antes de enviar.", variant: "destructive" });
       return;
     }
@@ -701,21 +702,22 @@ export default function CalendarView() {
   }
 
   function handleGenerate() {
-    if (!form.idea.trim()) return;
+    if (!form.campaignName.trim() || !form.idea.trim()) return;
     let scheduledAt: string | null = null;
     if (form.scheduledDate) {
       const localDate = new Date(form.scheduledDate);
       scheduledAt = localDate.toISOString();
     }
+    const wantsImage = useTemplate || generateImage;
     createCampaignMutation.mutate({
-      name: form.idea.substring(0, 200),
+      name: form.campaignName.trim(),
       idea: form.idea,
       objective: form.objective || "General",
       tone: "profesional",
-      imagePrompt: form.imagePrompt || null,
+      imagePrompt: wantsImage ? (form.imagePrompt || null) : null,
       targetDatabase: form.targetDatabase || null,
       targetAudience: showTargetAudience && form.targetAudience.trim() ? form.targetAudience.trim() : null,
-      templateId: form.templateId ? parseInt(form.templateId) : null,
+      templateId: useTemplate && form.templateId ? parseInt(form.templateId) : null,
       providerId: form.providerId ? parseInt(form.providerId) : null,
       scheduledAt,
     });
@@ -977,7 +979,8 @@ export default function CalendarView() {
   function checkBothApprovalsAndSchedule(newImageApproved: boolean, newTextApproved: boolean) {
     const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
     const imgLocked = ((tpl as any)?.lockedFields || []).includes("imagen");
-    if (!(newImageApproved || imgLocked) || !newTextApproved) return;
+    const imageNeeded = editingCampaign?.templateId ? !imgLocked : !!editingCampaign?.imagePrompt;
+    if ((imageNeeded && !newImageApproved) || !newTextApproved) return;
     if (!editingCampaignId || !editingCampaign) return;
     if (editingCampaign.status !== "draft") return;
     if (!editingCampaign.scheduledAt) return;
@@ -2682,6 +2685,22 @@ export default function CalendarView() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5 mt-3">
+            {/* 1. Campaign name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="input-campaign-name">Nombre de la campaña <span className="text-red-500">*</span></Label>
+              <Input
+                id="input-campaign-name"
+                data-testid="input-campaign-name"
+                placeholder="Ej: Campaña enero - Seguridad"
+                value={form.campaignName}
+                onChange={e => setForm(f => ({ ...f, campaignName: e.target.value }))}
+                className="rounded-xl"
+                maxLength={200}
+              />
+              <p className="text-xs text-muted-foreground">Solo para identificar tu campaña internamente. No aparece en el correo.</p>
+            </div>
+
+            {/* 2. Idea */}
             <TutorialHighlight fieldId="idea">
               <div className="space-y-2">
                 <Label>Idea / Tema</Label>
@@ -2696,6 +2715,8 @@ export default function CalendarView() {
                 />
               </div>
             </TutorialHighlight>
+
+            {/* 3. Objective */}
             <TutorialHighlight fieldId="objective">
               <div className="space-y-2">
                 <Label>Objetivo</Label>
@@ -2710,6 +2731,219 @@ export default function CalendarView() {
                 />
               </div>
             </TutorialHighlight>
+
+            {/* 4. Template toggle + dependent fields */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  data-testid="checkbox-use-template"
+                  type="checkbox"
+                  id="useTemplateToggle"
+                  checked={useTemplate}
+                  onChange={e => {
+                    setUseTemplate(e.target.checked);
+                    if (!e.target.checked) setForm(f => ({ ...f, templateId: "" }));
+                    setGenerateImage(false);
+                    setImageSourceMode(null);
+                    setForm(f => ({ ...f, imagePrompt: "" }));
+                    setUploadedImageFile(null);
+                  }}
+                  className="rounded border-border"
+                />
+                <Label htmlFor="useTemplateToggle" className="cursor-pointer text-sm font-medium">¿Usar plantilla de diseño?</Label>
+              </div>
+
+              <AnimatePresence>
+                {useTemplate && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <TutorialHighlight fieldId="template">
+                      <div className="space-y-2">
+                        <Label>Plantilla</Label>
+                        <Select
+                          value={form.templateId}
+                          onValueChange={(v) => {
+                            setForm(f => ({ ...f, templateId: v }));
+                            if (tutorial.tutorialActive && tutorial.getCurrentStep()?.fieldId === "template" && v) {
+                              tutorial.nextStep();
+                            }
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
+                            <SelectValue placeholder="Seleccione una plantilla..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sortedTemplatesForSelector.map(t => (
+                              <SelectItem key={t.id} value={String(t.id)} disabled={!t.hasAllPlaceholders}>
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate">{t.name}</span>
+                                  {t.hasAllPlaceholders ? (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                                      <CheckCircle2 className="w-2.5 h-2.5" />
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
+                                      <AlertTriangle className="w-2.5 h-2.5" />
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                            {userTemplates.length === 0 && (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {!form.templateId && (
+                          <p className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                            Selecciona una plantilla para aplicar tu diseño de marca al correo.
+                          </p>
+                        )}
+                        {form.templateId && (
+                          <div className="border border-border rounded-xl bg-white" style={{ height: "260px", overflow: "hidden", position: "relative" }}>
+                            <div style={{ position: "absolute", top: 0, left: 0, width: "200%", transformOrigin: "top left", transform: "scale(0.5)" }}>
+                              <iframe
+                                srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
+                                sandbox=""
+                                title="template-mini-preview"
+                                scrolling="yes"
+                                style={{ width: "100%", height: "520px", border: "none", display: "block", overflowY: "auto" }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </TutorialHighlight>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {!useTemplate && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2 pl-1">
+                      <input
+                        data-testid="checkbox-generate-image"
+                        type="checkbox"
+                        id="generateImageToggle"
+                        checked={generateImage}
+                        onChange={e => {
+                          setGenerateImage(e.target.checked);
+                          if (!e.target.checked) {
+                            setForm(f => ({ ...f, imagePrompt: "" }));
+                            setImageSourceMode(null);
+                            setUploadedImageFile(null);
+                          }
+                        }}
+                        className="rounded border-border"
+                      />
+                      <Label htmlFor="generateImageToggle" className="cursor-pointer text-sm">¿Generar imagen para este correo? <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 5. Image section: shown when (useTemplate && template doesn't lock imagen) OR (!useTemplate && generateImage) */}
+            {((useTemplate && !(form.templateId && (userTemplates.find(t => t.id === parseInt(form.templateId)) as any)?.lockedFields?.includes("imagen"))) || (!useTemplate && generateImage)) && (
+              <TutorialHighlight fieldId="imagePrompt">
+                <div className="space-y-2">
+                  <Label>Imagen del Correo</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      data-testid="button-image-prompt-toggle"
+                      type="button"
+                      variant={imageSourceMode === "prompt" ? "default" : "outline"}
+                      size="sm"
+                      className="rounded-xl gap-1.5 toggle-elevate"
+                      onClick={() => {
+                        setImageSourceMode(imageSourceMode === "prompt" ? null : "prompt");
+                        setUploadedImageFile(null);
+                      }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Prompt de Imagen
+                    </Button>
+                    <Button
+                      data-testid="button-upload-image-toggle"
+                      type="button"
+                      variant={imageSourceMode === "upload" ? "default" : "outline"}
+                      size="sm"
+                      className="rounded-xl gap-1.5 toggle-elevate"
+                      onClick={() => {
+                        setImageSourceMode(imageSourceMode === "upload" ? null : "upload");
+                        setForm(f => ({ ...f, imagePrompt: "" }));
+                        if (imageSourceMode !== "upload") {
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Subir Imagen
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      data-testid="input-calendar-upload-image"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setUploadedImageFile(file);
+                        if (file) {
+                          setImageSourceMode("upload");
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
+                  <AnimatePresence>
+                    {imageSourceMode === "prompt" && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <Textarea
+                          data-testid="input-calendar-image-prompt"
+                          placeholder="Ej: Una imagen profesional con colores corporativos mostrando un equipo de trabajo colaborando"
+                          value={form.imagePrompt}
+                          onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
+                          onBlur={() => advanceTutorialOnBlur("imagePrompt", form.imagePrompt)}
+                          className="rounded-xl min-h-[70px] mt-2"
+                          maxLength={1200}
+                        />
+                      </motion.div>
+                    )}
+                    {imageSourceMode === "upload" && uploadedImageFile && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-xl px-3 py-2">
+                          <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                          <span data-testid="text-uploaded-filename" className="truncate">{uploadedImageFile.name}</span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </TutorialHighlight>
+            )}
+
+            {/* 6. Audience */}
             <TutorialHighlight fieldId="targetAudience">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -2748,151 +2982,8 @@ export default function CalendarView() {
                 </AnimatePresence>
               </div>
             </TutorialHighlight>
-            <TutorialHighlight fieldId="template">
-              <div className="space-y-2">
-                <Label>Plantilla</Label>
-                <Select
-                  value={form.templateId}
-                  onValueChange={(v) => {
-                    setForm(f => ({ ...f, templateId: v }));
-                    if (tutorial.tutorialActive && tutorial.getCurrentStep()?.fieldId === "template" && v) {
-                      tutorial.nextStep();
-                    }
-                  }}
-                >
-                  <SelectTrigger data-testid="select-calendar-template" className="rounded-xl">
-                    <SelectValue placeholder="Seleccione una plantilla..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedTemplatesForSelector.map(t => (
-                      <SelectItem key={t.id} value={String(t.id)} disabled={!t.hasAllPlaceholders}>
-                        <div className="flex items-center gap-2">
-                          <span className="truncate">{t.name}</span>
-                          {t.hasAllPlaceholders ? (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1 py-0.5 flex-shrink-0">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1 py-0.5 flex-shrink-0">
-                              <AlertTriangle className="w-2.5 h-2.5" />
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                    {userTemplates.length === 0 && (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">No hay plantillas. Créelas en la sección Plantillas.</div>
-                    )}
-                  </SelectContent>
-                </Select>
-                {!form.templateId && (
-                  <p className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                    Puede crear el correo sin plantilla y asignarle una después desde el editor.
-                  </p>
-                )}
-                {form.templateId && (
-                  <div className="border border-border rounded-xl bg-white" style={{ height: "260px", overflow: "hidden", position: "relative" }}>
-                    <div style={{ position: "absolute", top: 0, left: 0, width: "200%", transformOrigin: "top left", transform: "scale(0.5)" }}>
-                      <iframe
-                        srcDoc={userTemplates.find(t => t.id === parseInt(form.templateId))?.html || ""}
-                        sandbox=""
-                        title="template-mini-preview"
-                        scrolling="yes"
-                        style={{ width: "100%", height: "520px", border: "none", display: "block", overflowY: "auto" }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TutorialHighlight>
-            {!(form.templateId && (userTemplates.find(t => t.id === parseInt(form.templateId)) as any)?.lockedFields?.includes("imagen")) && (
-            <TutorialHighlight fieldId="imagePrompt">
-              <div className="space-y-2">
-                <Label>Imagen del Correo</Label>
-              <div className="flex gap-2">
-                <Button
-                  data-testid="button-image-prompt-toggle"
-                  type="button"
-                  variant={imageSourceMode === "prompt" ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-xl gap-1.5 toggle-elevate"
-                  onClick={() => {
-                    setImageSourceMode(imageSourceMode === "prompt" ? null : "prompt");
-                    setUploadedImageFile(null);
-                  }}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Prompt de Imagen
-                </Button>
-                <Button
-                  data-testid="button-upload-image-toggle"
-                  type="button"
-                  variant={imageSourceMode === "upload" ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-xl gap-1.5 toggle-elevate"
-                  onClick={() => {
-                    setImageSourceMode(imageSourceMode === "upload" ? null : "upload");
-                    setForm(f => ({ ...f, imagePrompt: "" }));
-                    if (imageSourceMode !== "upload") {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  Subir Imagen
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  data-testid="input-calendar-upload-image"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setUploadedImageFile(file);
-                    if (file) {
-                      setImageSourceMode("upload");
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-              <AnimatePresence>
-                {imageSourceMode === "prompt" && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <Textarea
-                      data-testid="input-calendar-image-prompt"
-                      placeholder="Ej: Una imagen profesional con colores corporativos mostrando un equipo de trabajo colaborando"
-                      value={form.imagePrompt}
-                      onChange={e => setForm(f => ({ ...f, imagePrompt: e.target.value }))}
-                      onBlur={() => advanceTutorialOnBlur("imagePrompt", form.imagePrompt)}
-                      className="rounded-xl min-h-[70px] mt-2"
-                      maxLength={1200}
-                    />
-                  </motion.div>
-                )}
-                {imageSourceMode === "upload" && uploadedImageFile && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground bg-muted/50 rounded-xl px-3 py-2">
-                      <ImageIcon className="w-4 h-4 flex-shrink-0" />
-                      <span data-testid="text-uploaded-filename" className="truncate">{uploadedImageFile.name}</span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              </div>
-            </TutorialHighlight>
-            )}
+
+            {/* 7. Target database */}
             <TutorialHighlight fieldId="targetDatabase">
               <div className="space-y-2">
                 <Label>Base de Datos de Destino</Label>
@@ -2919,6 +3010,8 @@ export default function CalendarView() {
                 </Select>
               </div>
             </TutorialHighlight>
+
+            {/* 8. Scheduled date */}
             <TutorialHighlight fieldId="scheduledDate">
               <div className="space-y-2">
                 <Label>Fecha y Hora de Programación</Label>
@@ -2933,6 +3026,8 @@ export default function CalendarView() {
                 />
               </div>
             </TutorialHighlight>
+
+            {/* 9. Provider info */}
             {isLoadingProviders ? (
               <div className="flex items-center gap-2 p-3 bg-muted/50 border rounded-xl text-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -2984,12 +3079,14 @@ export default function CalendarView() {
                 </Select>
               </div>
             )}
+
+            {/* 10. Generate button */}
             <Button
               data-testid="button-generate-email"
               onClick={handleGenerate}
               className="w-full rounded-xl gap-2"
               size="lg"
-              disabled={!form.idea.trim() || createCampaignMutation.isPending}
+              disabled={!form.campaignName.trim() || !form.idea.trim() || createCampaignMutation.isPending}
             >
               {createCampaignMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
