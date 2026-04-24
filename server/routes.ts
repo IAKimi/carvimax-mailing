@@ -404,16 +404,20 @@ function getImagePublicUrl(filename: string, req?: Request): string {
 
 function buildNoTemplateHtml(contentJson: Record<string, unknown> | null, imagePublicUrl: string | null): string {
   const body = (contentJson?.cuerpo_html as string) || "";
-  const ctaEnabled = contentJson?.cta_enabled !== false;
-  const ctaText = ctaEnabled ? ((contentJson?.cta_text as string) || "") : "";
-  const ctaUrl = ctaEnabled && ctaText ? ((contentJson?.cta_url as string) || "#") : "";
-  const ctaBlock = ctaText
-    ? `<div style="text-align:center;margin:24px 0"><a href="${ctaUrl}" style="display:inline-block;padding:12px 28px;background:#1a56db;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px">${ctaText}</a></div>`
-    : "";
   const imgBlock = imagePublicUrl
     ? `<img src="${imagePublicUrl}" style="width:100%;max-width:560px;display:block;margin:0 auto 24px" alt="" />`
     : "";
-  return `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${imgBlock}${body}${ctaBlock}</div>`;
+  // Include CTA only when an image is present (visual layout context); text-only mode omits CTA button
+  if (imagePublicUrl) {
+    const ctaEnabled = contentJson?.cta_enabled !== false;
+    const ctaText = ctaEnabled ? ((contentJson?.cta_text as string) || "") : "";
+    const ctaUrl = ctaEnabled && ctaText ? ((contentJson?.cta_url as string) || "#") : "";
+    const ctaBlock = ctaText
+      ? `<div style="text-align:center;margin:24px 0"><a href="${ctaUrl}" style="display:inline-block;padding:12px 28px;background:#1a56db;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px">${ctaText}</a></div>`
+      : "";
+    return `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${imgBlock}${body}${ctaBlock}</div>`;
+  }
+  return `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${body}</div>`;
 }
 
 function loadImageAsBase64(imageUrl: string): string {
