@@ -1,0 +1,24 @@
+¡Claro que sí! Aquí tienes la explicación dividida en conceptos muy sencillos (usando analogías) y el texto exacto que puedes copiar y pegar en la interfaz de PostIAlo Mailing.
+1. ¿Por qué Brevo puede bloquear el envío desde una IP específica? (Explicación sencilla)
+Piensa en la API key de tu usuario como si fuera la "llave maestra" de su cuenta de Brevo. Si alguien consigue esa llave, podría enviar millones de correos a su nombre.
+Para evitar esto, Brevo tiene un sistema de seguridad tipo "guardaespaldas". El guardaespaldas no solo pide la llave (API key), sino que revisa desde dónde se está intentando abrir la puerta (la dirección IP del servidor, que en este caso es el de PostIAlo). Si el usuario activó la seguridad estricta en Brevo, el guardaespaldas bloqueará automáticamente a cualquier visitante desconocido, incluso si tiene la llave correcta, porque considera que es un intruso.
+2. ¿Qué es una IP de envío compartida vs. dedicada?
+Aquí es importante no confundir la IP del servidor de PostIAlo (la computadora que da la orden de enviar) con la IP de envío (la computadora de Brevo que entrega el correo a Gmail, Outlook, etc.). Para explicarle las IPs de envío a tus usuarios, puedes usar esta analogía:
+IP de envío Compartida: Es como viajar en un autobús público. Tú y muchas otras empresas comparten el mismo vehículo para llevar sus correos. Es más económico (viene en los planes gratuitos o básicos), pero si un pasajero se porta mal (hace spam), la policía (Gmail/Outlook) puede detener el autobús completo, y tus correos podrían llegar a la bandeja de "No deseado" por culpa de otros.
+IP de envío Dedicada: Es como tener tu propio auto privado. Solo tú lo usas y solo tú construyes su reputación. Si conduces bien (envías correos deseados y a listas legítimas), siempre llegarás rápido y directo a la bandeja de entrada principal. Se recomienda para empresas que envían grandes volúmenes de correos (miles al mes) y quieren control total.
+3. ¿En qué casos Brevo requiere "aprobar" la IP (Whitelist)?
+Brevo exige esto exclusivamente cuando el usuario activó la restricción de "IPs autorizadas" en la configuración de seguridad de su cuenta. Muchas empresas hacen esto por política interna para que sus cuentas no puedan ser hackeadas. Al tener esto activo, Brevo rechaza a todos los sistemas del mundo por defecto, a menos que el usuario vaya manualmente y agregue la IP de tu plataforma (PostIAlo) a su "Lista VIP" (Whitelist).
+
+--------------------------------------------------------------------------------
+💻 Texto para el panel de configuración de PostIAlo (Copia y pega)
+Aquí tienes un aviso amigable y claro que puedes mostrar en tu frontend cuando detectes el error de validación por IP:
+⚠️ Autoriza a PostIAlo para conectarse con tu cuenta
+Hemos notado que tu cuenta de Brevo tiene activada una medida de seguridad alta que bloquea sistemas desconocidos. Para que PostIAlo pueda conectarse y enviar tus campañas, necesitas agregar nuestro servidor a tu lista de sistemas de confianza.
+Pasos para solucionarlo (te tomará 1 minuto):
+Inicia sesión en tu cuenta de Brevo y ve a Configuración > Seguridad > IPs autorizadas (o haz clic en este enlace directo).
+Haz clic en Agregar una IP (o añade una nueva línea si ya tienes otras).
+Copia y pega exactamente este número, que es la identidad de nuestro servidor: [AQUÍ_VA_LA_IP_DE_PRODUCCIÓN_DE_POSTIALO]
+Guarda los cambios en Brevo.
+Regresa a esta pantalla y vuelve a intentar conectar tu cuenta.
+(Nota: Si prefieres, también puedes simplemente desactivar la restricción de IPs en esa misma pantalla de Brevo, y la conexión funcionará de inmediato).
+Este mensaje educa al usuario sin abrumarlo técnicamente, le da el link directo a la solución y le quita la frustración de pensar que la plataforma "no funciona".
