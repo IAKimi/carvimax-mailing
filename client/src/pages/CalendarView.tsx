@@ -707,6 +707,10 @@ export default function CalendarView() {
       toast({ title: "Plantilla requerida", description: "Selecciona una plantilla o desactiva la opción de plantilla.", variant: "destructive" });
       return;
     }
+    if (!useTemplate && generateImage && !form.imagePrompt.trim() && !uploadedImageFile) {
+      toast({ title: "Imagen requerida", description: "Ingresa un prompt de imagen o sube una imagen, o desactiva la opción de imagen.", variant: "destructive" });
+      return;
+    }
     let scheduledAt: string | null = null;
     if (form.scheduledDate) {
       const localDate = new Date(form.scheduledDate);

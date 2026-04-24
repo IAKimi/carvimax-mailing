@@ -2781,8 +2781,11 @@ export async function registerRoutes(
       return res.status(400).json({ message: "La campaña ya se está enviando. Espere a que termine." });
     }
     const requiresImageApproval = campaign.templateId ? true : !!campaign.imagePrompt;
-    if (!campaign.textApproved || (requiresImageApproval && !campaign.imageApproved)) {
-      return res.status(400).json({ message: "Ambas aprobaciones (texto e imagen) son requeridas antes de enviar." });
+    if (!campaign.textApproved) {
+      return res.status(400).json({ message: "La aprobación del texto es requerida antes de enviar." });
+    }
+    if (requiresImageApproval && !campaign.imageApproved) {
+      return res.status(400).json({ message: "La aprobación de la imagen es requerida antes de enviar." });
     }
     const sendImageUrl = campaign.selectedImageUrl || "";
     if (sendImageUrl.includes("placehold.co")) {
