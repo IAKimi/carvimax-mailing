@@ -1671,6 +1671,16 @@ export async function registerRoutes(
     res.status(201).json({ imported: created.length, duplicates: duplicatesInCsv + duplicatesInDb, errors });
   });
 
+  app.get("/api/system/outbound-ip", requireAuth, async (_req, res) => {
+    try {
+      const resp = await fetch("https://api.ipify.org?format=json");
+      const data = await resp.json() as { ip?: string };
+      res.json({ ip: data.ip || null });
+    } catch {
+      res.json({ ip: null });
+    }
+  });
+
   app.get("/api/onboarding-status", requireAuth, async (req, res) => {
     const userId = req.session.userId!;
     const brand = await storage.getBrandIdentity(userId);

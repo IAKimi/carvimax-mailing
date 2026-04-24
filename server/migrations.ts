@@ -261,6 +261,13 @@ const migrations: Migration[] = [
       console.log("[migration 011] Added is_default, mailchimp_data_center, mailchimp_audience_id to email_providers");
     },
   },
+  {
+    name: "012_add_sent_at_to_campaigns",
+    up: async (client) => {
+      await client.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ`);
+      console.log("[migration 012] Added sent_at column to campaigns");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

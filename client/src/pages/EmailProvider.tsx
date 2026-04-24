@@ -25,6 +25,7 @@ import {
   MapPin,
   Users,
   Zap,
+  Copy,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -88,6 +89,18 @@ export default function EmailProvider() {
   const [showMailchimpInstructions, setShowMailchimpInstructions] = useState(false);
   const [showMailchimpRequirements, setShowMailchimpRequirements] = useState(false);
   const [showBrevoRequirements, setShowBrevoRequirements] = useState(false);
+
+  const { data: outboundIpData } = useQuery<{ ip: string | null }>({
+    queryKey: ["/api/system/outbound-ip"],
+  });
+  const outboundIp = outboundIpData?.ip || null;
+
+  function copyIpToClipboard() {
+    if (!outboundIp) return;
+    navigator.clipboard.writeText(outboundIp).then(() => {
+      toast({ title: "IP copiada", description: "La IP del servidor fue copiada al portapapeles." });
+    });
+  }
 
   const mailchimpRequirementsPanel = (testIdSuffix: string) => (
     <div>
@@ -204,14 +217,29 @@ export default function EmailProvider() {
           </div>
           <div className="flex items-start gap-2.5">
             <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="w-full">
               <p className="font-semibold text-amber-800">Error "IP no autorizada"</p>
               <p className="text-amber-700 mt-0.5">Si Brevo rechaza sus envíos por IP no autorizada, siga estos pasos:</p>
               <ol className="list-decimal list-inside text-amber-700 text-xs space-y-1 mt-1.5">
                 <li>Ingrese a su cuenta de <strong>Brevo</strong></li>
                 <li>Vaya a <strong>Configuración → Seguridad → IPs autorizadas</strong></li>
                 <li>Haga clic en <strong>"Añadir una IP"</strong></li>
-                <li>Marque la opción <strong>"Autorizar todas las IPs"</strong> o agregue la IP que le indica el error</li>
+                <li>Agregue la IP de PostIAlo:
+                  <span className="inline-flex items-center gap-1.5 ml-1.5 bg-amber-100 border border-amber-300 rounded px-2 py-0.5 font-mono text-amber-900 text-xs">
+                    {outboundIp || "cargando…"}
+                    {outboundIp && (
+                      <button
+                        type="button"
+                        data-testid="button-copy-outbound-ip"
+                        onClick={copyIpToClipboard}
+                        className="text-amber-600 hover:text-amber-800 transition-colors"
+                        title="Copiar IP"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    )}
+                  </span>
+                </li>
                 <li>Guarde los cambios e intente el envío nuevamente</li>
               </ol>
               <p className="text-amber-600 mt-1 text-xs italic">Esta restricción solo aplica a cuentas con seguridad de IP activada en Brevo.</p>

@@ -535,9 +535,12 @@ export default function MyEmails() {
               const version = versionsByCampaign.get(campaign.id);
               const subject = version?.contentJson?.asunto || version?.contentJson?.subject || campaign.name;
               const scheduledDate = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
-              const displayDate = scheduledDate
-                ? `${scheduledDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${scheduledDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
-                : "Sin fecha";
+              const sentDate = (campaign as any).sentAt ? new Date((campaign as any).sentAt) : null;
+              const displayDate = sentDate
+                ? `Enviado: ${sentDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${sentDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
+                : scheduledDate
+                  ? `${scheduledDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${scheduledDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Sin fecha";
               const dbName = campaign.targetDatabase ? (dbNameMap.get(campaign.targetDatabase) || campaign.targetDatabase) : null;
 
               return (

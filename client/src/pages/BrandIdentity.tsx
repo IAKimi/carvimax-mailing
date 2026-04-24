@@ -208,6 +208,19 @@ export default function BrandIdentity() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasUnsavedChanges]);
 
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const origPush = window.history.pushState.bind(window.history);
+    window.history.pushState = function (...args: Parameters<typeof window.history.pushState>) {
+      if (!window.confirm("Tiene cambios sin guardar. ¿Desea salir sin guardar?")) return;
+      window.history.pushState = origPush;
+      origPush(...args);
+    };
+    return () => {
+      window.history.pushState = origPush;
+    };
+  }, [hasUnsavedChanges]);
+
   const { data: brandData, isLoading } = useQuery<BrandIdentityType | null>({
     queryKey: ["/api/brand-identity"],
   });
@@ -277,6 +290,14 @@ export default function BrandIdentity() {
   }
 
   function handleSave() {
+    if (!brand.companyName?.trim()) {
+      toast({ title: "Campo requerido", description: "El nombre de la empresa es obligatorio.", variant: "destructive" });
+      return;
+    }
+    if (!brand.industry?.trim()) {
+      toast({ title: "Campo requerido", description: "El sector o industria es obligatorio.", variant: "destructive" });
+      return;
+    }
     saveMutation.mutate(brand);
   }
 
