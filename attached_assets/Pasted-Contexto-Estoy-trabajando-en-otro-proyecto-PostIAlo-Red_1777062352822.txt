@@ -1,0 +1,34 @@
+Contexto: Estoy trabajando en otro proyecto (PostIAlo Redes Sociales) y necesito replicar la funcionalidad de importación de archivos CSV/XLSX que ya tenés implementada en este proyecto de Mailing.
+
+Necesito que me documentes con detalle técnico cómo funciona toda la importación de contactos desde Excel/CSV en esta plataforma. Específicamente:
+
+Frontend (React):
+
+¿Qué librería usás para parsear Excel? ¿Y para CSV? ¿Por qué elegiste esas?
+¿Cómo detectás el delimitador del CSV (coma vs punto y coma vs tab)?
+¿Cómo lees el archivo: FileReader.readAsText, readAsArrayBuffer, otro?
+¿La detección entre CSV y XLSX la hacés por extensión, por MIME type, por contenido?
+¿Cómo manejás los headers? ¿Son case-insensitive? ¿Cómo mapeás "Nombre", "nombre", "NOMBRE", " Nombre " a la misma columna interna?
+¿Qué pasa si una columna obligatoria falta? ¿Y si hay columnas extras que no esperabas?
+¿Cómo manejás filas completamente vacías?
+¿Tenés algún límite de filas en frontend antes de mandar al backend?
+¿Mostrás una barra de progreso o un loader durante la lectura/importación? ¿En qué momento exacto aparece y desaparece?
+¿Cómo le indicás al usuario qué columnas son obligatorias antes de subir el archivo? (modal, disclaimer, plantilla descargable, etc.)
+¿Tenés una plantilla descargable de Excel para que el usuario sepa el formato exacto? Si sí, ¿dónde está alojada y cómo la generás?
+Backend (Express/Node):
+12. ¿Qué endpoint recibe la importación? ¿Recibe el archivo crudo o ya viene parseado como JSON desde el frontend?
+
+¿Qué validaciones hacés en el servidor sobre las filas?
+¿Cómo manejás duplicados (mismo correo dos veces en el archivo, o correo ya existe en la BD)?
+¿Devolvés un resumen al final tipo { imported: N, duplicates: M, errors: [...] }? ¿Cómo lo usa el frontend para mostrar el toast?
+¿Tenés validaciones de formato (regex de email, etc.)? ¿Las saltás silenciosamente o las reportás?
+UX:
+17. ¿Hay algún toast/notificación durante o al final?
+
+¿El botón de importar tiene dos modos (anexar vs sobreescribir) o solo uno?
+¿Mostrás una preview de las filas leídas antes de confirmar la importación?
+Archivos relevantes: Por favor pasame los paths exactos de los archivos donde está implementada esta lógica, tanto del cliente como del servidor, para poderlos consultar como referencia. En particular el componente principal de la página de Contactos y la ruta del backend de import.
+
+Importante: No me hace falta que escribas código nuevo. Solo necesito la documentación técnica de cómo funciona hoy, para poder portar el patrón a otro proyecto que tiene una estructura distinta (filas de publicaciones programadas, no contactos).
+
+Cuando me respondas, organizá la respuesta por las secciones de arriba (Frontend, Backend, UX) y citá fragmentos de código clave si los considerás necesarios.

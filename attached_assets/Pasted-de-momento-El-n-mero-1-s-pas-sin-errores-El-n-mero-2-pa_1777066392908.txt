@@ -1,0 +1,56 @@
+de momento:
+
+El número 1 sí pasó sin errores.
+El número 2 pasó sin errores.
+El número 3 pasó sin errores, con la excepción de lo de la plantilla que te mencioné hace un momento.
+El 4 y el 5 sin errores.
+El 6 sin errores.
+7 sin errores.
+8 sin errores.
+
+
+Con respecto a las bases de datos sí existe el botón de contactar en un paso y funciona correctamente. Ya no existe el botón de editar pero aquí hay un punto importante: que acabamos de ver en la base de datos. No hay un botón que me permita editar el nombre de la base de datos. Si yo quiero editar el nombre de mi base de datos, no puedo; tendría que eliminar la base y volverla a ser
+
+
+Creemos la campaña de correo electrónico sin plantilla y de igual forma generó una plantilla entre comillas, en donde creó un banner color azul, la foto, el contenido y un botón. Cuando hablamos de que no va a tener plantilla, no sé si es mejor que dejemos el correo completamente desnudo o que hagamos este correo así como tú me lo mostraste. Pero lo que pasa es que esto se parece mucho a las plantillas que te crea por defecto la sección de crear con IA.
+
+
+
+Yo creo que lo mejor tendría que ser sólo dejar la función de "sin plantilla" para que vos podás activar o desactivar si no pones plantilla el prompt de imagen. Porque ¿qué pasó? Ahorita nosotros creamos una plantilla y le pusimos prompt de imagen y nos generó esta foto que te estoy mandando. La lógica debería de ser de que yo, a través de la creación de la campaña, hay una especie de toggle o switch de encendido o apagado en donde yo decida si voy a ocupar una plantilla de correo o no. Esa puede estar ubicada siempre en la sección de plantilla.
+
+
+
+¿Qué debería de suceder si yo lo tengo desactivado? Que yo, después de desactivar, ya no voy a ocupar plantilla. Ahí me debería de decir la plataforma: "¿Querés generar tu campaña de correo con el muy texto o querés ponerle una imagen?" Yo le doy click, por ejemplo, en el checkbox de "siempre quiero la imagen" y ahí me debería de habilitar el campo de "prompt de imagen" para que yo digitarlo. Si no, debería de generarme el muy correo. Así debería de ser la lógica.
+
+
+
+Obviamente, con todo esto, de acuerdo a la cronología del lector, tiene que estar ordenado cada campo cronológicamente para que haga sentido. Tenemos que mostrar, por ejemplo, la sección de plantilla un poquito antes del "prompt de imagen" porque si le vamos a poner ese switch no podemos poner arriba algo que vamos a activar después. No sé si me entiendo.
+
+
+
+Con respecto al botón de "prueba de enviar", siguiendo ese workflow que íbamos haciendo de crear un correo sin plantilla, en ese caso está mal hecho. Entonces, porque me dejó:
+
+poner prompt de imagen
+me dejó enviar el correo del correo si llegó pero llegó sin imagen
+
+Y nosotros sí le pusimos prompt de imagen, ¿me explico? Entonces ahí hay un error de configuración, como te expliqué antes. Debería de preguntarme si quiero generar imagen o no. En este caso supongo que lo habíamos configurado para que fuera completamente desnudo el correo pero igual me permitió poner prompt de imagen. Se gastaron créditos para eso y el correo se envió sin imagen. Quieres decir que ahí estamos perdiendo plata. No debería ser así. Entonces corrijamos eso a modo de que vos tengas que escoger si querés imagen o no al momento de crear la campaña. Y si le pones que no, ni siquiera te debería de aparecer el editor de imagen ya cuando estás editando la campaña porque si la persona dijo de que no quería imagen, pues no quiere imagen, no se puede retractar después. Igual te voy a compartir los logs de las pruebas que estamos haciendo para que veas todo.
+
+
+
+Con respecto al tema número 15, deberíamos agregar un campo adicional cuando vos estás creando la campaña, que se llame "nombre de la campaña". Hacer un disclaimer de que ese campo es explícitamente y únicamente para poder diferenciar una campaña de otra. Para eliminarnos ese problema, hay un campo adicional en donde la persona tenga que llenar cuál es el nombre de la campaña y que ese sea el que se use
+
+
+
+La fecha real del envío de la tarea 16 funciona correctamente
+
+
+
+Con el tema de mini preview de la plantilla sin recorte, todo funciona bien. Eso quiere decir que la tarea 18, 19 y 20 funciona bien
+
+
+
+Tarea 17 aprobada
+
+
+
+Todo lo demás está aprobado. Solo lo único: fíjate que creamos una campaña así con datos bien genéricos y nos dio error al generar la imagen. Te compartimos la foto y también los logos. Está en la última línea de los logs
