@@ -646,6 +646,7 @@ export default function Contacts() {
   const [renamingDbId, setRenamingDbId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameCancelPendingRef = useRef(false);
   const { toast } = useToast();
   const { setCurrentSection, tutorialActive } = useTutorial();
 
@@ -850,6 +851,10 @@ export default function Contacts() {
                             if (e.key === "Enter") saveRename();
                             if (e.key === "Escape") cancelRename();
                           }}
+                          onBlur={() => {
+                            if (!renameDatabaseMutation.isPending && !renameCancelPendingRef.current) saveRename();
+                            renameCancelPendingRef.current = false;
+                          }}
                         />
                         <Button
                           data-testid={`button-save-rename-db-${db.id}`}
@@ -866,6 +871,7 @@ export default function Contacts() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
+                          onMouseDown={() => { renameCancelPendingRef.current = true; }}
                           onClick={cancelRename}
                         >
                           <X className="w-4 h-4" />
