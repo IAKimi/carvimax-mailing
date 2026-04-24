@@ -24,6 +24,8 @@ import { TipTapEditor } from "@/components/TipTapEditor";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Campaign, CampaignVersion, Template, ContactDatabase, BrandIdentity } from "@shared/schema";
+
+type CampaignWithSubject = Campaign & { subject?: string | null };
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -266,7 +268,7 @@ export default function CalendarView() {
   const startDayOfWeek = (firstDay.getDay() + 6) % 7;
   const totalDays = lastDay.getDate();
 
-  const { data: monthCampaigns = [], isLoading: campaignsLoading } = useQuery<Campaign[]>({
+  const { data: monthCampaigns = [], isLoading: campaignsLoading } = useQuery<CampaignWithSubject[]>({
     queryKey: ["/api/campaigns", { year, month }],
     queryFn: async () => {
       const res = await fetch(`/api/campaigns?year=${year}&month=${month}`, { credentials: "include" });
@@ -275,7 +277,7 @@ export default function CalendarView() {
     },
   });
 
-  const { data: editCampaignData } = useQuery<Campaign>({
+  const { data: editCampaignData } = useQuery<CampaignWithSubject>({
     queryKey: ["/api/campaigns", editingCampaignId, "detail"],
     queryFn: async () => {
       const res = await fetch(`/api/campaigns/${editingCampaignId}`, { credentials: "include" });
@@ -1144,7 +1146,7 @@ export default function CalendarView() {
   }
 
   const campaignsByDay = useMemo(() => {
-    const map: Record<number, Campaign[]> = {};
+    const map: Record<number, CampaignWithSubject[]> = {};
     for (const c of campaigns) {
       if (!c.scheduledAt) continue;
       const d = new Date(c.scheduledAt);
@@ -2636,7 +2638,7 @@ export default function CalendarView() {
               >
                 <Pencil className="w-5 h-5 text-accent flex-shrink-0" />
                 <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-                  <div className="font-semibold text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.name || campaign.idea}</div>
+                  <div className="font-semibold text-sm" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaign.subject || campaign.name || campaign.idea}</div>
                   <div className="text-xs text-muted-foreground capitalize">{STATUS_MAP[campaign.status] || campaign.status}</div>
                 </div>
               </div>

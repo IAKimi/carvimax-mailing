@@ -2793,11 +2793,16 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No hay proveedor de email configurado." });
     }
 
-    const subject = (campaign as any).contentJson?.asunto || campaign.name || "Prueba de correo";
-    const preheader = (campaign as any).contentJson?.preheader || "";
-    const contenido = (campaign as any).contentJson?.cuerpo || "";
-    const ctaTexto = (campaign as any).contentJson?.cta_texto || "";
-    const ctaUrl = (campaign as any).contentJson?.cta_url || "#";
+    const versions = await storage.getCampaignVersions(id);
+    const selectedVersion = versions.find(v => v.isSelected && v.type !== "image")
+      || versions.find(v => v.type !== "image")
+      || versions[0];
+    const cj = (selectedVersion?.contentJson ?? {}) as Record<string, unknown>;
+    const subject = (cj.asunto as string) || (cj.subject as string) || campaign.name || "Prueba de correo";
+    const preheader = (cj.preheader as string) || "";
+    const contenido = (cj.cuerpo as string) || "";
+    const ctaTexto = (cj.cta_texto as string) || "";
+    const ctaUrl = (cj.cta_url as string) || "#";
     const imageUrl = campaign.selectedImageUrl || "";
 
     let htmlBody = campaign.templateHtml || "";

@@ -8,11 +8,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+type CampaignInCell = Campaign & { subject?: string | null };
+
 interface CalendarCellProps {
   day: number;
   isToday: boolean;
   isPast: boolean;
-  campaigns: Campaign[];
+  campaigns: CampaignInCell[];
   thumbnails: Record<number, string | null>;
   onDayClick: (day: number) => void;
 }
@@ -84,7 +86,7 @@ function CalendarCellInner({ day, isToday, isPast, campaigns, thumbnails, onDayC
                         />
                       )}
                       <span className="text-[9px] md:text-[10px] leading-tight truncate text-left font-medium text-foreground/80">
-                        {c.name || c.idea || "Sin título"}
+                        {c.subject || c.name || c.idea || "Sin título"}
                       </span>
                     </div>
                   </TooltipTrigger>
@@ -96,7 +98,7 @@ function CalendarCellInner({ day, isToday, isPast, campaigns, thumbnails, onDayC
                         className="w-full h-20 rounded-md object-cover mb-1.5"
                       />
                     )}
-                    <p className="font-semibold">{c.name || c.idea}</p>
+                    <p className="font-semibold">{c.subject || c.name || c.idea}</p>
                     <p className="text-muted-foreground">{STATUS_LABELS[c.status] || c.status}</p>
                   </TooltipContent>
                 </Tooltip>
@@ -119,6 +121,6 @@ export const CalendarCell = memo(CalendarCellInner, (prev, next) => {
     prev.isPast === next.isPast &&
     prev.thumbnails === next.thumbnails &&
     prev.campaigns.length === next.campaigns.length &&
-    prev.campaigns.every((c, i) => c.id === next.campaigns[i]?.id && c.status === next.campaigns[i]?.status && c.name === next.campaigns[i]?.name)
+    prev.campaigns.every((c, i) => c.id === next.campaigns[i]?.id && c.status === next.campaigns[i]?.status && c.name === next.campaigns[i]?.name && c.subject === next.campaigns[i]?.subject)
   );
 });

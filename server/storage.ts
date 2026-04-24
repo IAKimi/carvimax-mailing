@@ -13,7 +13,7 @@ import {
   type EmailProvider, type InsertEmailProvider
 } from "@shared/schema";
 
-type CampaignListItem = Omit<Campaign, "selectedImageUrl">;
+type CampaignListItem = Omit<Campaign, "selectedImageUrl"> & { subject: string | null };
 
 export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
@@ -143,12 +143,20 @@ export class DatabaseStorage implements IStorage {
       targetAudience: campaigns.targetAudience,
       templateId: campaigns.templateId,
       scheduledAt: campaigns.scheduledAt,
+      sentAt: campaigns.sentAt,
       totalExpectedSends: campaigns.totalExpectedSends,
       sentCount: campaigns.sentCount,
       failedCount: campaigns.failedCount,
       textApproved: campaigns.textApproved,
       imageApproved: campaigns.imageApproved,
       createdAt: campaigns.createdAt,
+      subject: sql<string | null>`(
+        SELECT content_json->>'asunto'
+        FROM campaign_versions
+        WHERE campaign_id = ${campaigns.id}
+          AND is_selected = true
+        LIMIT 1
+      )`.as("subject"),
     };
 
     if (year !== undefined && month !== undefined) {
@@ -385,10 +393,18 @@ export class DatabaseStorage implements IStorage {
       campaignsByMonth.push({ month: key, count: cnt });
     }
 
-    const recentCampaigns = [...userCampaigns]
+    const recentSorted = [...userCampaigns]
       .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
-      .slice(0, 5)
-      .map(c => ({ id: c.id, name: c.name, status: c.status, date: c.scheduledAt || c.createdAt }));
+      .slice(0, 5);
+    const recentCampaigns = [];
+    for (const c of recentSorted) {
+      const versions = await this.getCampaignVersions(c.id);
+      const selected = versions.find(v => v.isSelected) || versions[0];
+      const cj = selected?.contentJson as Record<string, unknown> | undefined;
+      const subject = (cj?.asunto as string) || (cj?.subject as string) || c.name;
+      const date = c.sentAt || c.scheduledAt || c.createdAt;
+      recentCampaigns.push({ id: c.id, name: subject, status: c.status, date });
+    }
 
     const [dbCountResult] = await db.select({ c: count() }).from(contactDatabases).where(eq(contactDatabases.userId, userId));
 

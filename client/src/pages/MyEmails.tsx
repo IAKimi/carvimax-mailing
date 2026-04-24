@@ -535,7 +535,7 @@ export default function MyEmails() {
               const version = versionsByCampaign.get(campaign.id);
               const subject = version?.contentJson?.asunto || version?.contentJson?.subject || campaign.name;
               const scheduledDate = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
-              const sentDate = (campaign as any).sentAt ? new Date((campaign as any).sentAt) : null;
+              const sentDate = campaign.sentAt ? new Date(campaign.sentAt) : null;
               const displayDate = sentDate
                 ? `Enviado: ${sentDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${sentDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
                 : scheduledDate
