@@ -846,14 +846,12 @@ export async function registerRoutes(
         if (status === "scheduled") {
           const mergedTextApproved = updates.textApproved !== undefined ? updates.textApproved : existing.textApproved;
           const mergedImageApproved = updates.imageApproved !== undefined ? updates.imageApproved : existing.imageApproved;
-          if (!mergedTextApproved || !mergedImageApproved) {
-            return res.status(400).json({ message: "Ambas aprobaciones (texto e imagen) son requeridas para programar." });
+          const schedulingImageRequired = existing.templateId ? true : !!existing.imagePrompt;
+          if (!mergedTextApproved || (schedulingImageRequired && !mergedImageApproved)) {
+            return res.status(400).json({ message: "Las aprobaciones requeridas (texto, e imagen si aplica) son necesarias para programar." });
           }
         }
         if (status === "sent") {
-          if (!existing.templateId) {
-            return res.status(400).json({ message: "Debe seleccionar una plantilla antes de enviar." });
-          }
           if (!existing.targetDatabase) {
             return res.status(400).json({ message: "Debe seleccionar una base de datos de contactos antes de enviar." });
           }
@@ -921,18 +919,16 @@ export async function registerRoutes(
 
     try {
     const imagePromise = (async () => {
-      if (campaign.imagePrompt && isGeminiConfigured()) {
-        try {
-          return await generateImage(campaign.imagePrompt);
-        } catch (err: any) {
-          console.error("[Image API][image_generate] Error generando imagen inicial:", err.message);
-          return "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
-        }
-      }
+      if (!campaign.imagePrompt) return null;
       if (!isGeminiConfigured()) {
         return "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
       }
-      return "https://placehold.co/600x300/002073/white?text=Sin+imagen";
+      try {
+        return await generateImage(campaign.imagePrompt);
+      } catch (err: any) {
+        console.error("[Image API][image_generate] Error generando imagen inicial:", err.message);
+        return "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
+      }
     })();
 
     const templateLocked: string[] = campaign.templateId

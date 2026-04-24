@@ -703,6 +703,10 @@ export default function CalendarView() {
 
   function handleGenerate() {
     if (!form.campaignName.trim() || !form.idea.trim()) return;
+    if (useTemplate && !form.templateId) {
+      toast({ title: "Plantilla requerida", description: "Selecciona una plantilla o desactiva la opción de plantilla.", variant: "destructive" });
+      return;
+    }
     let scheduledAt: string | null = null;
     if (form.scheduledDate) {
       const localDate = new Date(form.scheduledDate);
