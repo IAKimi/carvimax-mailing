@@ -732,7 +732,7 @@ export default function Contacts() {
   }
 
   function saveRename() {
-    if (!renamingDbId || !renameValue.trim()) return;
+    if (!renamingDbId || !renameValue.trim() || renameDatabaseMutation.isPending) return;
     renameDatabaseMutation.mutate({ id: renamingDbId, name: renameValue.trim() });
   }
 
