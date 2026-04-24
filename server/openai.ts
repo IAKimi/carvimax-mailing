@@ -399,7 +399,7 @@ function buildBaseTemplateHtml(brand: BrandIdentityData | null): string {
           <td style="padding:20px 30px; font-family:${bodyFont}; font-size:12px; line-height:18px; color:#555555; background:#f9f9f9; border-top:1px solid #dddddd; text-align:center; border-radius:0 0 16px 16px;">
             ${footerContact}
             <div style="padding-top:8px;">
-              <a href="{{UNSUBSCRIBE_LINK}}" target="_blank" style="color:#777777; text-decoration:underline;"></a>
+              <a href="#" target="_blank" style="color:#777777; text-decoration:underline;">Cancelar suscripción</a>
             </div>
           </td>
         </tr>
@@ -476,16 +476,16 @@ QUÉ NO PUEDE PERSONALIZAR:
 - La posición del {{ASUNTO}} (siempre centrado en el header)
 - Eliminar bloques obligatorios
 
-SISTEMA DE PLACEHOLDERS OBLIGATORIOS (los 6 deben estar presentes):
+SISTEMA DE PLACEHOLDERS OBLIGATORIOS (los 7 deben estar presentes):
 1. {{ASUNTO}} — En <title> del <head> Y visible centrado en el header/banner.
 2. {{PREHEADER}} — Primer elemento del <body>, en <span> oculto.
 3. {{IMAGEN_URL}} — src="" de la imagen hero en el BLOQUE 2.
 4. {{CONTENIDO}} — Bloque de texto principal en el BLOQUE 3. Ya viene en HTML, NO envolver en <p>.
 5. {{CTA_TEXTO}} — Texto del botón en el BLOQUE 4.
 6. {{CTA_URL}} — href="" del botón en el BLOQUE 4.
-7. {{UNSUBSCRIBE_LINK}} — href="" del enlace de cancelación en el footer.
+7. {{LOGO_URL}} — src="" de la imagen del logo en el header (esquina superior izquierda).
 
-⚠️ SOLO ESTOS 7 PLACEHOLDERS ESTÁN SOPORTADOS. NO inventes ni uses ningún otro placeholder (como {{NOMBRE}}, {{FECHA}}, {{EMPRESA}}, {{PRODUCTO}}, etc.). El sistema de sustitución solo reconoce los 7 anteriores; cualquier placeholder no reconocido quedará visible como texto sin reemplazar en el correo final.
+⚠️ SOLO ESTOS 7 PLACEHOLDERS ESTÁN SOPORTADOS: {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}}, {{LOGO_URL}}. NO inventes ni uses ningún otro placeholder (como {{NOMBRE}}, {{FECHA}}, {{EMPRESA}}, {{PRODUCTO}}, {{UNSUBSCRIBE_LINK}}, etc.). El sistema de sustitución solo reconoce los 7 anteriores; cualquier placeholder no reconocido quedará visible como texto sin reemplazar en el correo final.
 
 REGLAS TÉCNICAS DE HTML PARA EMAIL:
 1. SOLO estilos inline (style="..."). Los clientes de email ignoran <style> y CSS externo.

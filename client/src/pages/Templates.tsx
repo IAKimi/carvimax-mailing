@@ -1041,7 +1041,7 @@ export default function Templates() {
               Crear Plantilla con IA
             </DialogTitle>
             <DialogDescription>
-              Describa la plantilla que necesita y la IA la generará automáticamente con los 6 placeholders estándar integrados.
+              Describa la plantilla que necesita y la IA la generará automáticamente con los 7 placeholders estándar integrados.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
