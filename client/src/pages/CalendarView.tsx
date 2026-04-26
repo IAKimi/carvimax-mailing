@@ -209,8 +209,10 @@ export default function CalendarView() {
   const [pendingVersionSwitch, setPendingVersionSwitch] = useState<{ fn: () => void } | null>(null);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
+  const [showLeaveWhileSendingDialog, setShowLeaveWhileSendingDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
+  const { getProgress } = useCampaignProgress();
 
   useEffect(() => {
     tutorial.setCurrentSection("calendar");
@@ -255,6 +257,25 @@ export default function CalendarView() {
       tutorial.setCurrentStepIndex(0);
     }
   }, [showNewDialog, editingCampaignId, tutorial.tutorialActive]);
+
+  useEffect(() => {
+    if (!editingCampaignId) return;
+    const progress = getProgress(editingCampaignId);
+    if (!progress?.completed) return;
+    if (progress.failedCount === 0) {
+      toast({
+        title: "¡Envío completado!",
+        description: `${progress.sentCount} correo${progress.sentCount !== 1 ? "s" : ""} enviado${progress.sentCount !== 1 ? "s" : ""} exitosamente.`,
+      });
+    } else {
+      toast({
+        title: "Envío finalizado con errores",
+        description: `${progress.sentCount} enviados, ${progress.failedCount} fallidos.`,
+        variant: "destructive",
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+  }, [editingCampaignId, getProgress(editingCampaignId)?.completed]);
 
   const advanceTutorialOnBlur = useCallback((currentFieldId: string, currentValue: string) => {
     if (!tutorial.tutorialActive) return;
@@ -607,8 +628,10 @@ export default function CalendarView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-      toast({ title: "Campaña enviada", description: "Su correo ha sido enviado al sistema de distribución." });
-      handleBackToCalendar();
+      toast({
+        title: "Enviando correo",
+        description: "El envío comenzó. Puedes ver el progreso en tiempo real abajo.",
+      });
     },
     onError: (err: Error) => {
       toast({ title: "Error al enviar", description: err.message, variant: "destructive" });
@@ -1256,7 +1279,15 @@ export default function CalendarView() {
             <Button
               data-testid="button-back-to-calendar"
               variant="ghost"
-              onClick={handleBackToCalendar}
+              onClick={() => {
+                const progress = editingCampaignId ? getProgress(editingCampaignId) : null;
+                const activelySending = isSending && !progress?.completed;
+                if (activelySending) {
+                  setShowLeaveWhileSendingDialog(true);
+                } else {
+                  handleBackToCalendar();
+                }
+              }}
               className="rounded-xl gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -2579,6 +2610,34 @@ export default function CalendarView() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={showLeaveWhileSendingDialog} onOpenChange={setShowLeaveWhileSendingDialog}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>El envío sigue en curso</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Quieres salir igualmente? El correo seguirá enviándose en segundo plano. Puedes ver el progreso desde el historial.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                data-testid="button-stay-while-sending"
+                onClick={() => setShowLeaveWhileSendingDialog(false)}
+              >
+                Quedarme
+              </AlertDialogCancel>
+              <AlertDialogAction
+                data-testid="button-leave-while-sending"
+                onClick={() => {
+                  setShowLeaveWhileSendingDialog(false);
+                  handleBackToCalendar();
+                }}
+              >
+                Salir de todas formas
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </Layout>
     );
   }
