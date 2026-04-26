@@ -275,7 +275,7 @@ export default function CalendarView() {
       });
     }
     queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-  }, [editingCampaignId, getProgress(editingCampaignId)?.completed]);
+  }, [editingCampaignId, editingCampaignId ? getProgress(editingCampaignId)?.completed : undefined]);
 
   const advanceTutorialOnBlur = useCallback((currentFieldId: string, currentValue: string) => {
     if (!tutorial.tutorialActive) return;
@@ -1408,7 +1408,7 @@ export default function CalendarView() {
             </div>
           )}
 
-          {(isSending || isSent || isFailed || isPartial) && (editingCampaign.totalExpectedSends ?? 0) > 0 && (
+          {(isSending || isSent || isFailed || isPartial) && (
             <SendProgressBar campaignId={editingCampaign.id} campaign={editingCampaign} />
           )}
 
