@@ -322,6 +322,8 @@ function deleteLogoFile(logoUrl: string): void {
 async function syncLogoInTemplates(userId: number, oldLogoUrl: string | null): Promise<void> {
   try {
     const userTemplates = await storage.getTemplates(userId);
+    // Only match logo files that belong to this user (filename starts with userId_)
+    const userLogoPattern = new RegExp(`https?://[^"'\\s]+/uploads/logos/${userId}_[^"'\\s]+`, "g");
     for (const tpl of userTemplates) {
       let html = tpl.html;
       if (!html) continue;
@@ -331,12 +333,13 @@ async function syncLogoInTemplates(userId: number, oldLogoUrl: string | null): P
         html = html.split(oldLogoUrl).join("{{LOGO_URL}}");
         changed = true;
       }
-      // Broad sweep: any /uploads/logos/ URL that isn't already a placeholder reference
-      const logoUrlPattern = /https?:\/\/[^"'\s]+\/uploads\/logos\/[^"'\s]+/g;
-      if (logoUrlPattern.test(html)) {
-        html = html.replace(/https?:\/\/[^"'\s]+\/uploads\/logos\/[^"'\s]+/g, "{{LOGO_URL}}");
+      // Scoped sweep: any remaining logo URL belonging to this user
+      if (userLogoPattern.test(html)) {
+        userLogoPattern.lastIndex = 0;
+        html = html.replace(userLogoPattern, "{{LOGO_URL}}");
         changed = true;
       }
+      userLogoPattern.lastIndex = 0;
       if (changed) {
         await storage.updateTemplate(tpl.id, { html });
       }
