@@ -268,6 +268,22 @@ const migrations: Migration[] = [
       console.log("[migration 012] Added sent_at column to campaigns");
     },
   },
+  {
+    name: "013_normalize_logo_urls_in_templates",
+    up: async (client) => {
+      const result = await client.query(`
+        UPDATE templates
+        SET html = regexp_replace(
+          html,
+          'https?://[^"''\\s]+/uploads/logos/[^"''\\s]+',
+          '{{LOGO_URL}}',
+          'g'
+        )
+        WHERE html ~ '/uploads/logos/'
+      `);
+      console.log(`[migration 013] Normalized logo URLs in ${result.rowCount} template(s)`);
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
