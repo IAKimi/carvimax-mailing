@@ -319,6 +319,33 @@ function deleteLogoFile(logoUrl: string): void {
   }
 }
 
+async function syncLogoInTemplates(userId: number, oldLogoUrl: string | null): Promise<void> {
+  try {
+    const userTemplates = await storage.getTemplates(userId);
+    for (const tpl of userTemplates) {
+      let html = tpl.html;
+      if (!html) continue;
+      let changed = false;
+      // Replace the exact old logo URL with the placeholder
+      if (oldLogoUrl && html.includes(oldLogoUrl)) {
+        html = html.split(oldLogoUrl).join("{{LOGO_URL}}");
+        changed = true;
+      }
+      // Broad sweep: any /uploads/logos/ URL that isn't already a placeholder reference
+      const logoUrlPattern = /https?:\/\/[^"'\s]+\/uploads\/logos\/[^"'\s]+/g;
+      if (logoUrlPattern.test(html)) {
+        html = html.replace(/https?:\/\/[^"'\s]+\/uploads\/logos\/[^"'\s]+/g, "{{LOGO_URL}}");
+        changed = true;
+      }
+      if (changed) {
+        await storage.updateTemplate(tpl.id, { html });
+      }
+    }
+  } catch (err: any) {
+    console.error("Error syncing logo in templates:", err.message);
+  }
+}
+
 async function cleanupCampaignFiles(campaignId: number): Promise<void> {
   try {
     const versions = await storage.getCampaignVersions(campaignId);
@@ -1744,6 +1771,7 @@ export async function registerRoutes(
       const input = updateBrandIdentitySchema.parse(req.body);
       const existingBrand = await storage.getBrandIdentity(req.session.userId!);
       if (existingBrand?.logoUrl && input.logoUrl !== undefined && input.logoUrl !== existingBrand.logoUrl) {
+        await syncLogoInTemplates(req.session.userId!, existingBrand.logoUrl);
         deleteLogoFile(existingBrand.logoUrl);
       }
       const brand = await storage.upsertBrandIdentity(req.session.userId!, input);
@@ -1773,6 +1801,7 @@ export async function registerRoutes(
       }
       const existingBrand = await storage.getBrandIdentity(req.session.userId!);
       if (existingBrand?.logoUrl) {
+        await syncLogoInTemplates(req.session.userId!, existingBrand.logoUrl);
         deleteLogoFile(existingBrand.logoUrl);
       }
 
