@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getQueryFn, queryClient } from "@/lib/queryClient";
 import { useTutorial } from "@/contexts/TutorialContext";
+import { useGenerating } from "@/contexts/GeneratingContext";
 import { useToast } from "@/hooks/use-toast";
 
 interface OnboardingStatus {
@@ -75,6 +76,7 @@ export type { OnboardingStatus };
 export function Layout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { tutorialActive, toggleTutorial } = useTutorial();
+  const { isGenerating } = useGenerating();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(_sidebarMouseInside);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -128,6 +130,10 @@ export function Layout({ children }: { children: ReactNode }) {
   }, []);
 
   function handleLogout() {
+    if (isGenerating) {
+      toast({ title: "Generación en curso", description: "Espera a que termine la generación antes de cerrar sesión." });
+      return;
+    }
     fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => {
       localStorage.removeItem("postIAlo_auth");
       setLocation("/login");
@@ -163,6 +169,26 @@ export function Layout({ children }: { children: ReactNode }) {
             <Icon className="w-5 h-5 opacity-40" />
             <Lock className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 text-white/50" />
           </div>
+          {(isMobile || sidebarExpanded) && (
+            <span className="opacity-40">{item.label}</span>
+          )}
+        </button>
+      );
+    }
+
+    if (isGenerating) {
+      return (
+        <button
+          key={item.href}
+          data-testid={`nav-${isMobile ? "mobile-" : ""}${item.href.replace(/\//g, "") || "home"}`}
+          onClick={() => toast({ title: "Generación en curso", description: "Espera a que termine antes de navegar." })}
+          className={`
+            flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden w-full
+            ${isMobile ? "px-4" : sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
+            text-white/40 cursor-not-allowed
+          `}
+        >
+          <Icon className="w-5 h-5 flex-shrink-0 opacity-40" />
           {(isMobile || sidebarExpanded) && (
             <span className="opacity-40">{item.label}</span>
           )}

@@ -31,6 +31,7 @@ import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
 import { useCampaignProgress, type CampaignProgress } from "@/hooks/use-campaign-progress";
 import { Progress } from "@/components/ui/progress";
+import { useGenerating } from "@/contexts/GeneratingContext";
 
 function SendProgressBar({ campaignId, campaign }: { campaignId: number; campaign: Campaign }) {
   const { getProgress } = useCampaignProgress();
@@ -210,9 +211,11 @@ export default function CalendarView() {
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [showLeaveWhileSendingDialog, setShowLeaveWhileSendingDialog] = useState(false);
+  const [genStep, setGenStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
   const { getProgress } = useCampaignProgress();
+  const { setGenerating } = useGenerating();
 
   useEffect(() => {
     tutorial.setCurrentSection("calendar");
@@ -620,6 +623,36 @@ export default function CalendarView() {
       }
     );
   }
+
+  const isAiGenerating = generateVersionMutation.isPending || createCampaignMutation.isPending || regenerateTextMutation.isPending;
+
+  useEffect(() => {
+    if (!isAiGenerating) {
+      setGenerating(false);
+      setGenStep(0);
+      return;
+    }
+    setGenerating(true);
+    setGenStep(1);
+    const t2 = setTimeout(() => setGenStep(2), 4000);
+    const t3 = setTimeout(() => setGenStep(3), 10000);
+    const t4 = setTimeout(() => setGenStep(4), 18000);
+    return () => {
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+    };
+  }, [isAiGenerating]);
+
+  useEffect(() => {
+    if (!isAiGenerating) return;
+    function beforeUnloadHandler(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+    return () => window.removeEventListener("beforeunload", beforeUnloadHandler);
+  }, [isAiGenerating]);
 
   const sendCampaignMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -1653,27 +1686,59 @@ export default function CalendarView() {
           </div>
 
           {!isSent && !isSending && !isFailed && !isPartial && ((generateVersionMutation.isPending || createCampaignMutation.isPending || versionsLoading) ? (
-            <div data-testid="overlay-generating" className="bg-card rounded-2xl border border-border p-5 shadow-sm">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
-                    Generando imagen...
-                  </div>
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-56" />
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-                    <div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
-                    Generando texto...
-                  </div>
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-8 w-3/4" />
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-full" />
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-5/6" />
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-4/6" />
-                  <div className="rounded-xl bg-muted/50 animate-pulse h-20 w-full mt-2" />
-                </div>
-              </div>
+            <div data-testid="overlay-generating" className="bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-sm space-y-5">
+              {(() => {
+                const GEN_STEPS = [
+                  "Analizando tu identidad de marca...",
+                  "Redactando asunto y preheader...",
+                  "Generando el cuerpo del correo...",
+                  "Revisando estructura y llamada a la acción...",
+                ];
+                const currentStep = Math.max(1, genStep);
+                const progressPct = (currentStep / GEN_STEPS.length) * 100;
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-4 h-4 rounded-full border-2 border-blue-400 border-t-blue-700 animate-spin flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800">
+                          Paso {currentStep}/{GEN_STEPS.length} — {GEN_STEPS[currentStep - 1]}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-0.5">La IA está generando el contenido de tu correo</p>
+                      </div>
+                    </div>
+                    <Progress value={progressPct} className="h-2 bg-blue-100 [&>div]:bg-blue-500" />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {GEN_STEPS.map((label, i) => (
+                        <div
+                          key={i}
+                          className={`rounded-lg px-2 py-1.5 text-xs text-center transition-all ${
+                            i + 1 < currentStep
+                              ? "bg-blue-200 text-blue-800 font-medium"
+                              : i + 1 === currentStep
+                              ? "bg-blue-500 text-white font-semibold"
+                              : "bg-blue-100/60 text-blue-400"
+                          }`}
+                        >
+                          {i + 1}. {label.split("...")[0]}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 opacity-40 pointer-events-none">
+                      <div className="space-y-3">
+                        <div className="rounded-xl bg-blue-100 animate-pulse h-56" />
+                      </div>
+                      <div className="space-y-3">
+                        <div className="rounded-xl bg-blue-100 animate-pulse h-8 w-3/4" />
+                        <div className="rounded-xl bg-blue-100 animate-pulse h-4 w-full" />
+                        <div className="rounded-xl bg-blue-100 animate-pulse h-4 w-5/6" />
+                        <div className="rounded-xl bg-blue-100 animate-pulse h-4 w-4/6" />
+                        <div className="rounded-xl bg-blue-100 animate-pulse h-20 w-full mt-2" />
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <>
