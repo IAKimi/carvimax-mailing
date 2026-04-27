@@ -3449,10 +3449,14 @@ export async function registerRoutes(
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
+    const abortController = new AbortController();
+    req.on("close", () => abortController.abort());
+
     await streamAssistantResponse({
       userMessage: message.trim(),
       section: section as AssistantSection,
       lastResponseId,
+      signal: abortController.signal,
       onDelta: (text) => {
         res.write(`data: ${JSON.stringify({ type: "delta", text })}\n\n`);
       },

@@ -84,25 +84,30 @@ export async function streamAssistantResponse(params: {
   userMessage: string;
   section: AssistantSection;
   lastResponseId: string | null;
+  signal?: AbortSignal;
   onDelta: (text: string) => void;
   onDone: (responseId: string | null) => void;
   onError: (err: Error) => void;
 }): Promise<void> {
-  const { userMessage, section, lastResponseId, onDelta, onDone, onError } = params;
+  const { userMessage, section, lastResponseId, signal, onDelta, onDone, onError } = params;
   const client = getClient();
   const instructions = getAssistantInstructions(section);
 
   try {
-    const stream = client.responses.stream({
-      model: "gpt-4.1-mini",
-      instructions,
-      input: userMessage,
-      ...(lastResponseId ? { previous_response_id: lastResponseId } : {}),
-    });
+    const stream = client.responses.stream(
+      {
+        model: "gpt-4.1-mini",
+        instructions,
+        input: userMessage,
+        ...(lastResponseId ? { previous_response_id: lastResponseId } : {}),
+      },
+      { signal },
+    );
 
     let finalResponseId: string | null = null;
 
     for await (const event of stream) {
+      if (signal?.aborted) break;
       const e = event as ResponseStreamEvent;
       if (e.type === "response.output_text.delta") {
         onDelta(e.delta);
@@ -111,8 +116,13 @@ export async function streamAssistantResponse(params: {
       }
     }
 
-    onDone(finalResponseId);
+    if (!signal?.aborted) {
+      onDone(finalResponseId);
+    }
   } catch (err: unknown) {
+    if (err instanceof Error && (err.name === "AbortError" || signal?.aborted)) {
+      return;
+    }
     const error = err instanceof Error ? err : new Error("Error desconocido al contactar el asistente.");
     console.error("[assistant] streamAssistantResponse error:", error.message);
     onError(error);
