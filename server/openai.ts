@@ -42,7 +42,49 @@ interface BrandIdentityData {
   visualStyle?: string | null;
 }
 
-function buildInstructions(brand: BrandIdentityData | null): string {
+export interface ContentPrefsData {
+  includeEmojis: boolean;
+  includeCta: boolean;
+  includeSignature: boolean;
+  formalTone: boolean;
+  includeWebsite: boolean;
+  includeWhatsapp: boolean;
+}
+
+function buildContentPrefsBlock(prefs: ContentPrefsData, brand: BrandIdentityData | null): string {
+  const rules: string[] = [];
+
+  if (!prefs.includeEmojis) {
+    rules.push("No uses emojis ni emoticons en ninguna parte del correo.");
+  }
+
+  if (prefs.formalTone) {
+    rules.push("Usa un tono formal y respetuoso. Evita coloquialismos, expresiones informales o humor.");
+  }
+
+  if (!prefs.includeCta) {
+    rules.push("El correo NO tendrá botón CTA. Genera cta_text='Ver más' y cta_url='#' como valores placeholder, sin construir copy persuasivo para el botón.");
+  }
+
+  if (prefs.includeSignature) {
+    const companyName = brand?.companyName || "la empresa";
+    rules.push(`Al final del cuerpo_html agrega una firma simple: "<p>— ${companyName}</p>".`);
+  }
+
+  if (prefs.includeWebsite && brand?.website) {
+    rules.push(`Incluye de forma natural la URL del sitio web en el cuerpo: ${brand.website}`);
+  }
+
+  if (prefs.includeWhatsapp && brand?.whatsapp) {
+    rules.push(`Incluye de forma natural el número de WhatsApp en el cuerpo: ${brand.whatsapp}`);
+  }
+
+  if (rules.length === 0) return "";
+
+  return `\n\nPREFERENCIAS DE CONTENIDO DEL USUARIO (obligatorio respetar):\n${rules.map((r, i) => `${i + 1}. ${r}`).join("\n")}`;
+}
+
+function buildInstructions(brand: BrandIdentityData | null, prefs?: ContentPrefsData | null): string {
   const brandContext = brand
     ? `
 IDENTIDAD DE MARCA:
@@ -60,6 +102,8 @@ IDENTIDAD DE MARCA:
 IDENTIDAD DE MARCA: No configurada. Usa un tono profesional y genérico.
 `;
 
+  const prefsBlock = prefs ? buildContentPrefsBlock(prefs, brand) : "";
+
   return `Eres el Head of Copywriting de la empresa descrita a continuación. Tu objetivo es redactar un correo electrónico de alta conversión.
 ${brandContext}
 REGLAS ESTRICTAS DE REDACCIÓN:
@@ -71,7 +115,7 @@ REGLAS ESTRICTAS DE REDACCIÓN:
 6. El preheader debe complementar el asunto y enganchar al lector (máximo 100 caracteres).
 7. El cta_text debe ser un texto corto y accionable para el botón principal del correo (máximo 40 caracteres).
 8. Todo el contenido debe estar en español.
-9. Respeta estrictamente el tono y la personalidad de la marca descrita arriba.`;
+9. Respeta estrictamente el tono y la personalidad de la marca descrita arriba.${prefsBlock}`;
 }
 
 const emailSchema = {
@@ -182,10 +226,11 @@ export async function generateEmailContent(
   objective: string,
   brandIdentity: BrandIdentityData | null,
   targetAudience?: string | null,
-  lockedFields?: string[]
+  lockedFields?: string[],
+  contentPrefs?: ContentPrefsData | null
 ): Promise<EmailContent> {
   const client = getClient();
-  let instructions = buildInstructions(brandIdentity);
+  let instructions = buildInstructions(brandIdentity, contentPrefs);
   
   if (lockedFields && lockedFields.length > 0) {
     const lockedDescriptions: string[] = [];
@@ -225,10 +270,11 @@ export async function regenerateEmailContent(
   userCorrections: string,
   brandIdentity: BrandIdentityData | null,
   targetAudience?: string | null,
-  lockedFields?: string[]
+  lockedFields?: string[],
+  contentPrefs?: ContentPrefsData | null
 ): Promise<EmailContent> {
   const client = getClient();
-  let instructions = buildInstructions(brandIdentity);
+  let instructions = buildInstructions(brandIdentity, contentPrefs);
   
   if (lockedFields && lockedFields.length > 0) {
     const lockedDescriptions: string[] = [];

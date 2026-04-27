@@ -1068,10 +1068,13 @@ export async function registerRoutes(
     const textPromise = (async () => {
       if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
         try {
-          const brandData = await storage.getBrandIdentity(req.session.userId!);
-          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience, templateLocked);
+          const [brandData, contentPrefs] = await Promise.all([
+            storage.getBrandIdentity(req.session.userId!),
+            storage.getContentPreferences(req.session.userId!),
+          ]);
+          const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience, templateLocked, contentPrefs);
           console.log("[OpenAI] Texto generado exitosamente:", JSON.stringify({ asunto: result.asunto, cta: result.cta_text }));
-          return result;
+          return { result, contentPrefs };
         } catch (err: any) {
           console.error("[OpenAI] ERROR generando texto:", {
             message: err.message,
@@ -1088,10 +1091,13 @@ export async function registerRoutes(
       return null;
     })();
 
-    const [rawImageUrl, emailContent] = await Promise.all([imagePromise, textPromise]);
+    const [rawImageUrl, textResult] = await Promise.all([imagePromise, textPromise]);
 
     const imageFilename = rawImageUrl ? saveBase64Image(rawImageUrl, `campaign_${campaignId}`) : null;
     const imageUrl = imageFilename ? getImagePublicUrl(imageFilename, req) : null;
+
+    const emailContent = textResult?.result ?? null;
+    const contentPrefsForVersion = textResult?.contentPrefs ?? null;
 
     const contentJson = emailContent
       ? {
@@ -1099,6 +1105,7 @@ export async function registerRoutes(
           preheader: emailContent.preheader,
           cuerpo_html: emailContent.cuerpo_html,
           cta_text: emailContent.cta_text,
+          ...(contentPrefsForVersion?.includeCta === false ? { cta_enabled: false } : {}),
         }
       : (() => {
           console.warn("OpenAI no disponible — usando texto placeholder");
@@ -1173,7 +1180,10 @@ export async function registerRoutes(
       if (!isOpenAIConfigured()) {
         return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
-      const brandData = await storage.getBrandIdentity(req.session.userId!);
+      const [brandData, contentPrefs] = await Promise.all([
+        storage.getBrandIdentity(req.session.userId!),
+        storage.getContentPreferences(req.session.userId!),
+      ]);
       const emailContent = await regenerateEmailContent(
         campaign.idea,
         campaign.objective,
@@ -1181,7 +1191,8 @@ export async function registerRoutes(
         corrections,
         brandData || null,
         campaign.targetAudience,
-        templateLockedRegen
+        templateLockedRegen,
+        contentPrefs
       );
       contentJson = {
         asunto: emailContent.asunto,
@@ -1189,7 +1200,7 @@ export async function registerRoutes(
         cuerpo_html: emailContent.cuerpo_html,
         cta_text: emailContent.cta_text,
         cta_url: previousContent?.cta_url || "",
-        cta_enabled: previousContent?.cta_enabled !== false,
+        cta_enabled: contentPrefs?.includeCta === false ? false : previousContent?.cta_enabled !== false,
       };
     } catch (err: any) {
       return res.status(500).json({ message: toUserSafeMessage(err, "text_regenerate") });
