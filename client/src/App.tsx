@@ -19,6 +19,7 @@ import AdminUsers from "@/pages/AdminUsers";
 import Dashboard from "@/pages/Dashboard";
 import EmailProvider from "@/pages/EmailProvider";
 import VerifyEmail from "@/pages/VerifyEmail";
+import SettingsPage from "@/pages/Settings";
 import { getOnboardingLevel, type OnboardingStatus } from "@/components/Layout";
 
 const ROUTE_LEVELS: Record<string, number> = {
@@ -33,6 +34,7 @@ const ROUTE_LEVELS: Record<string, number> = {
   "/campaigns": 4,
   "/admin/users": 0,
   "/admin": 0,
+  "/settings": 0,
 };
 
 function getRequiredLevel(path: string): number {
@@ -145,6 +147,7 @@ function Router() {
       <Route path="/contacts">{() => <ProtectedRoute component={Contacts} />}</Route>
       <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
       <Route path="/campaigns/:id">{() => <ProtectedRoute component={CampaignEditor} />}</Route>
+      <Route path="/settings">{() => <ProtectedRoute component={SettingsPage} />}</Route>
       <Route path="/admin/users">{() => <ProtectedRoute component={AdminUsers} adminOnly />}</Route>
       <Route path="/admin">{() => <Redirect to="/admin/users" />}</Route>
       <Route component={NotFound} />

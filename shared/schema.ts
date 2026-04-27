@@ -203,6 +203,31 @@ export type InsertCampaignSend = z.infer<typeof insertCampaignSendSchema>;
 export type EmailProvider = typeof emailProviders.$inferSelect;
 export type InsertEmailProvider = z.infer<typeof insertEmailProviderSchema>;
 
+export const contentPreferences = pgTable("content_preferences", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique(),
+  includeEmojis: boolean("include_emojis").notNull().default(true),
+  includeCta: boolean("include_cta").notNull().default(true),
+  includeSignature: boolean("include_signature").notNull().default(false),
+  formalTone: boolean("formal_tone").notNull().default(false),
+  includeWebsite: boolean("include_website").notNull().default(false),
+  includeWhatsapp: boolean("include_whatsapp").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertContentPreferencesSchema = createInsertSchema(contentPreferences).omit({ id: true, updatedAt: true });
+export type ContentPreferences = typeof contentPreferences.$inferSelect;
+export type InsertContentPreferences = z.infer<typeof insertContentPreferencesSchema>;
+
+export const CONTENT_PREFERENCES_DEFAULTS: Omit<InsertContentPreferences, "userId"> = {
+  includeEmojis: true,
+  includeCta: true,
+  includeSignature: false,
+  formalTone: false,
+  includeWebsite: false,
+  includeWhatsapp: false,
+};
+
 export const ASSISTANT_SECTIONS = ["brand", "calendar", "templates", "contacts", "history", "dashboard", "provider", "settings", "general"] as const;
 export type AssistantSection = typeof ASSISTANT_SECTIONS[number];
 

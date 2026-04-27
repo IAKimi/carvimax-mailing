@@ -17,7 +17,8 @@ import {
   BarChart3,
   Lightbulb,
   Lock,
-  Link2
+  Link2,
+  Settings
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
   { icon: CalendarDays, label: "Calendario", href: "/calendar", requiresLevel: 4 },
   { icon: Mail, label: "Historial", href: "/emails", requiresLevel: 4 },
   { icon: BarChart3, label: "Dashboard", href: "/dashboard", requiresLevel: 4 },
+  { icon: Settings, label: "Configuración", href: "/settings", requiresLevel: 0 },
 ];
 
 function getOnboardingLevel(status: OnboardingStatus | undefined): number {

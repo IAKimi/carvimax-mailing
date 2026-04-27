@@ -304,6 +304,25 @@ const migrations: Migration[] = [
     },
   },
   {
+    name: "016_create_content_preferences",
+    up: async (client) => {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS content_preferences (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL UNIQUE,
+          include_emojis BOOLEAN NOT NULL DEFAULT true,
+          include_cta BOOLEAN NOT NULL DEFAULT true,
+          include_signature BOOLEAN NOT NULL DEFAULT false,
+          formal_tone BOOLEAN NOT NULL DEFAULT false,
+          include_website BOOLEAN NOT NULL DEFAULT false,
+          include_whatsapp BOOLEAN NOT NULL DEFAULT false,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log("[migration 016] Created content_preferences table");
+    },
+  },
+  {
     name: "015_rename_last_response_id_to_response_id",
     up: async (client) => {
       const { rows } = await client.query(`

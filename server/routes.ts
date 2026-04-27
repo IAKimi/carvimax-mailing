@@ -757,6 +757,101 @@ export async function registerRoutes(
     }
   });
 
+  // ─── User Settings ───────────────────────────────────────────────────────────
+
+  const updateProfileSchema = z.object({
+    name: z.string().min(1, "El nombre es requerido").max(200, "El nombre no puede exceder 200 caracteres"),
+  });
+
+  const updatePasswordSchema = z.object({
+    currentPassword: z.string().min(1, "La contraseña actual es requerida"),
+    newPassword: z.string()
+      .min(6, "La contraseña debe tener al menos 6 caracteres")
+      .max(128, "La contraseña no puede exceder 128 caracteres")
+      .regex(/[A-Z]/, "La contraseña debe contener al menos una letra mayúscula")
+      .regex(/[0-9]/, "La contraseña debe contener al menos un número"),
+  });
+
+  const updateContentPrefsSchema = z.object({
+    includeEmojis: z.boolean().optional(),
+    includeCta: z.boolean().optional(),
+    includeSignature: z.boolean().optional(),
+    formalTone: z.boolean().optional(),
+    includeWebsite: z.boolean().optional(),
+    includeWhatsapp: z.boolean().optional(),
+  });
+
+  app.get("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+      res.json({ name: user.name, email: user.email, company: user.company ?? null });
+    } catch (err) {
+      console.error("[GET /api/user/profile]", err);
+      res.status(500).json({ message: "Error al obtener el perfil." });
+    }
+  });
+
+  app.put("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateProfileSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Datos inválidos." });
+      }
+      const updated = await storage.updateUser(req.session.userId!, { name: parsed.data.name });
+      if (!updated) return res.status(404).json({ message: "Usuario no encontrado." });
+      res.json({ name: updated.name, email: updated.email, company: updated.company ?? null });
+    } catch (err) {
+      console.error("[PUT /api/user/profile]", err);
+      res.status(500).json({ message: "Error al actualizar el perfil." });
+    }
+  });
+
+  app.put("/api/user/password", requireAuth, async (req, res) => {
+    try {
+      const parsed = updatePasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Datos inválidos." });
+      }
+      const user = await storage.getUserById(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+      const match = await bcrypt.compare(parsed.data.currentPassword, user.password);
+      if (!match) return res.status(400).json({ message: "La contraseña actual no es correcta." });
+      const hashed = await bcrypt.hash(parsed.data.newPassword, 12);
+      await storage.updateUserPassword(req.session.userId!, hashed);
+      res.json({ message: "Contraseña actualizada correctamente." });
+    } catch (err) {
+      console.error("[PUT /api/user/password]", err);
+      res.status(500).json({ message: "Error al actualizar la contraseña." });
+    }
+  });
+
+  app.get("/api/user/content-preferences", requireAuth, async (req, res) => {
+    try {
+      const prefs = await storage.getContentPreferences(req.session.userId!);
+      res.json(prefs);
+    } catch (err) {
+      console.error("[GET /api/user/content-preferences]", err);
+      res.status(500).json({ message: "Error al obtener las preferencias." });
+    }
+  });
+
+  app.put("/api/user/content-preferences", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateContentPrefsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Datos inválidos." });
+      }
+      const prefs = await storage.upsertContentPreferences(req.session.userId!, parsed.data);
+      res.json(prefs);
+    } catch (err) {
+      console.error("[PUT /api/user/content-preferences]", err);
+      res.status(500).json({ message: "Error al guardar las preferencias." });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   app.get("/api/dashboard/stats", requireAuth, async (req, res) => {
     const stats = await storage.getDashboardStats(req.session.userId!);
     res.json(stats);

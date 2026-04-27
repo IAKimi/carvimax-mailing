@@ -1,7 +1,7 @@
 import { eq, and, ne, gte, lt, isNull, or, sql, inArray, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends, emailProviders, assistantConversations,
+  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends, emailProviders, assistantConversations, contentPreferences,
   type User, type InsertUser,
   type Campaign, type InsertCampaign, type UpdateCampaign,
   type CampaignVersion, type InsertCampaignVersion,
@@ -11,7 +11,9 @@ import {
   type Template, type InsertTemplate,
   type CampaignSend, type InsertCampaignSend,
   type EmailProvider, type InsertEmailProvider,
-  type AssistantConversation
+  type AssistantConversation,
+  type ContentPreferences, type InsertContentPreferences,
+  CONTENT_PREFERENCES_DEFAULTS,
 } from "@shared/schema";
 
 type CampaignListItem = Omit<Campaign, "selectedImageUrl"> & { subject: string | null };
@@ -97,6 +99,9 @@ export interface IStorage {
   getAssistantConversation(userId: number, section: string): Promise<AssistantConversation | undefined>;
   upsertAssistantConversation(userId: number, section: string, responseId: string | null): Promise<AssistantConversation>;
   deleteAssistantConversation(userId: number, section: string): Promise<void>;
+
+  getContentPreferences(userId: number): Promise<ContentPreferences>;
+  upsertContentPreferences(userId: number, prefs: Partial<Omit<InsertContentPreferences, "userId">>): Promise<ContentPreferences>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -779,6 +784,26 @@ export class DatabaseStorage implements IStorage {
   async deleteAssistantConversation(userId: number, section: string): Promise<void> {
     await db.delete(assistantConversations)
       .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.section, section)));
+  }
+
+  async getContentPreferences(userId: number): Promise<ContentPreferences> {
+    const [existing] = await db.select().from(contentPreferences).where(eq(contentPreferences.userId, userId));
+    if (existing) return existing;
+    const [created] = await db.insert(contentPreferences)
+      .values({ userId, ...CONTENT_PREFERENCES_DEFAULTS })
+      .returning();
+    return created;
+  }
+
+  async upsertContentPreferences(userId: number, prefs: Partial<Omit<InsertContentPreferences, "userId">>): Promise<ContentPreferences> {
+    const [result] = await db.insert(contentPreferences)
+      .values({ userId, ...CONTENT_PREFERENCES_DEFAULTS, ...prefs })
+      .onConflictDoUpdate({
+        target: contentPreferences.userId,
+        set: { ...prefs, updatedAt: new Date() },
+      })
+      .returning();
+    return result;
   }
 }
 
