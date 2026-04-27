@@ -1,7 +1,7 @@
 import { eq, and, ne, gte, lt, isNull, or, sql, inArray, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends, emailProviders,
+  users, campaigns, campaignVersions, contacts, contactDatabases, brandIdentity, templates, campaignSends, emailProviders, assistantConversations,
   type User, type InsertUser,
   type Campaign, type InsertCampaign, type UpdateCampaign,
   type CampaignVersion, type InsertCampaignVersion,
@@ -10,7 +10,8 @@ import {
   type BrandIdentity, type InsertBrandIdentity,
   type Template, type InsertTemplate,
   type CampaignSend, type InsertCampaignSend,
-  type EmailProvider, type InsertEmailProvider
+  type EmailProvider, type InsertEmailProvider,
+  type AssistantConversation
 } from "@shared/schema";
 
 type CampaignListItem = Omit<Campaign, "selectedImageUrl"> & { subject: string | null };
@@ -92,6 +93,10 @@ export interface IStorage {
   getAdminStats(): Promise<{ totalUsers: number; totalCampaigns: number; totalCampaignsByStatus: Record<string, number>; totalTemplates: number; totalContacts: number; totalDatabases: number }>;
   getUserStats(userId: number): Promise<{ campaigns: number; templates: number; contacts: number; databases: number }>;
   getRecentActivity(): Promise<Array<{ campaignId: number; campaignName: string; status: string; createdAt: Date | null; userId: number; userName: string; userEmail: string }>>;
+
+  getAssistantConversation(userId: number, section: string): Promise<AssistantConversation | undefined>;
+  upsertAssistantConversation(userId: number, section: string, lastResponseId: string | null): Promise<AssistantConversation>;
+  deleteAssistantConversation(userId: number, section: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -748,6 +753,32 @@ export class DatabaseStorage implements IStorage {
       result.push({ ...row, campaignName: subject || row.campaignName });
     }
     return result;
+  }
+
+  async getAssistantConversation(userId: number, section: string): Promise<AssistantConversation | undefined> {
+    const [row] = await db.select().from(assistantConversations)
+      .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.section, section)));
+    return row;
+  }
+
+  async upsertAssistantConversation(userId: number, section: string, lastResponseId: string | null): Promise<AssistantConversation> {
+    const existing = await this.getAssistantConversation(userId, section);
+    if (existing) {
+      const [updated] = await db.update(assistantConversations)
+        .set({ lastResponseId, updatedAt: new Date() })
+        .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.section, section)))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(assistantConversations)
+      .values({ userId, section, lastResponseId })
+      .returning();
+    return created;
+  }
+
+  async deleteAssistantConversation(userId: number, section: string): Promise<void> {
+    await db.delete(assistantConversations)
+      .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.section, section)));
   }
 }
 

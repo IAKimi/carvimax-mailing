@@ -11,7 +11,8 @@ import bcrypt from "bcryptjs";
 import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type AdvancedAction } from "./gemini";
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, validateTemplateStructure, renderTemplateWithContent } from "./templates";
-import { campaigns as campaignsTable, type UpdateCampaign } from "@shared/schema";
+import { campaigns as campaignsTable, type UpdateCampaign, ASSISTANT_SECTIONS, type AssistantSection } from "@shared/schema";
+import { streamAssistantResponse } from "./lib/assistant";
 import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { decryptApiKey } from "./encryption";
@@ -3424,6 +3425,64 @@ export async function registerRoutes(
       }
     }, 60 * 1000);
   }
+
+  // ─── Assistant Chat (SSE streaming) ──────────────────────────────────────────
+  app.post("/api/assistant/chat", requireAuth, async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { message, section } = req.body;
+
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
+      return res.status(400).json({ message: "El mensaje es requerido." });
+    }
+    if (!section || !ASSISTANT_SECTIONS.includes(section as AssistantSection)) {
+      return res.status(400).json({ message: "Sección inválida." });
+    }
+    if (message.length > 2000) {
+      return res.status(400).json({ message: "El mensaje no puede exceder 2000 caracteres." });
+    }
+
+    const existing = await storage.getAssistantConversation(user.id, section);
+    const lastResponseId = existing?.lastResponseId ?? null;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    await streamAssistantResponse({
+      userMessage: message.trim(),
+      section: section as AssistantSection,
+      lastResponseId,
+      onDelta: (text) => {
+        res.write(`data: ${JSON.stringify({ type: "delta", text })}\n\n`);
+      },
+      onDone: async (responseId) => {
+        try {
+          await storage.upsertAssistantConversation(user.id, section, responseId);
+        } catch (err: any) {
+          console.error("[assistant] upsert conversation error:", err?.message);
+        }
+        res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+        res.end();
+      },
+      onError: (err) => {
+        res.write(`data: ${JSON.stringify({ type: "error", message: "No se pudo obtener respuesta del asistente. Intenta de nuevo." })}\n\n`);
+        res.end();
+      },
+    });
+  });
+
+  app.delete("/api/assistant/conversation", requireAuth, async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { section } = req.body;
+
+    if (!section || !ASSISTANT_SECTIONS.includes(section as AssistantSection)) {
+      return res.status(400).json({ message: "Sección inválida." });
+    }
+
+    await storage.deleteAssistantConversation(user.id, section);
+    res.json({ ok: true });
+  });
 
   app.all("/api", (_req, res) => {
     res.status(404).json({ message: "Ruta no encontrada." });

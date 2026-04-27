@@ -202,3 +202,18 @@ export type InsertCampaignSend = z.infer<typeof insertCampaignSendSchema>;
 
 export type EmailProvider = typeof emailProviders.$inferSelect;
 export type InsertEmailProvider = z.infer<typeof insertEmailProviderSchema>;
+
+export const ASSISTANT_SECTIONS = ["brand", "calendar", "templates", "contacts", "history", "dashboard", "provider", "settings", "general"] as const;
+export type AssistantSection = typeof ASSISTANT_SECTIONS[number];
+
+export const assistantConversations = pgTable("assistant_conversations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  section: text("section").notNull(),
+  lastResponseId: text("last_response_id"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAssistantConversationSchema = createInsertSchema(assistantConversations).omit({ id: true, updatedAt: true });
+export type AssistantConversation = typeof assistantConversations.$inferSelect;
+export type InsertAssistantConversation = z.infer<typeof insertAssistantConversationSchema>;

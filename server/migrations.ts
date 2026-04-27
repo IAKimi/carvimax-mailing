@@ -269,6 +269,25 @@ const migrations: Migration[] = [
     },
   },
   {
+    name: "014_create_assistant_conversations",
+    up: async (client) => {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS assistant_conversations (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          section TEXT NOT NULL,
+          last_response_id TEXT,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_assistant_conversations_user_section
+        ON assistant_conversations (user_id, section)
+      `);
+      console.log("[migration 014] Created assistant_conversations table");
+    },
+  },
+  {
     name: "013_normalize_logo_urls_in_templates",
     up: async (client) => {
       const result = await client.query(`

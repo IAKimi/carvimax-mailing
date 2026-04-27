@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
+import { FloatingChat } from "@/components/FloatingChat";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
@@ -377,6 +378,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </motion.div>
         </main>
       </div>
+      <FloatingChat />
     </div>
   );
 }
