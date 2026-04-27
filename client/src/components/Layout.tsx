@@ -43,7 +43,6 @@ const NAV_ITEMS = [
   { icon: CalendarDays, label: "Calendario", href: "/calendar", requiresLevel: 4 },
   { icon: Mail, label: "Historial", href: "/emails", requiresLevel: 4 },
   { icon: BarChart3, label: "Dashboard", href: "/dashboard", requiresLevel: 4 },
-  { icon: Settings, label: "Configuración", href: "/settings", requiresLevel: 0 },
 ];
 
 function getOnboardingLevel(status: OnboardingStatus | undefined): number {
@@ -253,6 +252,20 @@ export function Layout({ children }: { children: ReactNode }) {
               {userName}
             </div>
           )}
+          <Link
+            href="/settings"
+            data-testid="nav-settings"
+            className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full whitespace-nowrap overflow-hidden ${sidebarExpanded ? "justify-start px-4" : "justify-center px-0"} ${
+              location === "/settings"
+                ? "bg-white/20 text-white"
+                : "text-white/60 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            {sidebarExpanded && (
+              <span>Configuración</span>
+            )}
+          </Link>
           {location !== "/" && (
             <button
               data-testid="button-tutorial-toggle"
@@ -306,6 +319,19 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="px-4 py-2 text-sm text-white/60 truncate">
             {userName}
           </div>
+          <Link
+            href="/settings"
+            data-testid="nav-mobile-settings"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full ${
+              location === "/settings"
+                ? "bg-white/20 text-white"
+                : "text-white/60 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            Configuración
+          </Link>
           {location !== "/" && (
             <button
               data-testid="button-tutorial-toggle-mobile"
