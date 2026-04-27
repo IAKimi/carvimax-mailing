@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import {
   Sparkles, Image, CalendarDays, Send, Palette, PenTool,
   LayoutTemplate, Rocket, ArrowRight, Mail, Users, BarChart3,
-  Clock, CheckCircle2, Zap, TrendingUp
+  Clock, CheckCircle2, Zap
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -290,7 +290,7 @@ export default function Home() {
               <FadeIn delay={0.1}>
                 <Card className="p-5" data-testid="widget-monthly-activity">
                   <h2 className="font-bold mb-4 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-primary" />
+                    <BarChart3 className="w-4 h-4 text-primary" />
                     Actividad del mes
                   </h2>
                   <div className="space-y-4">

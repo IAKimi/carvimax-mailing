@@ -7,7 +7,7 @@ import { TutorialHighlight } from "@/components/TutorialHighlight";
 import {
   BarChart as RechartsBarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
-import { Mail, Users, Database, Layers, TrendingUp, Clock, BarChart3, Filter, X, CalendarDays } from "lucide-react";
+import { Mail, Users, Database, Layers, TrendingUp, Clock, BarChart3, Filter, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,7 +196,7 @@ export default function Dashboard() {
               <Card data-testid="card-monthly-activity">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <CalendarDays className="w-4 h-4 text-[#002073]" />
+                    <BarChart3 className="w-4 h-4 text-[#002073]" />
                     <span className="font-semibold text-sm">Actividad del mes</span>
                     <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#002073]/10 text-[#002073]" data-testid="text-dashboard-plan-name">
                       {monthlyStats.planName}
@@ -217,7 +217,7 @@ export default function Dashboard() {
                         data-testid="progress-dashboard-monthly-campaigns"
                       />
                       <p className="text-xs text-muted-foreground mt-1.5">
-                        {monthlyStats.monthlyLimit - monthlyStats.campaignsThisMonth} campañas disponibles este mes
+                        {Math.max(0, monthlyStats.monthlyLimit - monthlyStats.campaignsThisMonth)} campañas disponibles este mes
                       </p>
                     </div>
                     <div className="text-center sm:text-right">
