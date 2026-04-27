@@ -1065,16 +1065,17 @@ export async function registerRoutes(
       ? ((await storage.getTemplate(campaign.templateId))?.lockedFields as string[] || [])
       : [];
 
+    const [brandData, contentPrefs] = await Promise.all([
+      storage.getBrandIdentity(req.session.userId!),
+      storage.getContentPreferences(req.session.userId!),
+    ]);
+
     const textPromise = (async () => {
       if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
         try {
-          const [brandData, contentPrefs] = await Promise.all([
-            storage.getBrandIdentity(req.session.userId!),
-            storage.getContentPreferences(req.session.userId!),
-          ]);
           const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience, templateLocked, contentPrefs);
           console.log("[OpenAI] Texto generado exitosamente:", JSON.stringify({ asunto: result.asunto, cta: result.cta_text }));
-          return { result, contentPrefs };
+          return result;
         } catch (err: any) {
           console.error("[OpenAI] ERROR generando texto:", {
             message: err.message,
@@ -1091,13 +1092,12 @@ export async function registerRoutes(
       return null;
     })();
 
-    const [rawImageUrl, textResult] = await Promise.all([imagePromise, textPromise]);
+    const [rawImageUrl, emailContent] = await Promise.all([imagePromise, textPromise]);
 
     const imageFilename = rawImageUrl ? saveBase64Image(rawImageUrl, `campaign_${campaignId}`) : null;
     const imageUrl = imageFilename ? getImagePublicUrl(imageFilename, req) : null;
 
-    const emailContent = textResult?.result ?? null;
-    const contentPrefsForVersion = textResult?.contentPrefs ?? null;
+    const ctaDisabled = contentPrefs?.includeCta === false;
 
     const contentJson = emailContent
       ? {
@@ -1105,7 +1105,7 @@ export async function registerRoutes(
           preheader: emailContent.preheader,
           cuerpo_html: emailContent.cuerpo_html,
           cta_text: emailContent.cta_text,
-          ...(contentPrefsForVersion?.includeCta === false ? { cta_enabled: false } : {}),
+          ...(ctaDisabled ? { cta_enabled: false } : {}),
         }
       : (() => {
           console.warn("OpenAI no disponible — usando texto placeholder");
@@ -1114,6 +1114,7 @@ export async function registerRoutes(
             preheader: "",
             cuerpo_html: `<p>El contenido de este correo no pudo ser generado automáticamente. Use el botón <strong>Regenerar Texto</strong> para intentar de nuevo, o edite este texto manualmente.</p>`,
             cta_text: "Ver más",
+            ...(ctaDisabled ? { cta_enabled: false } : {}),
           };
         })();
 
