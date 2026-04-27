@@ -7,11 +7,12 @@ import { TutorialHighlight } from "@/components/TutorialHighlight";
 import {
   BarChart as RechartsBarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
-import { Mail, Users, Database, Layers, TrendingUp, Clock, BarChart3, Filter, X } from "lucide-react";
+import { Mail, Users, Database, Layers, TrendingUp, Clock, BarChart3, Filter, X, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 
 interface DashboardMetrics {
   totalCampaigns: Record<string, number>;
@@ -81,6 +82,15 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Error al cargar métricas");
       return res.json();
     },
+  });
+
+  const { data: monthlyStats } = useQuery<{
+    campaignsThisMonth: number;
+    contactsReached: number;
+    monthlyLimit: number;
+    planName: string;
+  }>({
+    queryKey: ["/api/dashboard/stats"],
   });
 
   const totalAll = metrics ? Object.values(metrics.totalCampaigns).reduce((s, n) => s + n, 0) : 0;
@@ -182,6 +192,45 @@ export default function Dashboard() {
           </Card>
         ) : metrics ? (
           <>
+            {monthlyStats && (
+              <Card data-testid="card-monthly-activity">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CalendarDays className="w-4 h-4 text-[#002073]" />
+                    <span className="font-semibold text-sm">Actividad del mes</span>
+                    <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#002073]/10 text-[#002073]" data-testid="text-dashboard-plan-name">
+                      {monthlyStats.planName}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-center">
+                    <div className="sm:col-span-2">
+                      <div className="flex items-end justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">Campañas enviadas este mes</span>
+                        <span className="text-xs font-bold" data-testid="text-dashboard-campaigns-this-month">
+                          {monthlyStats.campaignsThisMonth}
+                          <span className="text-muted-foreground font-normal"> / {monthlyStats.monthlyLimit}</span>
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min((monthlyStats.campaignsThisMonth / monthlyStats.monthlyLimit) * 100, 100)}
+                        className="h-2.5"
+                        data-testid="progress-dashboard-monthly-campaigns"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {monthlyStats.monthlyLimit - monthlyStats.campaignsThisMonth} campañas disponibles este mes
+                      </p>
+                    </div>
+                    <div className="text-center sm:text-right">
+                      <p className="text-2xl font-extrabold text-foreground" data-testid="text-dashboard-contacts-reached">
+                        {(monthlyStats.contactsReached ?? 0).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Contactos alcanzados este mes</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <TutorialHighlight fieldId="dashboard-overview">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card data-testid="card-total-campaigns">

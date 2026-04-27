@@ -318,10 +318,24 @@ export class DatabaseStorage implements IStorage {
       recentWithSubject.push({ ...c, subject });
     }
 
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const sentThisMonth = sentCampaigns.filter(c => {
+      const d = c.sentAt;
+      return d && d >= monthStart && d < monthEnd;
+    });
+    const campaignsThisMonth = sentThisMonth.length;
+    const contactsReached = sentThisMonth.reduce((sum, c) => sum + (c.sentCount ?? 0), 0);
+
     return {
       totalSent: sentCampaigns.length,
       byCountry: {},
       recentCampaigns: recentWithSubject,
+      campaignsThisMonth,
+      contactsReached,
+      monthlyLimit: 50,
+      planName: "Profesional",
     };
   }
 

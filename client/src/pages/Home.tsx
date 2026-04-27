@@ -3,11 +3,12 @@ import { motion } from "framer-motion";
 import {
   Sparkles, Image, CalendarDays, Send, Palette, PenTool,
   LayoutTemplate, Rocket, ArrowRight, Mail, Users, BarChart3,
-  Clock, CheckCircle2, Zap
+  Clock, CheckCircle2, Zap, TrendingUp
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 import type { Campaign } from "@shared/schema";
@@ -103,6 +104,10 @@ export default function Home() {
   const { data: stats } = useQuery<{
     totalSent: number;
     recentCampaigns: (Campaign & { subject?: string })[];
+    campaignsThisMonth: number;
+    contactsReached: number;
+    monthlyLimit: number;
+    planName: string;
   }>({
     queryKey: ["/api/dashboard/stats"],
     enabled: !!user,
@@ -278,6 +283,43 @@ export default function Home() {
                     </div>
                   </Card>
                 </div>
+              </FadeIn>
+            )}
+
+            {user && stats && (
+              <FadeIn delay={0.1}>
+                <Card className="p-5" data-testid="widget-monthly-activity">
+                  <h2 className="font-bold mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                    Actividad del mes
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-end justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">Campañas enviadas</span>
+                        <span className="text-xs font-bold" data-testid="text-campaigns-this-month">
+                          {stats.campaignsThisMonth}
+                          <span className="text-muted-foreground font-normal"> / {stats.monthlyLimit}</span>
+                        </span>
+                      </div>
+                      <Progress
+                        value={Math.min((stats.campaignsThisMonth / stats.monthlyLimit) * 100, 100)}
+                        className="h-2"
+                        data-testid="progress-monthly-campaigns"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-muted/40 p-3 text-center">
+                        <p className="text-xl font-extrabold" data-testid="text-contacts-reached">{(stats.contactsReached ?? 0).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Contactos alcanzados</p>
+                      </div>
+                      <div className="rounded-lg bg-primary/5 p-3 text-center">
+                        <p className="text-sm font-bold text-primary truncate" data-testid="text-plan-name">{stats.planName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Plan activo</p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
               </FadeIn>
             )}
 
