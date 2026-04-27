@@ -153,6 +153,26 @@ export function Layout({ children }: { children: ReactNode }) {
     const Icon = item.icon;
     const isLocked = item.requiresLevel > onboardingLevel;
 
+    if (isGenerating) {
+      return (
+        <button
+          key={item.href}
+          data-testid={`nav-${isMobile ? "mobile-" : ""}${item.href.replace(/\//g, "") || "home"}`}
+          onClick={() => toast({ title: "Generación en curso", description: "Espera a que termine antes de navegar." })}
+          className={`
+            flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden w-full
+            ${isMobile ? "px-4" : sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
+            text-white/40 cursor-not-allowed
+          `}
+        >
+          <Icon className="w-5 h-5 flex-shrink-0 opacity-40" />
+          {(isMobile || sidebarExpanded) && (
+            <span className="opacity-40">{item.label}</span>
+          )}
+        </button>
+      );
+    }
+
     if (isLocked) {
       return (
         <button
@@ -169,26 +189,6 @@ export function Layout({ children }: { children: ReactNode }) {
             <Icon className="w-5 h-5 opacity-40" />
             <Lock className="w-2.5 h-2.5 absolute -bottom-0.5 -right-0.5 text-white/50" />
           </div>
-          {(isMobile || sidebarExpanded) && (
-            <span className="opacity-40">{item.label}</span>
-          )}
-        </button>
-      );
-    }
-
-    if (isGenerating) {
-      return (
-        <button
-          key={item.href}
-          data-testid={`nav-${isMobile ? "mobile-" : ""}${item.href.replace(/\//g, "") || "home"}`}
-          onClick={() => toast({ title: "Generación en curso", description: "Espera a que termine antes de navegar." })}
-          className={`
-            flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden w-full
-            ${isMobile ? "px-4" : sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
-            text-white/40 cursor-not-allowed
-          `}
-        >
-          <Icon className="w-5 h-5 flex-shrink-0 opacity-40" />
           {(isMobile || sidebarExpanded) && (
             <span className="opacity-40">{item.label}</span>
           )}

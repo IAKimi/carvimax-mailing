@@ -641,6 +641,7 @@ export default function CalendarView() {
       clearTimeout(t2);
       clearTimeout(t3);
       clearTimeout(t4);
+      setGenerating(false);
     };
   }, [isAiGenerating]);
 
