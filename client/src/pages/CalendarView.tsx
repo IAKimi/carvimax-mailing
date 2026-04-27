@@ -624,7 +624,7 @@ export default function CalendarView() {
     );
   }
 
-  const isAiGenerating = generateVersionMutation.isPending || createCampaignMutation.isPending || regenerateTextMutation.isPending;
+  const isAiGenerating = generateVersionMutation.isPending || createCampaignMutation.isPending || regenerateTextMutation.isPending || regenerateImageMutation.isPending || editImageMutation.isPending;
 
   useEffect(() => {
     if (!isAiGenerating) {
@@ -643,7 +643,7 @@ export default function CalendarView() {
       clearTimeout(t4);
       setGenerating(false);
     };
-  }, [isAiGenerating]);
+  }, [isAiGenerating, setGenerating]);
 
   useEffect(() => {
     if (!isAiGenerating) return;

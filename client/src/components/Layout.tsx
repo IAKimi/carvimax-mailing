@@ -131,7 +131,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   function handleLogout() {
     if (isGenerating) {
-      toast({ title: "Generación en curso", description: "Espera a que termine la generación antes de cerrar sesión." });
+      toast({ title: "Generación en curso", description: "Espera a que termine para cerrar sesión." });
       return;
     }
     fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => {
@@ -158,7 +158,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <button
           key={item.href}
           data-testid={`nav-${isMobile ? "mobile-" : ""}${item.href.replace(/\//g, "") || "home"}`}
-          onClick={() => toast({ title: "Generación en curso", description: "Espera a que termine antes de navegar." })}
+          onClick={() => toast({ title: "Generación en curso", description: "Espera a que termine para navegar." })}
           className={`
             flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden w-full
             ${isMobile ? "px-4" : sidebarExpanded ? "justify-start px-4" : "justify-center px-0"}
