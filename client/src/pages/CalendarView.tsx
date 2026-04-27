@@ -1685,9 +1685,9 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {!isSent && !isSending && !isFailed && !isPartial && ((generateVersionMutation.isPending || createCampaignMutation.isPending || versionsLoading) ? (
-            <div data-testid="overlay-generating" className="bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-sm space-y-5">
-              {(() => {
+          {!isSent && !isSending && !isFailed && !isPartial && ((isAiGenerating || versionsLoading) ? (
+            <div data-testid="overlay-generating" className={isAiGenerating ? "bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-sm space-y-5" : "bg-card rounded-2xl border border-border p-5 shadow-sm"}>
+              {isAiGenerating ? (() => {
                 const GEN_STEPS = [
                   "Analizando tu identidad de marca...",
                   "Redactando asunto y preheader...",
@@ -1738,7 +1738,28 @@ export default function CalendarView() {
                     </div>
                   </>
                 );
-              })()}
+              })() : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      <div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+                      Cargando imagen...
+                    </div>
+                    <div className="rounded-xl bg-muted/50 animate-pulse h-56" />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      <div className="w-3 h-3 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+                      Cargando texto...
+                    </div>
+                    <div className="rounded-xl bg-muted/50 animate-pulse h-8 w-3/4" />
+                    <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-full" />
+                    <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-5/6" />
+                    <div className="rounded-xl bg-muted/50 animate-pulse h-4 w-4/6" />
+                    <div className="rounded-xl bg-muted/50 animate-pulse h-20 w-full mt-2" />
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>
