@@ -14,6 +14,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  isStreaming?: boolean;
 }
 
 function detectSection(pathname: string): AssistantSection {
@@ -82,12 +83,36 @@ function nanoid() {
 
 const MAX_MESSAGES = 100;
 
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="px-3 py-2.5 rounded-2xl rounded-tl-sm bg-muted border border-border">
+        <div className="flex gap-1 items-center">
+          {[0, 0.18, 0.36].map((delay, i) => (
+            <motion.span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50"
+              animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+              transition={{ duration: 0.7, repeat: Infinity, delay }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function serializeMessages(msgs: Message[]): Message[] {
+  return msgs.map((m) => ({ ...m, isStreaming: false }));
+}
+
 export function FloatingChat() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [showTyping, setShowTyping] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -121,8 +146,10 @@ export function FloatingChat() {
 
   useEffect(() => {
     if (!storageKey || messages.length === 0) return;
+    const settled = messages.filter((m) => !m.isStreaming);
+    if (settled.length === 0) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(messages.slice(-MAX_MESSAGES)));
+      localStorage.setItem(storageKey, JSON.stringify(settled.slice(-MAX_MESSAGES)));
     } catch {}
   }, [messages, storageKey]);
 
@@ -134,7 +161,7 @@ export function FloatingChat() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, showTyping]);
 
   function scrollToBottom() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -149,7 +176,7 @@ export function FloatingChat() {
 
   const sendMessage = useCallback(async (text?: string) => {
     const msg = (text ?? inputValue).trim();
-    if (!msg || isStreaming || !currentUser) return;
+    if (!msg || isSending || !currentUser) return;
 
     setInputValue("");
 
@@ -160,19 +187,14 @@ export function FloatingChat() {
       timestamp: Date.now(),
     };
 
-    const assistantMsgId = nanoid();
-    const assistantMsg: Message = {
-      id: assistantMsgId,
-      role: "assistant",
-      content: "",
-      timestamp: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
-    setIsStreaming(true);
+    setMessages((prev) => [...prev, userMsg]);
+    setIsSending(true);
+    setShowTyping(true);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
+
+    let assistantMsgId: string | null = null;
 
     try {
       const response = await fetch("/api/assistant/chat", {
@@ -187,16 +209,25 @@ export function FloatingChat() {
         const errText = await response.text().catch(() => "Error desconocido");
         let errMsg = "Error al contactar el asistente.";
         try { errMsg = JSON.parse(errText).message || errMsg; } catch {}
-        setMessages((prev) =>
-          prev.map((m) => m.id === assistantMsgId ? { ...m, content: errMsg } : m)
-        );
-        setIsStreaming(false);
+        setShowTyping(false);
+        setMessages((prev) => [
+          ...prev,
+          { id: nanoid(), role: "assistant", content: errMsg, timestamp: Date.now(), isStreaming: false },
+        ]);
+        setIsSending(false);
         return;
       }
 
+      assistantMsgId = nanoid();
+      setShowTyping(false);
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantMsgId!, role: "assistant", content: "", timestamp: Date.now(), isStreaming: true },
+      ]);
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
+      let accumulatedText = "";
       let buffer = "";
 
       while (true) {
@@ -214,37 +245,67 @@ export function FloatingChat() {
           try {
             const data = JSON.parse(payload);
             if (data.type === "delta") {
-              accumulated += data.text;
+              accumulatedText += data.text;
               setMessages((prev) =>
-                prev.map((m) => m.id === assistantMsgId ? { ...m, content: accumulated } : m)
+                prev.map((m) =>
+                  m.id === assistantMsgId ? { ...m, content: accumulatedText, isStreaming: true } : m
+                )
               );
             } else if (data.type === "done") {
-              setIsStreaming(false);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+                )
+              );
+              setIsSending(false);
             } else if (data.type === "error") {
               setMessages((prev) =>
-                prev.map((m) => m.id === assistantMsgId ? { ...m, content: data.message || "Error al procesar tu consulta." } : m)
+                prev.map((m) =>
+                  m.id === assistantMsgId
+                    ? { ...m, content: data.message || "Error al procesar tu consulta.", isStreaming: false }
+                    : m
+                )
               );
-              setIsStreaming(false);
+              setIsSending(false);
             }
           } catch {}
         }
       }
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === "AbortError";
+      setShowTyping(false);
       if (!isAbort) {
-        setMessages((prev) =>
-          prev.map((m) => m.id === assistantMsgId ? { ...m, content: "No se pudo obtener respuesta. Intenta de nuevo." } : m)
-        );
+        if (assistantMsgId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsgId
+                ? { ...m, content: "No se pudo obtener respuesta. Intenta de nuevo.", isStreaming: false }
+                : m
+            )
+          );
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: nanoid(),
+              role: "assistant",
+              content: "No se pudo obtener respuesta. Intenta de nuevo.",
+              timestamp: Date.now(),
+              isStreaming: false,
+            },
+          ]);
+        }
       }
-      setIsStreaming(false);
+      setIsSending(false);
     }
-  }, [inputValue, isStreaming, currentUser, section]);
+  }, [inputValue, isSending, currentUser, section]);
 
   async function handleReset() {
-    if (isStreaming) {
+    if (isSending) {
       abortControllerRef.current?.abort();
-      setIsStreaming(false);
+      setIsSending(false);
     }
+    setShowTyping(false);
     setMessages([]);
     if (storageKey) localStorage.removeItem(storageKey);
     try {
@@ -263,6 +324,8 @@ export function FloatingChat() {
   }
 
   if (!currentUser) return null;
+
+  const hasMessages = messages.length > 0 || showTyping;
 
   return (
     <>
@@ -286,7 +349,7 @@ export function FloatingChat() {
                 </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                {messages.length > 0 && (
+                {hasMessages && (
                   <button
                     data-testid="button-chat-reset"
                     onClick={handleReset}
@@ -312,7 +375,7 @@ export function FloatingChat() {
               className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0"
               style={{ maxHeight: "340px" }}
             >
-              {messages.length === 0 && (
+              {!hasMessages && (
                 <div className="flex flex-col items-center justify-center h-full py-6 gap-3">
                   <div className="w-10 h-10 rounded-full bg-[#002073]/10 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-[#002073]" />
@@ -325,9 +388,9 @@ export function FloatingChat() {
                     {config.suggestions.map((s) => (
                       <button
                         key={s}
-                        data-testid={`button-chat-suggestion`}
+                        data-testid="button-chat-suggestion"
                         onClick={() => sendMessage(s)}
-                        disabled={isStreaming}
+                        disabled={isSending}
                         className="text-left text-xs px-3 py-2 rounded-xl border border-border bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                       >
                         {s}
@@ -351,22 +414,29 @@ export function FloatingChat() {
                     }`}
                   >
                     {msg.role === "assistant" ? (
-                      <div className="prose prose-sm max-w-none prose-p:my-0.5 prose-ul:my-0.5 prose-li:my-0 prose-headings:my-1">
-                        <ReactMarkdown>{msg.content || " "}</ReactMarkdown>
-                        {isStreaming && idx === messages.length - 1 && (
+                      msg.isStreaming ? (
+                        <span className="whitespace-pre-wrap">
+                          {msg.content}
                           <motion.span
-                            animate={{ opacity: [1, 0, 1] }}
-                            transition={{ duration: 0.8, repeat: Infinity }}
-                            className="inline-block w-0.5 h-4 bg-current ml-0.5 align-middle"
+                            className="inline-block w-0.5 h-3.5 bg-gray-700 ml-0.5 align-text-bottom"
+                            animate={{ opacity: [1, 0] }}
+                            transition={{ duration: 0.6, repeat: Infinity }}
                           />
-                        )}
-                      </div>
+                        </span>
+                      ) : (
+                        <div className="prose prose-sm max-w-none prose-p:my-0.5 prose-ul:my-0.5 prose-li:my-0 prose-headings:my-1">
+                          <ReactMarkdown>{msg.content || " "}</ReactMarkdown>
+                        </div>
+                      )
                     ) : (
                       <span className="whitespace-pre-wrap">{msg.content}</span>
                     )}
                   </div>
                 </div>
               ))}
+
+              {showTyping && <TypingIndicator />}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -387,7 +457,7 @@ export function FloatingChat() {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={config.hint}
-                disabled={isStreaming}
+                disabled={isSending}
                 rows={1}
                 className="resize-none text-sm min-h-[36px] max-h-[80px] py-2 flex-1 rounded-xl border-border focus-visible:ring-1 focus-visible:ring-[#002073]"
                 style={{ height: "auto", overflowY: "auto" }}
@@ -396,7 +466,7 @@ export function FloatingChat() {
                 data-testid="button-chat-send"
                 size="icon"
                 onClick={() => sendMessage()}
-                disabled={!inputValue.trim() || isStreaming}
+                disabled={!inputValue.trim() || isSending}
                 className="h-9 w-9 rounded-xl bg-[#002073] hover:bg-[#002073]/90 flex-shrink-0"
               >
                 <Send className="w-4 h-4" />
@@ -409,7 +479,7 @@ export function FloatingChat() {
       <motion.button
         data-testid="button-floating-chat-toggle"
         onClick={() => setIsOpen((v) => !v)}
-        className="fixed bottom-6 right-6 z-50 w-13 h-13 rounded-full bg-[#002073] text-white shadow-lg hover:shadow-xl flex items-center justify-center transition-shadow"
+        className="fixed bottom-6 right-6 z-50 rounded-full bg-[#002073] text-white shadow-lg hover:shadow-xl flex items-center justify-center transition-shadow"
         style={{ width: "52px", height: "52px" }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.94 }}

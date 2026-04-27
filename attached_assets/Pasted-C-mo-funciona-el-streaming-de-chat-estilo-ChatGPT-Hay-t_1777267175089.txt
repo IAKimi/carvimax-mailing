@@ -1,0 +1,85 @@
+Cómo funciona el streaming de chat estilo ChatGPT
+Hay tres capas: el modelo de IA, el backend Express, y el frontend React.
+
+1. Backend — Server-Sent Events (SSE)
+El endpoint POST /api/assistant/chat no devuelve JSON normal. Abre una conexión persistente de tipo text/event-stream y va enviando eventos a medida que OpenAI genera texto:
+
+// Cabeceras clave
+res.setHeader("Content-Type", "text/event-stream");
+res.setHeader("Cache-Control", "no-cache");
+res.setHeader("Connection", "keep-alive");
+res.setHeader("X-Accel-Buffering", "no");  // importante para Nginx/proxies
+res.flushHeaders();  // abre el stream inmediatamente
+// Formato de cada evento
+res.write(`data: ${JSON.stringify({ type: "delta", text: "..." })}\n\n`);
+// Al terminar:
+res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+res.end();
+
+OpenAI se llama con stream: true usando la API de Responses (client.responses.create). El bucle itera los chunks y dispara onDelta(texto) por cada fragmento recibido.
+
+2. Frontend — Lectura del stream con ReadableStream
+En FloatingChat.tsx, la función sendMessage hace un fetch normal pero lee la respuesta como un stream, no como JSON:
+
+const reader = response.body!.getReader();
+const decoder = new TextDecoder();
+let buffer = "";
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  buffer += decoder.decode(value, { stream: true });
+  const lines = buffer.split("\n");
+  buffer = lines.pop() ?? "";  // guarda línea incompleta para el siguiente chunk
+  for (const line of lines) {
+    if (!line.startsWith("data: ")) continue;
+    const event = JSON.parse(line.slice(6));
+    if (event.type === "delta") {
+      accumulatedText += event.text;
+      // actualiza el mensaje con el texto acumulado hasta ahora
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId ? { ...m, content: accumulatedText, isStreaming: true } : m
+      ));
+    } else if (event.type === "done") {
+      // marca el mensaje como terminado (deja de parpadear el cursor)
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId ? { ...m, isStreaming: false } : m
+      ));
+    }
+  }
+}
+
+3. Frontend — El cursor parpadeante durante el streaming
+El tipo Message tiene un campo isStreaming: boolean. Cuando ese campo está en true, el componente MessageBubble muestra el texto parcial más un cursor animado con Framer Motion:
+
+{message.isStreaming ? (
+  <span className="whitespace-pre-wrap">
+    {message.content}
+    <motion.span
+      className="inline-block w-0.5 h-3.5 bg-gray-700 ml-0.5 align-text-bottom"
+      animate={{ opacity: [1, 0] }}
+      transition={{ duration: 0.6, repeat: Infinity }}
+    />
+  </span>
+) : (
+  <ReactMarkdown>{message.content}</ReactMarkdown>  // renderiza markdown cuando termina
+)}
+
+4. El indicador de "pensando" (tres puntos)
+Antes de que llegue el primer delta, se muestra un TypingIndicator (los tres puntos animados). Este se esconde en el momento en que llega el primer chunk del stream:
+
+setShowTyping(false);  // se llama justo después de response.ok, antes de leer el stream
+setMessages(prev => [...prev, { id: assistantId, content: "", isStreaming: true }]);
+
+Resumen del flujo completo
+Usuario envía → showTyping=true (3 puntos)
+→ fetch con stream
+→ response.ok → showTyping=false, se agrega mensaje vacío con isStreaming=true
+→ chunk a chunk → se va concatenando texto en el estado
+→ evento "done" → isStreaming=false → se renderiza el markdown final
+
+Lo que necesitás replicar en el proyecto de mailing
+Backend: endpoint Express con cabeceras SSE + res.flushHeaders() + bucle que escribe data: {...}\n\n por cada fragmento del LLM.
+Frontend: fetch + response.body.getReader() + loop de lectura + estado isStreaming en el mensaje.
+Cursor: componente con Framer Motion que parpadea mientras isStreaming === true y desaparece al terminar.
+Dependencia extra: react-markdown para renderizar el markdown final cuando el stream termina.
+La clave central es el buffer += decoder.decode(value, { stream: true }) con el lines.pop() para manejar correctamente los chunks que llegan cortados a la mitad de una línea.
