@@ -3428,7 +3428,8 @@ export async function registerRoutes(
 
   // ─── Assistant Chat (SSE streaming) ──────────────────────────────────────────
   app.post("/api/assistant/chat", requireAuth, async (req: Request, res: Response) => {
-    const user = (req as any).user;
+    const user = await storage.getUserById(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "No autenticado." });
     const { message, section } = req.body;
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -3477,7 +3478,8 @@ export async function registerRoutes(
   });
 
   app.delete("/api/assistant/conversation", requireAuth, async (req: Request, res: Response) => {
-    const user = (req as any).user;
+    const user = await storage.getUserById(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "No autenticado." });
     const section = req.query.section as string | undefined;
 
     if (!section || !ASSISTANT_SECTIONS.includes(section as AssistantSection)) {
