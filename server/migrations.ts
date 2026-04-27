@@ -269,6 +269,22 @@ const migrations: Migration[] = [
     },
   },
   {
+    name: "013_normalize_logo_urls_in_templates",
+    up: async (client) => {
+      const result = await client.query(`
+        UPDATE templates
+        SET html = regexp_replace(
+          html,
+          'https?://[^"''\\s]+/uploads/logos/[^"''\\s]+',
+          '{{LOGO_URL}}',
+          'g'
+        )
+        WHERE html ~ '/uploads/logos/'
+      `);
+      console.log(`[migration 013] Normalized logo URLs in ${result.rowCount} template(s)`);
+    },
+  },
+  {
     name: "014_create_assistant_conversations",
     up: async (client) => {
       await client.query(`
@@ -285,22 +301,6 @@ const migrations: Migration[] = [
         ON assistant_conversations (user_id, section)
       `);
       console.log("[migration 014] Created assistant_conversations table");
-    },
-  },
-  {
-    name: "013_normalize_logo_urls_in_templates",
-    up: async (client) => {
-      const result = await client.query(`
-        UPDATE templates
-        SET html = regexp_replace(
-          html,
-          'https?://[^"''\\s]+/uploads/logos/[^"''\\s]+',
-          '{{LOGO_URL}}',
-          'g'
-        )
-        WHERE html ~ '/uploads/logos/'
-      `);
-      console.log(`[migration 013] Normalized logo URLs in ${result.rowCount} template(s)`);
     },
   },
 ];

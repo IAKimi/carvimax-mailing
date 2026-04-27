@@ -3474,7 +3474,7 @@ export async function registerRoutes(
 
   app.delete("/api/assistant/conversation", requireAuth, async (req: Request, res: Response) => {
     const user = (req as any).user;
-    const { section } = req.body;
+    const section = req.query.section as string | undefined;
 
     if (!section || !ASSISTANT_SECTIONS.includes(section as AssistantSection)) {
       return res.status(400).json({ message: "Sección inválida." });

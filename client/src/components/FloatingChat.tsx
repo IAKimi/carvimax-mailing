@@ -247,10 +247,8 @@ export function FloatingChat() {
     setMessages([]);
     if (storageKey) localStorage.removeItem(storageKey);
     try {
-      await fetch("/api/assistant/conversation", {
+      await fetch(`/api/assistant/conversation?section=${encodeURIComponent(section)}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section }),
         credentials: "include",
       });
     } catch {}
