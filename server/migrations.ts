@@ -304,6 +304,23 @@ const migrations: Migration[] = [
     },
   },
   {
+    name: "015_rename_last_response_id_to_response_id",
+    up: async (client) => {
+      const { rows } = await client.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'assistant_conversations' AND column_name = 'last_response_id'
+      `);
+      if (rows.length > 0) {
+        await client.query(`
+          ALTER TABLE assistant_conversations RENAME COLUMN last_response_id TO response_id
+        `);
+        console.log("[migration 015] Renamed last_response_id → response_id in assistant_conversations");
+      } else {
+        console.log("[migration 015] Column last_response_id not found, skipping rename");
+      }
+    },
+  },
+  {
     name: "016_create_content_preferences",
     up: async (client) => {
       await client.query(`
@@ -320,23 +337,6 @@ const migrations: Migration[] = [
         )
       `);
       console.log("[migration 016] Created content_preferences table");
-    },
-  },
-  {
-    name: "015_rename_last_response_id_to_response_id",
-    up: async (client) => {
-      const { rows } = await client.query(`
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'assistant_conversations' AND column_name = 'last_response_id'
-      `);
-      if (rows.length > 0) {
-        await client.query(`
-          ALTER TABLE assistant_conversations RENAME COLUMN last_response_id TO response_id
-        `);
-        console.log("[migration 015] Renamed last_response_id → response_id in assistant_conversations");
-      } else {
-        console.log("[migration 015] Column last_response_id not found, skipping rename");
-      }
     },
   },
 ];

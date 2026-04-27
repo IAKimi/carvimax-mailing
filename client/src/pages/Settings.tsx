@@ -91,12 +91,8 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Perfil actualizado", description: "Tu nombre se guardó correctamente." });
     },
-    onError: async (err: unknown) => {
-      let msg = "Error al actualizar el perfil.";
-      if (err instanceof Response) {
-        const body = await err.json().catch(() => ({}));
-        msg = (body as { message?: string }).message ?? msg;
-      }
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Error al actualizar el perfil.";
       toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
@@ -111,12 +107,8 @@ export default function Settings() {
       passwordForm.reset();
       toast({ title: "Contraseña actualizada", description: "Tu contraseña se cambió correctamente." });
     },
-    onError: async (err: unknown) => {
-      let msg = "Error al actualizar la contraseña.";
-      if (err instanceof Response) {
-        const body = await err.json().catch(() => ({}));
-        msg = (body as { message?: string }).message ?? msg;
-      }
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Error al actualizar la contraseña.";
       toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
@@ -132,11 +124,12 @@ export default function Settings() {
       }
       return { prev };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.prev) {
         queryClient.setQueryData(["/api/user/content-preferences"], ctx.prev);
       }
-      toast({ title: "Error", description: "No se pudo guardar la preferencia.", variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "No se pudo guardar la preferencia.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/content-preferences"] });
