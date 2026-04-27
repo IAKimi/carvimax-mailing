@@ -281,8 +281,8 @@ export function FloatingChat() {
               <div className="flex items-center gap-2 min-w-0">
                 <Bot className="w-4 h-4 flex-shrink-0 text-white/80" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-tight truncate">Asistente IA</p>
-                  <p className="text-[11px] text-white/60 truncate">{config.label}</p>
+                  <p className="text-sm font-semibold leading-tight truncate">Asistente · {config.label}</p>
+                  <p className="text-[11px] text-white/60 truncate">{config.hint}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
