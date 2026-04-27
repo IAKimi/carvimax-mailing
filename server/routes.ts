@@ -3442,7 +3442,7 @@ export async function registerRoutes(
     }
 
     const existing = await storage.getAssistantConversation(user.id, section);
-    const lastResponseId = existing?.lastResponseId ?? null;
+    const lastResponseId = existing?.responseId ?? null;
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -3459,8 +3459,8 @@ export async function registerRoutes(
       onDone: async (responseId) => {
         try {
           await storage.upsertAssistantConversation(user.id, section, responseId);
-        } catch (err: any) {
-          console.error("[assistant] upsert conversation error:", err?.message);
+        } catch (err: unknown) {
+          console.error("[assistant] upsert conversation error:", err instanceof Error ? err.message : String(err));
         }
         res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
         res.end();

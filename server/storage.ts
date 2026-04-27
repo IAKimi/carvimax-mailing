@@ -95,7 +95,7 @@ export interface IStorage {
   getRecentActivity(): Promise<Array<{ campaignId: number; campaignName: string; status: string; createdAt: Date | null; userId: number; userName: string; userEmail: string }>>;
 
   getAssistantConversation(userId: number, section: string): Promise<AssistantConversation | undefined>;
-  upsertAssistantConversation(userId: number, section: string, lastResponseId: string | null): Promise<AssistantConversation>;
+  upsertAssistantConversation(userId: number, section: string, responseId: string | null): Promise<AssistantConversation>;
   deleteAssistantConversation(userId: number, section: string): Promise<void>;
 }
 
@@ -761,17 +761,17 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async upsertAssistantConversation(userId: number, section: string, lastResponseId: string | null): Promise<AssistantConversation> {
+  async upsertAssistantConversation(userId: number, section: string, responseId: string | null): Promise<AssistantConversation> {
     const existing = await this.getAssistantConversation(userId, section);
     if (existing) {
       const [updated] = await db.update(assistantConversations)
-        .set({ lastResponseId, updatedAt: new Date() })
+        .set({ responseId, updatedAt: new Date() })
         .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.section, section)))
         .returning();
       return updated;
     }
     const [created] = await db.insert(assistantConversations)
-      .values({ userId, section, lastResponseId })
+      .values({ userId, section, responseId })
       .returning();
     return created;
   }

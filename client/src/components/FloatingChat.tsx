@@ -229,8 +229,9 @@ export function FloatingChat() {
           } catch {}
         }
       }
-    } catch (err: any) {
-      if (err?.name !== "AbortError") {
+    } catch (err: unknown) {
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      if (!isAbort) {
         setMessages((prev) =>
           prev.map((m) => m.id === assistantMsgId ? { ...m, content: "No se pudo obtener respuesta. Intenta de nuevo." } : m)
         );
@@ -412,7 +413,6 @@ export function FloatingChat() {
         style={{ width: "52px", height: "52px" }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.94 }}
-        animate={isOpen ? { rotate: 0 } : { rotate: 0 }}
         title={isOpen ? "Cerrar asistente" : "Abrir asistente IA"}
       >
         <AnimatePresence mode="wait">

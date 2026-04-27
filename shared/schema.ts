@@ -210,7 +210,7 @@ export const assistantConversations = pgTable("assistant_conversations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   section: text("section").notNull(),
-  lastResponseId: text("last_response_id"),
+  responseId: text("response_id"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
