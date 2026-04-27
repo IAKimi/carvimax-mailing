@@ -26,7 +26,7 @@ const SECTION_NAMES: Record<AssistantSection, string> = {
 };
 
 const SCOPE_REDIRECT = (section: AssistantSection) =>
-  `Si el usuario pregunta sobre algo que no corresponde a la sección de "${SECTION_NAMES[section]}", responde exactamente así: "Esa pregunta corresponde a la sección de [nombre correcto de la sección]. Cerrá esta burbuja, navegá a esa sección y abrí el chat ahí." No profundices en temas de otras secciones.`;
+  `Si el usuario pregunta sobre algo que no corresponde a la sección "${SECTION_NAMES[section]}", responde con exactamente esta frase (reemplazando el nombre de sección): "Esa pregunta corresponde a [nombre de la sección correcta]. Cerrá esta burbuja, navegá a esa sección y abrí el chat ahí." No profundices en temas de otras secciones.`;
 
 export function getAssistantInstructions(section: AssistantSection): string {
   const base = `Eres un asistente de IA experto en email marketing para la plataforma PostIAlo Mailing.
