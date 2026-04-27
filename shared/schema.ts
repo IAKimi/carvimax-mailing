@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -212,7 +212,9 @@ export const assistantConversations = pgTable("assistant_conversations", {
   section: text("section").notNull(),
   responseId: text("response_id"),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userSectionUniq: uniqueIndex("idx_assistant_conversations_user_section").on(table.userId, table.section),
+}));
 
 export const insertAssistantConversationSchema = createInsertSchema(assistantConversations).omit({ id: true, updatedAt: true });
 export type AssistantConversation = typeof assistantConversations.$inferSelect;
