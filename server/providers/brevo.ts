@@ -236,7 +236,7 @@ export async function sendBatchEmails(
 
     try {
       const messageVersions = chunk.map(contact => ({
-        to: [{ email: contact.email, name: contact.name || "" }],
+        to: [{ email: contact.email, ...(contact.name ? { name: contact.name } : {}) }],
         params: { nombre: contact.name || "" },
       }));
 
