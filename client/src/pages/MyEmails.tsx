@@ -59,6 +59,7 @@ export default function MyEmails() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [resendCampaign, setResendCampaign] = useState<Campaign | null>(null);
   const [resendSubject, setResendSubject] = useState("");
   const [resendPreheader, setResendPreheader] = useState("");
@@ -210,6 +211,22 @@ export default function MyEmails() {
     });
     return map;
   }, [allVersions, statusByCampaign]);
+
+  const sentHtmlByCampaign = useMemo(() => {
+    const map = new Map<number, string | null>();
+    const grouped = new Map<number, CampaignVersion[]>();
+    for (const v of allVersions) {
+      const arr = grouped.get(v.campaignId) || [];
+      arr.push(v);
+      grouped.set(v.campaignId, arr);
+    }
+    grouped.forEach((versions, campaignId) => {
+      const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
+      const withHtml = ordered.find(v => v.sentHtml);
+      map.set(campaignId, withHtml?.sentHtml ?? null);
+    });
+    return map;
+  }, [allVersions]);
 
   const dbNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -606,7 +623,28 @@ export default function MyEmails() {
                             )}
                           </div>
                           {campaign.status === "sent" && (
-                            <div className="pt-3 mt-3 border-t border-border">
+                            <div className="pt-3 mt-3 border-t border-border flex flex-wrap gap-2">
+                              <Button
+                                data-testid={`button-preview-original-${campaign.id}`}
+                                size="sm"
+                                variant="outline"
+                                className="rounded-xl gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const html = sentHtmlByCampaign.get(campaign.id) ?? null;
+                                  if (!html) {
+                                    toast({
+                                      title: "Vista previa no disponible",
+                                      description: "Este correo fue enviado antes de que se registrara la vista previa.",
+                                    });
+                                    return;
+                                  }
+                                  setPreviewHtml(html);
+                                }}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                Visualizar correo original
+                              </Button>
                               <Button
                                 data-testid={`button-resend-${campaign.id}`}
                                 size="sm"
@@ -800,6 +838,36 @@ export default function MyEmails() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewHtml} onOpenChange={(open) => { if (!open) setPreviewHtml(null); }}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-primary" />
+              Vista previa del correo original
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-gray-50 dark:bg-zinc-900 min-h-0">
+            {previewHtml ? (
+              <iframe
+                srcDoc={previewHtml}
+                title="Correo original"
+                className="w-full border-0"
+                style={{ height: "600px" }}
+                sandbox="allow-same-origin"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+                <Eye className="w-10 h-10 opacity-40" />
+                <p className="text-sm text-center">
+                  No hay vista previa disponible para este correo.<br />
+                  Este correo fue creado antes de que se registrara la vista previa.
+                </p>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>
