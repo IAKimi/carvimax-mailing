@@ -2694,9 +2694,14 @@ export async function registerRoutes(
         const tpls = await storage.getTemplates(userId);
         const template = tpls.find(t => t.id === campaign.templateId);
         if (!template) {
-          return { success: false, error: "Plantilla no encontrada." };
+          console.warn("[CAMPAIGN SEND] Plantilla no encontrada, usando fallback de texto plano.", {
+            campaignId,
+            templateId: campaign.templateId,
+          });
+          renderedHtml = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+        } else {
+          renderedHtml = renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html;
         }
-        renderedHtml = renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html;
       } else {
         renderedHtml = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
       }
