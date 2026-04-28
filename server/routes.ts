@@ -2588,6 +2588,41 @@ export async function registerRoutes(
     res.json(confirmed);
   });
 
+  app.get("/api/campaigns/:id/preview-html", requireAuth, async (req, res) => {
+    const id = parseId(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido." });
+    const userCampaigns = await storage.getCampaigns(req.session.userId!);
+    const campaign = userCampaigns.find(c => c.id === id);
+    if (!campaign) return res.status(404).json({ message: "Campaña no encontrada." });
+    const versions = await storage.getCampaignVersions(id);
+    if (versions.length === 0) return res.status(400).json({ message: "No hay versiones generadas para esta campaña." });
+
+    // Priority 1: exact HTML snapshot captured at send time
+    const ordered = [...versions].sort((a, b) => ((a as any).versionNumber ?? 0) - ((b as any).versionNumber ?? 0));
+    const sentVersion = ordered.find(v => (v as any).sentHtml);
+    if ((sentVersion as any)?.sentHtml) {
+      return res.json({ html: (sentVersion as any).sentHtml });
+    }
+
+    // Priority 2: reconstruct from saved content + template (works for all historical campaigns)
+    const resolved = getResolvedCampaignContent(versions);
+    const brandData = await storage.getBrandIdentity(req.session.userId!);
+    const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl, req) : null;
+
+    let html: string;
+    if (campaign.templateId) {
+      const tpls = await storage.getTemplates(req.session.userId!);
+      const template = tpls.find(t => t.id === campaign.templateId);
+      html = template
+        ? renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html
+        : buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+    } else {
+      html = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+    }
+
+    res.json({ html });
+  });
+
   app.get("/api/campaigns/:id/preview-final", requireAuth, async (req, res) => {
     const id = parseId(req.params.id);
     if (!id) return res.status(400).json({ message: "ID inválido." });

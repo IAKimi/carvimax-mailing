@@ -60,6 +60,7 @@ export default function MyEmails() {
   const { toast } = useToast();
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<number | null>(null);
   const [resendCampaign, setResendCampaign] = useState<Campaign | null>(null);
   const [resendSubject, setResendSubject] = useState("");
   const [resendPreheader, setResendPreheader] = useState("");
@@ -211,22 +212,6 @@ export default function MyEmails() {
     });
     return map;
   }, [allVersions, statusByCampaign]);
-
-  const sentHtmlByCampaign = useMemo(() => {
-    const map = new Map<number, string | null>();
-    const grouped = new Map<number, CampaignVersion[]>();
-    for (const v of allVersions) {
-      const arr = grouped.get(v.campaignId) || [];
-      arr.push(v);
-      grouped.set(v.campaignId, arr);
-    }
-    grouped.forEach((versions, campaignId) => {
-      const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
-      const withHtml = ordered.find(v => v.sentHtml);
-      map.set(campaignId, withHtml?.sentHtml ?? null);
-    });
-    return map;
-  }, [allVersions]);
 
   const dbNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -629,20 +614,34 @@ export default function MyEmails() {
                                 size="sm"
                                 variant="outline"
                                 className="rounded-xl gap-2"
-                                onClick={(e) => {
+                                disabled={previewLoading === campaign.id}
+                                onClick={async (e) => {
                                   e.stopPropagation();
-                                  const html = sentHtmlByCampaign.get(campaign.id) ?? null;
-                                  if (!html) {
+                                  setPreviewLoading(campaign.id);
+                                  try {
+                                    const res = await fetch(`/api/campaigns/${campaign.id}/preview-html`, { credentials: "include" });
+                                    if (!res.ok) {
+                                      const err = await res.json().catch(() => ({}));
+                                      throw new Error((err as any).message || "Error al cargar la vista previa.");
+                                    }
+                                    const data = await res.json();
+                                    setPreviewHtml(data.html);
+                                  } catch (err) {
                                     toast({
-                                      title: "Vista previa no disponible",
-                                      description: "Este correo fue enviado antes de que se registrara la vista previa.",
+                                      title: "No se pudo cargar la vista previa",
+                                      description: err instanceof Error ? err.message : "Inténtalo de nuevo.",
+                                      variant: "destructive",
                                     });
-                                    return;
+                                  } finally {
+                                    setPreviewLoading(null);
                                   }
-                                  setPreviewHtml(html);
                                 }}
                               >
-                                <Eye className="w-3.5 h-3.5" />
+                                {previewLoading === campaign.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
                                 Visualizar correo original
                               </Button>
                               <Button
