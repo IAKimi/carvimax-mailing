@@ -850,23 +850,13 @@ export default function MyEmails() {
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-gray-50 dark:bg-zinc-900 min-h-0">
-            {previewHtml ? (
-              <iframe
-                srcDoc={previewHtml}
-                title="Correo original"
-                className="w-full border-0"
-                style={{ height: "600px" }}
-                sandbox="allow-same-origin"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-                <Eye className="w-10 h-10 opacity-40" />
-                <p className="text-sm text-center">
-                  No hay vista previa disponible para este correo.<br />
-                  Este correo fue creado antes de que se registrara la vista previa.
-                </p>
-              </div>
-            )}
+            <iframe
+              srcDoc={previewHtml ?? ""}
+              title="Correo original"
+              className="w-full border-0"
+              style={{ height: "600px" }}
+              sandbox="allow-same-origin"
+            />
           </div>
         </DialogContent>
       </Dialog>
