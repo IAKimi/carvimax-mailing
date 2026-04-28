@@ -236,8 +236,8 @@ export async function sendBatchEmails(
 
     try {
       const messageVersions = chunk.map(contact => ({
-        to: [{ email: contact.email, name: contact.name }],
-        params: { nombre: contact.name },
+        to: [{ email: contact.email, name: contact.name || "" }],
+        params: { nombre: contact.name || "" },
       }));
 
       const payload = {
@@ -286,7 +286,7 @@ export async function sendBatchEmails(
       } else {
         const errText = await res.text().catch(() => "Error desconocido");
         console.error(`[Brevo] Send error (${res.status}): ${errText}`);
-        markChunkFailed(result, chunk, `Error ${res.status}`);
+        markChunkFailed(result, chunk, `Error ${res.status}: ${errText.substring(0, 300)}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error desconocido";
