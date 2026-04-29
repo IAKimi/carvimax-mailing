@@ -2752,57 +2752,6 @@ export default function CalendarView() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showPastDraftDialog} onOpenChange={setShowPastDraftDialog}>
-          <DialogContent data-testid="dialog-past-draft-reschedule" className="sm:max-w-md rounded-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" />
-                {pastDraftDayCampaigns.length === 1 ? "Borrador sin completar" : "Borradores sin completar"}
-              </DialogTitle>
-              <DialogDescription>
-                {pastDraftDayCampaigns.length === 1
-                  ? "Esta campaña quedó en borrador. Para continuar editándola, primero elige una nueva fecha de envío."
-                  : `Hay ${pastDraftDayCampaigns.length} campañas en borrador en ese día. Elige una nueva fecha para moverlas y continuar editándolas.`}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 mt-1">
-              {pastDraftDayCampaigns.map(c => (
-                <div key={c.id} className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
-                  <span className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />
-                  <span className="text-sm font-medium truncate">{c.subject || c.name || c.idea || "Sin título"}</span>
-                  <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">Borrador</span>
-                </div>
-              ))}
-              <div className="space-y-2 pt-1">
-                <Label className="text-sm font-semibold">Nueva fecha y hora de envío</Label>
-                <Input
-                  data-testid="input-past-draft-date"
-                  type="datetime-local"
-                  value={pastDraftNewDate}
-                  onChange={(e) => setPastDraftNewDate(e.target.value)}
-                  min={(() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    tomorrow.setHours(0, 0, 0, 0);
-                    const pad = (n: number) => String(n).padStart(2, "0");
-                    return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`;
-                  })()}
-                  className="rounded-xl"
-                />
-              </div>
-              <Button
-                data-testid="button-confirm-past-draft-reschedule"
-                onClick={handlePastDraftReschedule}
-                disabled={!pastDraftNewDate || isPastDraftRescheduling}
-                className="w-full rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 text-white"
-              >
-                {isPastDraftRescheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                {pastDraftDayCampaigns.length === 1 ? "Reprogramar y editar" : "Reprogramar borradores"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
         <AlertDialog open={showLeaveWhileSendingDialog} onOpenChange={setShowLeaveWhileSendingDialog}>
           <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
@@ -2885,6 +2834,57 @@ export default function CalendarView() {
           </div>
         )}
       </div>
+
+      <Dialog open={showPastDraftDialog} onOpenChange={setShowPastDraftDialog}>
+        <DialogContent data-testid="dialog-past-draft-reschedule" className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-500" />
+              {pastDraftDayCampaigns.length === 1 ? "Borrador sin completar" : "Borradores sin completar"}
+            </DialogTitle>
+            <DialogDescription>
+              {pastDraftDayCampaigns.length === 1
+                ? "Esta campaña quedó en borrador. Para continuar editándola, primero elige una nueva fecha de envío."
+                : `Hay ${pastDraftDayCampaigns.length} campañas en borrador en ese día. Elige una nueva fecha para moverlas y continuar editándolas.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-1">
+            {pastDraftDayCampaigns.map(c => (
+              <div key={c.id} className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
+                <span className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />
+                <span className="text-sm font-medium truncate">{c.subject || c.name || c.idea || "Sin título"}</span>
+                <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">Borrador</span>
+              </div>
+            ))}
+            <div className="space-y-2 pt-1">
+              <Label className="text-sm font-semibold">Nueva fecha y hora de envío</Label>
+              <Input
+                data-testid="input-past-draft-date"
+                type="datetime-local"
+                value={pastDraftNewDate}
+                onChange={(e) => setPastDraftNewDate(e.target.value)}
+                min={(() => {
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  tomorrow.setHours(0, 0, 0, 0);
+                  const pad = (n: number) => String(n).padStart(2, "0");
+                  return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`;
+                })()}
+                className="rounded-xl"
+              />
+            </div>
+            <Button
+              data-testid="button-confirm-past-draft-reschedule"
+              onClick={handlePastDraftReschedule}
+              disabled={!pastDraftNewDate || isPastDraftRescheduling}
+              className="w-full rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              {isPastDraftRescheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {pastDraftDayCampaigns.length === 1 ? "Reprogramar y editar" : "Reprogramar borradores"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showChoiceDialog} onOpenChange={setShowChoiceDialog}>
         <DialogContent className="sm:max-w-md rounded-2xl overflow-hidden">
