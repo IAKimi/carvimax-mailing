@@ -212,7 +212,8 @@ export default function CalendarView() {
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [showPastDraftDialog, setShowPastDraftDialog] = useState(false);
   const [pastDraftDayCampaigns, setPastDraftDayCampaigns] = useState<CampaignWithSubject[]>([]);
-  const [pastDraftNewDate, setPastDraftNewDate] = useState("");
+  const [pastDraftDateStr, setPastDraftDateStr] = useState("");
+  const [pastDraftTimeStr, setPastDraftTimeStr] = useState("09:00");
   const [isPastDraftRescheduling, setIsPastDraftRescheduling] = useState(false);
   const [showLeaveWhileSendingDialog, setShowLeaveWhileSendingDialog] = useState(false);
   const [genStep, setGenStep] = useState(0);
@@ -1142,8 +1143,8 @@ export default function CalendarView() {
   }
 
   async function handlePastDraftReschedule() {
-    if (!pastDraftNewDate || pastDraftDayCampaigns.length === 0) return;
-    const newDate = new Date(pastDraftNewDate);
+    if (!pastDraftDateStr || !pastDraftTimeStr || pastDraftDayCampaigns.length === 0) return;
+    const newDate = new Date(`${pastDraftDateStr}T${pastDraftTimeStr}`);
     const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
     if (newDate.getTime() < fifteenMinFromNow) {
       toast({ title: "Fecha inválida", description: "La nueva fecha debe ser al menos 15 minutos en el futuro.", variant: "destructive" });
@@ -1293,10 +1294,9 @@ export default function CalendarView() {
         setPastDraftDayCampaigns(draftsOnDay);
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(9, 0, 0, 0);
         const pad = (n: number) => String(n).padStart(2, "0");
-        const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T09:00`;
-        setPastDraftNewDate(tomorrowStr);
+        setPastDraftDateStr(`${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`);
+        setPastDraftTimeStr("09:00");
         setShowPastDraftDialog(true);
       }
       return;
@@ -2857,27 +2857,46 @@ export default function CalendarView() {
                 <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">Borrador</span>
               </div>
             ))}
-            <div className="space-y-2 pt-1">
-              <Label className="text-sm font-semibold">Nueva fecha y hora de envío</Label>
-              <Input
-                data-testid="input-past-draft-date"
-                type="datetime-local"
-                value={pastDraftNewDate}
-                onChange={(e) => setPastDraftNewDate(e.target.value)}
-                min={(() => {
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  tomorrow.setHours(0, 0, 0, 0);
-                  const pad = (n: number) => String(n).padStart(2, "0");
-                  return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`;
-                })()}
-                className="rounded-xl"
-              />
+            <div className="space-y-3 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Nueva fecha de envío</Label>
+                <Input
+                  data-testid="input-past-draft-date"
+                  type="date"
+                  value={pastDraftDateStr}
+                  onChange={(e) => setPastDraftDateStr(e.target.value)}
+                  min={(() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+                  })()}
+                  className="rounded-xl [color-scheme:light] dark:[color-scheme:dark]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Hora de envío</Label>
+                <Select value={pastDraftTimeStr} onValueChange={setPastDraftTimeStr}>
+                  <SelectTrigger data-testid="select-past-draft-time" className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      ["06:00","6:00 a.m."],["07:00","7:00 a.m."],["08:00","8:00 a.m."],["09:00","9:00 a.m."],
+                      ["10:00","10:00 a.m."],["11:00","11:00 a.m."],["12:00","12:00 p.m."],["13:00","1:00 p.m."],
+                      ["14:00","2:00 p.m."],["15:00","3:00 p.m."],["16:00","4:00 p.m."],["17:00","5:00 p.m."],
+                      ["18:00","6:00 p.m."],["19:00","7:00 p.m."],["20:00","8:00 p.m."],["21:00","9:00 p.m."],["22:00","10:00 p.m."]
+                    ].map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <Button
               data-testid="button-confirm-past-draft-reschedule"
               onClick={handlePastDraftReschedule}
-              disabled={!pastDraftNewDate || isPastDraftRescheduling}
+              disabled={!pastDraftDateStr || !pastDraftTimeStr || isPastDraftRescheduling}
               className="w-full rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 text-white"
             >
               {isPastDraftRescheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
