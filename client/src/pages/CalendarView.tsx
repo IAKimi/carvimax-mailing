@@ -14,7 +14,7 @@ import {
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
   Type, Eye, Wand2, Send, Loader2, XCircle, Ban, Trash2,
   FileText, CheckCircle2, AlertTriangle, Link2, Database,
-  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail, Lock
+  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail, Lock, Clock
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -210,6 +210,10 @@ export default function CalendarView() {
   const [pendingVersionSwitch, setPendingVersionSwitch] = useState<{ fn: () => void } | null>(null);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
+  const [showPastDraftDialog, setShowPastDraftDialog] = useState(false);
+  const [pastDraftDayCampaigns, setPastDraftDayCampaigns] = useState<CampaignWithSubject[]>([]);
+  const [pastDraftNewDate, setPastDraftNewDate] = useState("");
+  const [isPastDraftRescheduling, setIsPastDraftRescheduling] = useState(false);
   const [showLeaveWhileSendingDialog, setShowLeaveWhileSendingDialog] = useState(false);
   const [genStep, setGenStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1137,6 +1141,37 @@ export default function CalendarView() {
     setShowRescheduleDialog(true);
   }
 
+  async function handlePastDraftReschedule() {
+    if (!pastDraftNewDate || pastDraftDayCampaigns.length === 0) return;
+    const newDate = new Date(pastDraftNewDate);
+    const fifteenMinFromNow = Date.now() + 15 * 60 * 1000;
+    if (newDate.getTime() < fifteenMinFromNow) {
+      toast({ title: "Fecha inválida", description: "La nueva fecha debe ser al menos 15 minutos en el futuro.", variant: "destructive" });
+      return;
+    }
+    setIsPastDraftRescheduling(true);
+    try {
+      await Promise.all(
+        pastDraftDayCampaigns.map(c =>
+          apiRequest("PATCH", `/api/campaigns/${c.id}`, { scheduledAt: newDate.toISOString() })
+        )
+      );
+      await queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({
+        title: "Borrador reprogramado",
+        description: `Movido al ${newDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })}`,
+      });
+      setShowPastDraftDialog(false);
+      if (pastDraftDayCampaigns.length === 1) {
+        handleEditCampaign(pastDraftDayCampaigns[0].id);
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "No se pudo reprogramar.", variant: "destructive" });
+    } finally {
+      setIsPastDraftRescheduling(false);
+    }
+  }
+
   const editingCampaign = campaigns.find(c => c.id === editingCampaignId);
 
   const sortedTemplatesForSelector = useMemo(() => {
@@ -1243,13 +1278,30 @@ export default function CalendarView() {
     return map;
   }, [campaigns, year, month]);
 
-  const handleDayClick = useCallback((day: number) => {
-    openDay(day);
-  }, [campaigns, year, month]);
-
   const todayDay = new Date().getDate();
   const todayMonth = new Date().getMonth();
   const todayYear = new Date().getFullYear();
+
+  const handleDayClick = useCallback((day: number) => {
+    const isPastDay = year < todayYear
+      || (year === todayYear && month < todayMonth)
+      || (year === todayYear && month === todayMonth && day < todayDay);
+    if (isPastDay) {
+      const draftsOnDay = (campaignsByDay[day] || []).filter(c => c.status === "draft");
+      if (draftsOnDay.length > 0) {
+        setPastDraftDayCampaigns(draftsOnDay);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T09:00`;
+        setPastDraftNewDate(tomorrowStr);
+        setShowPastDraftDialog(true);
+      }
+      return;
+    }
+    openDay(day);
+  }, [campaigns, campaignsByDay, year, month, todayDay, todayMonth, todayYear]);
 
   const calendarCells = [];
   for (let i = 0; i < startDayOfWeek; i++) {
@@ -1260,12 +1312,14 @@ export default function CalendarView() {
     const isPast = year < todayYear
       || (year === todayYear && month < todayMonth)
       || (year === todayYear && month === todayMonth && day < todayDay);
+    const hasDrafts = isPast && (campaignsByDay[day] || []).some(c => c.status === "draft");
     calendarCells.push(
       <CalendarCell
         key={day}
         day={day}
         isToday={isToday}
         isPast={isPast}
+        hasDrafts={hasDrafts}
         campaigns={campaignsByDay[day] || []}
         thumbnails={thumbnails}
         onDayClick={handleDayClick}
@@ -2693,6 +2747,57 @@ export default function CalendarView() {
               >
                 {updateCampaignMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 Confirmar Nueva Fecha
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showPastDraftDialog} onOpenChange={setShowPastDraftDialog}>
+          <DialogContent data-testid="dialog-past-draft-reschedule" className="sm:max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-500" />
+                Borrador sin completar
+              </DialogTitle>
+              <DialogDescription>
+                {pastDraftDayCampaigns.length === 1
+                  ? "Esta campaña quedó en borrador. Para continuar editándola, primero elige una nueva fecha de envío."
+                  : `Hay ${pastDraftDayCampaigns.length} campañas en borrador en ese día. Elige una nueva fecha para moverlas y continuar editándolas.`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 mt-1">
+              {pastDraftDayCampaigns.map(c => (
+                <div key={c.id} className="flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
+                  <span className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />
+                  <span className="text-sm font-medium truncate">{c.subject || c.name || c.idea || "Sin título"}</span>
+                  <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">Borrador</span>
+                </div>
+              ))}
+              <div className="space-y-2 pt-1">
+                <Label className="text-sm font-semibold">Nueva fecha y hora de envío</Label>
+                <Input
+                  data-testid="input-past-draft-date"
+                  type="datetime-local"
+                  value={pastDraftNewDate}
+                  onChange={(e) => setPastDraftNewDate(e.target.value)}
+                  min={(() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(0, 0, 0, 0);
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T00:00`;
+                  })()}
+                  className="rounded-xl"
+                />
+              </div>
+              <Button
+                data-testid="button-confirm-past-draft-reschedule"
+                onClick={handlePastDraftReschedule}
+                disabled={!pastDraftNewDate || isPastDraftRescheduling}
+                className="w-full rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                {isPastDraftRescheduling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {pastDraftDayCampaigns.length === 1 ? "Reprogramar y editar" : "Reprogramar borradores"}
               </Button>
             </div>
           </DialogContent>

@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { motion } from "framer-motion";
+import { Clock } from "lucide-react";
 import type { Campaign } from "@shared/schema";
 import {
   Tooltip,
@@ -14,6 +15,7 @@ interface CalendarCellProps {
   day: number;
   isToday: boolean;
   isPast: boolean;
+  hasDrafts: boolean;
   campaigns: CampaignInCell[];
   thumbnails: Record<number, string | null>;
   onDayClick: (day: number) => void;
@@ -40,25 +42,42 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "Borrador",
 };
 
-function CalendarCellInner({ day, isToday, isPast, campaigns, thumbnails, onDayClick }: CalendarCellProps) {
+function CalendarCellInner({ day, isToday, isPast, hasDrafts, campaigns, thumbnails, onDayClick }: CalendarCellProps) {
   const maxVisible = 2;
   const visibleCampaigns = campaigns.slice(0, maxVisible);
   const overflow = campaigns.length - maxVisible;
 
+  const isRescuable = isPast && hasDrafts;
+  const isHardBlocked = isPast && !hasDrafts;
+
   return (
     <motion.button
-      whileHover={isPast ? {} : { scale: 1.02 }}
-      whileTap={isPast ? {} : { scale: 0.98 }}
-      onClick={() => !isPast && onDayClick(day)}
-      disabled={isPast}
+      whileHover={isHardBlocked ? {} : { scale: 1.02 }}
+      whileTap={isHardBlocked ? {} : { scale: 0.98 }}
+      onClick={() => (!isPast || isRescuable) && onDayClick(day)}
+      disabled={isHardBlocked}
       data-testid={`calendar-day-${day}`}
       className={`
-        min-h-[80px] md:min-h-[110px] rounded-xl border border-border p-1.5 flex flex-col items-start justify-start
+        min-h-[80px] md:min-h-[110px] rounded-xl border p-1.5 flex flex-col items-start justify-start
         text-sm transition-all duration-200 relative w-full
-        ${isPast ? "bg-muted/30 cursor-not-allowed opacity-50" : isToday ? "bg-primary/10 border-primary/30 font-bold" : "bg-card hover:border-primary/30 hover:shadow-sm"}
+        ${isHardBlocked
+          ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
+          : isRescuable
+            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700 hover:border-amber-400 hover:shadow-sm cursor-pointer"
+            : isToday
+              ? "bg-primary/10 border-primary/30 font-bold"
+              : "bg-card border-border hover:border-primary/30 hover:shadow-sm"
+        }
       `}
     >
-      <span className={`text-xs font-semibold ${isToday && !isPast ? "text-primary" : ""}`}>{day}</span>
+      <span className={`text-xs font-semibold ${isToday && !isPast ? "text-primary" : isRescuable ? "text-amber-700 dark:text-amber-400" : ""}`}>{day}</span>
+
+      {isRescuable && (
+        <span className="absolute top-1.5 right-1.5">
+          <Clock className="w-3 h-3 text-amber-500" />
+        </span>
+      )}
+
       {campaigns.length > 0 && (
         <div className="mt-1 w-full flex flex-col gap-1 overflow-hidden flex-1">
           <TooltipProvider delayDuration={200}>
@@ -100,6 +119,9 @@ function CalendarCellInner({ day, isToday, isPast, campaigns, thumbnails, onDayC
                     )}
                     <p className="font-semibold">{c.subject || c.name || c.idea}</p>
                     <p className="text-muted-foreground">{STATUS_LABELS[c.status] || c.status}</p>
+                    {isRescuable && c.status === "draft" && (
+                      <p className="text-amber-600 mt-1 font-medium">Clic para reprogramar</p>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               );
@@ -119,6 +141,7 @@ export const CalendarCell = memo(CalendarCellInner, (prev, next) => {
     prev.day === next.day &&
     prev.isToday === next.isToday &&
     prev.isPast === next.isPast &&
+    prev.hasDrafts === next.hasDrafts &&
     prev.thumbnails === next.thumbnails &&
     prev.campaigns.length === next.campaigns.length &&
     prev.campaigns.every((c, i) => c.id === next.campaigns[i]?.id && c.status === next.campaigns[i]?.status && c.name === next.campaigns[i]?.name && c.subject === next.campaigns[i]?.subject)
