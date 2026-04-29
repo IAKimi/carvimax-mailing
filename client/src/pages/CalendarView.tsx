@@ -2757,7 +2757,7 @@ export default function CalendarView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
-                Borrador sin completar
+                {pastDraftDayCampaigns.length === 1 ? "Borrador sin completar" : "Borradores sin completar"}
               </DialogTitle>
               <DialogDescription>
                 {pastDraftDayCampaigns.length === 1
