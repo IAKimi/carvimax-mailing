@@ -1165,8 +1165,9 @@ export default function CalendarView() {
       if (pastDraftDayCampaigns.length === 1) {
         handleEditCampaign(pastDraftDayCampaigns[0].id);
       }
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message || "No se pudo reprogramar.", variant: "destructive" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "No se pudo reprogramar.";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setIsPastDraftRescheduling(false);
     }
