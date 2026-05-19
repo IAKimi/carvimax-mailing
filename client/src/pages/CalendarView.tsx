@@ -957,6 +957,17 @@ export default function CalendarView() {
     setTextApprovedLocal(false);
   }
 
+  function isValidCtaUrl(url: string): boolean {
+    const trimmed = url.trim();
+    if (trimmed.startsWith("mailto:")) return trimmed.length > 7;
+    try {
+      const parsed = new URL(trimmed);
+      return ['http:', 'https:'].includes(parsed.protocol);
+    } catch {
+      return false;
+    }
+  }
+
   function handleApproveText() {
     if (!localAsunto || !localAsunto.trim() || localAsunto.trim() === "Borrador - Pendiente de generación IA") {
       toast({ title: "Asunto vacío", description: "Debe tener un asunto válido antes de aprobar el texto.", variant: "destructive" });
@@ -972,13 +983,8 @@ export default function CalendarView() {
         toast({ title: "URL del botón vacía", description: "Debe ingresar la URL del botón CTA o desactivar el botón antes de aprobar.", variant: "destructive" });
         return;
       }
-      try {
-        const parsed = new URL(localCtaUrl.trim());
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-          throw new Error('Invalid protocol');
-        }
-      } catch {
-        toast({ title: "URL inválida", description: "La URL del botón CTA no es válida. Debe comenzar con https:// o http://", variant: "destructive" });
+      if (!isValidCtaUrl(localCtaUrl)) {
+        toast({ title: "URL inválida", description: "La URL debe comenzar con https://, http:// o mailto:", variant: "destructive" });
         return;
       }
     }
@@ -1237,6 +1243,10 @@ export default function CalendarView() {
 
   function handleSaveTextChanges() {
     if (!selectedVersion) return;
+    if (ctaEnabled && localCtaUrl && localCtaUrl.trim() && !isValidCtaUrl(localCtaUrl)) {
+      toast({ title: "URL inválida", description: "La URL debe comenzar con https://, http:// o mailto:", variant: "destructive" });
+      return;
+    }
     const existing = (selectedVersion.contentJson as any) || {};
     const updatedContent = {
       ...existing,
@@ -2157,10 +2167,12 @@ export default function CalendarView() {
                                 onChange={(e) => { setLocalCtaUrl(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
                                 maxLength={500}
                                 disabled={isLocked || textApproved}
-                                placeholder="https://ejemplo.com/promo"
-                                className="rounded-xl"
-                                type="url"
+                                placeholder="https://ejemplo.com o mailto:correo@empresa.com"
+                                className={`rounded-xl ${localCtaUrl.trim() && !isValidCtaUrl(localCtaUrl) ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                               />
+                              {localCtaUrl.trim() && !isValidCtaUrl(localCtaUrl) && (
+                                <p className="text-xs text-red-500 mt-1">La URL debe comenzar con https://, http:// o mailto:</p>
+                              )}
                             </>
                           )}
                           {!ctaEnabled && (
