@@ -1243,9 +1243,15 @@ export default function CalendarView() {
 
   function handleSaveTextChanges() {
     if (!selectedVersion) return;
-    if (ctaEnabled && localCtaUrl && localCtaUrl.trim() && !isValidCtaUrl(localCtaUrl)) {
-      toast({ title: "URL inválida", description: "La URL debe comenzar con https://, http:// o mailto:", variant: "destructive" });
-      return;
+    if (ctaEnabled) {
+      if (!localCtaUrl || !localCtaUrl.trim()) {
+        toast({ title: "URL del botón vacía", description: "Debe ingresar la URL del botón CTA o desactivar el botón antes de guardar.", variant: "destructive" });
+        return;
+      }
+      if (!isValidCtaUrl(localCtaUrl)) {
+        toast({ title: "URL inválida", description: "La URL debe comenzar con https://, http:// o mailto:", variant: "destructive" });
+        return;
+      }
     }
     const existing = (selectedVersion.contentJson as any) || {};
     const updatedContent = {
