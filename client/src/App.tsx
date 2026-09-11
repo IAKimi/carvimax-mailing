@@ -16,6 +16,7 @@ import MyEmails from "@/pages/MyEmails";
 import Contacts from "@/pages/Contacts";
 import CampaignEditor from "@/pages/CampaignEditor";
 import AdminUsers from "@/pages/AdminUsers";
+import SuperAdminConfig from "@/pages/SuperAdminConfig";
 import Dashboard from "@/pages/Dashboard";
 import EmailProvider from "@/pages/EmailProvider";
 import VerifyEmail from "@/pages/VerifyEmail";
@@ -33,6 +34,7 @@ const ROUTE_LEVELS: Record<string, number> = {
   "/dashboard": 4,
   "/campaigns": 4,
   "/admin/users": 0,
+  "/admin/config": 0,
   "/admin": 0,
   "/settings": 0,
 };
@@ -52,7 +54,7 @@ function getRedirectForLevel(level: number): string {
   return "/";
 }
 
-function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean }) {
+function ProtectedRoute({ component: Component, adminOnly = false, superAdminOnly = false }: { component: React.ComponentType<any>; adminOnly?: boolean; superAdminOnly?: boolean }) {
   const [, setLocation] = useLocation();
   const [location] = useLocation();
   const [status, setStatus] = useState<"loading" | "ok" | "denied" | "forbidden">("loading");
@@ -66,9 +68,13 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
     fetch("/api/auth/me", { credentials: "include" })
       .then(async (res) => {
         if (res.ok) {
-          if (adminOnly) {
+          if (adminOnly || superAdminOnly) {
             const data = await res.json();
-            if (data.role !== "admin") {
+            if (superAdminOnly && data.role !== "superadmin") {
+              setStatus("forbidden");
+              return;
+            }
+            if (adminOnly && data.role !== "admin" && data.role !== "superadmin") {
               setStatus("forbidden");
               return;
             }
@@ -149,6 +155,7 @@ function Router() {
       <Route path="/campaigns/:id">{() => <ProtectedRoute component={CampaignEditor} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={SettingsPage} />}</Route>
       <Route path="/admin/users">{() => <ProtectedRoute component={AdminUsers} adminOnly />}</Route>
+      <Route path="/admin/config">{() => <ProtectedRoute component={SuperAdminConfig} superAdminOnly />}</Route>
       <Route path="/admin">{() => <Redirect to="/admin/users" />}</Route>
       <Route component={NotFound} />
     </Switch>

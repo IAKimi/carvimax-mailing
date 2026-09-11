@@ -146,7 +146,11 @@ export default function Settings() {
   const providerName = defaultProvider
     ? defaultProvider.provider === "brevo"
       ? "Brevo"
-      : "Mailchimp"
+      : defaultProvider.provider === "mailchimp"
+        ? "Mailchimp"
+        : defaultProvider.provider === "custom_http"
+          ? "API HTTP personalizada"
+          : defaultProvider.provider
     : null;
 
   return (

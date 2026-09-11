@@ -1,14 +1,19 @@
 import OpenAI from "openai";
 import type { ResponseStreamEvent } from "openai/resources/responses/responses";
 import type { AssistantSection } from "@shared/schema";
+import { getOpenAIApiKey, getOpenAIModel } from "../platform-ai";
 
 let _client: OpenAI | null = null;
+let _clientKey: string | null = null;
 
-function getClient(): OpenAI {
-  if (!_client) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY no configurada.");
+async function getClient(): Promise<OpenAI> {
+  const apiKey = await getOpenAIApiKey();
+  if (!apiKey) {
+    throw new Error("La API key de OpenAI no está configurada. Un superadministrador debe configurarla en el panel de administración.");
+  }
+  if (!_client || _clientKey !== apiKey) {
     _client = new OpenAI({ apiKey });
+    _clientKey = apiKey;
   }
   return _client;
 }
@@ -90,13 +95,14 @@ export async function streamAssistantResponse(params: {
   onError: (err: Error) => void;
 }): Promise<void> {
   const { userMessage, section, lastResponseId, signal, onDelta, onDone, onError } = params;
-  const client = getClient();
+  const client = await getClient();
+  const model = await getOpenAIModel();
   const instructions = getAssistantInstructions(section);
 
   try {
     const stream = client.responses.stream(
       {
-        model: "gpt-4.1-mini",
+        model,
         instructions,
         input: userMessage,
         ...(lastResponseId ? { previous_response_id: lastResponseId } : {}),

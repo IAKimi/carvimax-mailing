@@ -14,7 +14,7 @@ import {
   ImageIcon, Upload, RefreshCw, Check, Pencil, History,
   Type, Eye, Wand2, Send, Loader2, XCircle, Ban, Trash2,
   FileText, CheckCircle2, AlertTriangle, Link2, Database,
-  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail, Lock, Clock
+  Layers, Palette, Eraser, PlusCircle, X, Image as ImageLucide, Mail, Lock, Clock, Globe
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -694,7 +694,7 @@ export default function CalendarView() {
     },
   });
 
-  interface EmailProviderInfo { id: number; provider: string; isActive: boolean; isDefault: boolean; senderEmail: string | null; senderName: string | null }
+  interface EmailProviderInfo { id: number; provider: string; isActive: boolean; isDefault: boolean; senderEmail: string | null; senderName: string | null; accountEmail?: string | null }
   const { data: rawProviders, isLoading: isLoadingProviders } = useQuery<EmailProviderInfo[]>({
     queryKey: ["/api/email-provider/status"],
     queryFn: async () => {
@@ -3360,9 +3360,13 @@ export default function CalendarView() {
               </div>
             ) : allEmailProviders.length === 1 ? (
               <div data-testid="info-provider-connected" className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                <img src={allEmailProviders[0].provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
+                {allEmailProviders[0].provider === "custom_http" ? (
+                  <Globe className="w-5 h-5 text-[#002073]" />
+                ) : (
+                  <img src={allEmailProviders[0].provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
+                )}
                 <span className="text-emerald-700">
-                  Proveedor: <strong className="capitalize">{allEmailProviders[0].provider}</strong>
+                  Proveedor: <strong>{allEmailProviders[0].provider === "custom_http" ? "API HTTP personalizada" : allEmailProviders[0].provider === "brevo" ? "Brevo" : "Mailchimp"}</strong>
                   {allEmailProviders[0].senderEmail && <> · {allEmailProviders[0].senderEmail}</>}
                 </span>
               </div>
@@ -3380,8 +3384,12 @@ export default function CalendarView() {
                     {allEmailProviders.map(p => (
                       <SelectItem key={p.id} value={String(p.id)}>
                         <span className="inline-flex items-center gap-2">
-                          <img src={p.provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
-                          <span className="capitalize">{p.provider}</span>
+                          {p.provider === "custom_http" ? (
+                            <Globe className="w-5 h-5 text-[#002073]" />
+                          ) : (
+                            <img src={p.provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
+                          )}
+                          <span>{p.provider === "custom_http" ? "API HTTP personalizada" : p.provider === "brevo" ? "Brevo" : "Mailchimp"}</span>
                           {p.isDefault && <span className="text-xs text-amber-600 font-semibold">★</span>}
                           {p.senderEmail && <span className="text-muted-foreground">· {p.senderEmail}</span>}
                         </span>

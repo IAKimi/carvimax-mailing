@@ -157,15 +157,16 @@ app.use((req, res, next) => {
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-      startCampaignScheduler();
-    },
-  );
+  // reusePort is not supported on Windows (ENOTSUP); keep it for Linux/Replit/Coolify.
+  const listenOptions: { port: number; host: string; reusePort?: boolean } = {
+    port,
+    host: "0.0.0.0",
+  };
+  if (process.platform !== "win32") {
+    listenOptions.reusePort = true;
+  }
+  httpServer.listen(listenOptions, () => {
+    log(`serving on port ${port}`);
+    startCampaignScheduler();
+  });
 })();

@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { FloatingChat } from "@/components/FloatingChat";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -18,7 +18,8 @@ import {
   Lightbulb,
   Lock,
   Link2,
-  Settings
+  Settings,
+  SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -70,8 +71,6 @@ function getLockedMessage(requiredLevel: number, currentLevel: number): string {
   return "Sección bloqueada.";
 }
 
-let _sidebarMouseInside = false;
-
 export { getOnboardingLevel };
 export type { OnboardingStatus };
 
@@ -80,7 +79,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { tutorialActive, toggleTutorial } = useTutorial();
   const { isGenerating } = useGenerating();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarExpanded, setSidebarExpanded] = useState(_sidebarMouseInside);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const { toast } = useToast();
   const { data: currentUser } = useQuery<{ id: number; name: string; email: string; role: string; impersonating?: boolean; impersonatingUserName?: string; originalAdminId?: number } | null>({
@@ -93,6 +92,7 @@ export function Layout({ children }: { children: ReactNode }) {
   });
   const userName = currentUser?.name || "Usuario";
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+  const isSuperAdmin = currentUser?.role === "superadmin";
   const isImpersonating = !!currentUser?.impersonating;
 
   const onboardingLevel = onboardingLoading ? 99 : getOnboardingLevel(onboardingStatus);
@@ -111,25 +111,16 @@ export function Layout({ children }: { children: ReactNode }) {
   const navItems = [
     ...NAV_ITEMS,
     ...(isAdmin && !isImpersonating ? [{ icon: Shield, label: "Usuarios", href: "/admin/users", requiresLevel: 0 }] : []),
+    ...(isSuperAdmin && !isImpersonating ? [{ icon: SlidersHorizontal, label: "Config. Super Admin", href: "/admin/config", requiresLevel: 0 }] : []),
   ];
 
   useEffect(() => {
     document.documentElement.classList.remove("dark");
   }, []);
 
-  useEffect(() => {
-    setSidebarExpanded(_sidebarMouseInside);
-  }, [location]);
-
-  const handleMouseEnter = useCallback(() => {
-    _sidebarMouseInside = true;
-    setSidebarExpanded(true);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    _sidebarMouseInside = false;
-    setSidebarExpanded(false);
-  }, []);
+  function toggleSidebar() {
+    setSidebarExpanded((prev) => !prev);
+  }
 
   function handleLogout() {
     if (isGenerating) {
@@ -227,19 +218,35 @@ export function Layout({ children }: { children: ReactNode }) {
         ref={sidebarRef}
         className="hidden md:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#002073] text-white transition-all duration-300 ease-in-out"
         style={{ width: sidebarExpanded ? "16rem" : "4.5rem" }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         data-testid="desktop-sidebar"
       >
-        <div className="p-5 flex items-center gap-3 border-b border-white/10 overflow-hidden whitespace-nowrap">
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
-            <Mail className="w-4 h-4 text-white" />
+        <div className="border-b border-white/10">
+          <div className={`p-5 flex items-center gap-3 overflow-hidden whitespace-nowrap ${sidebarExpanded ? "" : "justify-center"}`}>
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+              <Mail className="w-4 h-4 text-white" />
+            </div>
+            {sidebarExpanded && (
+              <span className="font-extrabold tracking-tight text-lg text-white">
+                Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mailing</span>
+              </span>
+            )}
           </div>
-          {sidebarExpanded && (
-            <span className="font-extrabold tracking-tight text-lg text-white">
-              Post<span className="text-[#e3001b]">IA</span>lo <span className="text-white">Mailing</span>
-            </span>
-          )}
+          <div className={`px-3 pb-3 ${sidebarExpanded ? "" : "flex justify-center"}`}>
+            <button
+              type="button"
+              data-testid="button-desktop-sidebar-toggle"
+              onClick={toggleSidebar}
+              title={sidebarExpanded ? "Contraer menú" : "Expandir menú"}
+              aria-label={sidebarExpanded ? "Contraer menú" : "Expandir menú"}
+              aria-expanded={sidebarExpanded}
+              className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-white/70 hover:bg-white/10 hover:text-white ${
+                sidebarExpanded ? "justify-start px-4 w-full" : "justify-center px-0 w-10 h-10"
+              }`}
+            >
+              <Menu className="w-5 h-5 flex-shrink-0" />
+              {sidebarExpanded && <span>Menú</span>}
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
@@ -361,7 +368,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div data-testid="overlay-mobile-sidebar" className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out md:ml-[4.5rem]">
+      <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${sidebarExpanded ? "md:ml-64" : "md:ml-[4.5rem]"}`}>
         {isImpersonating && (
           <div data-testid="banner-impersonation" className="sticky top-0 z-30 bg-amber-500 text-white px-4 py-2 flex items-center justify-between gap-2 text-sm font-medium shadow-md">
             <div className="flex items-center gap-2">

@@ -17,6 +17,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { decryptApiKey } from "./encryption";
 import { sendBatchEmails } from "./providers/brevo";
+import { getPlatformAiPublicSettings, updatePlatformAiSettings } from "./platform-ai";
 
 let wss: WebSocketServer | null = null;
 
@@ -1050,7 +1051,7 @@ export async function registerRoutes(
     try {
     const imagePromise = (async () => {
       if (!campaign.imagePrompt) return null;
-      if (!isGeminiConfigured()) {
+      if (!(await isGeminiConfigured())) {
         return "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
       }
       try {
@@ -1071,7 +1072,7 @@ export async function registerRoutes(
     ]);
 
     const textPromise = (async () => {
-      if (campaign.idea && campaign.objective && isOpenAIConfigured()) {
+      if (campaign.idea && campaign.objective && (await isOpenAIConfigured())) {
         try {
           const result = await generateEmailContent(campaign.idea, campaign.objective, brandData || null, campaign.targetAudience, templateLocked, contentPrefs);
           console.log("[OpenAI] Texto generado exitosamente:", JSON.stringify({ asunto: result.asunto, cta: result.cta_text }));
@@ -1088,7 +1089,7 @@ export async function registerRoutes(
           return null;
         }
       }
-      console.warn("[OpenAI] Skipped: idea=", !!campaign.idea, "objective=", !!campaign.objective, "configured=", isOpenAIConfigured());
+      console.warn("[OpenAI] Skipped: idea=", !!campaign.idea, "objective=", !!campaign.objective, "configured=", await isOpenAIConfigured());
       return null;
     })();
 
@@ -1178,7 +1179,7 @@ export async function registerRoutes(
 
     let contentJson;
     try {
-      if (!isOpenAIConfigured()) {
+      if (!(await isOpenAIConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const [brandData, contentPrefs] = await Promise.all([
@@ -1249,7 +1250,7 @@ export async function registerRoutes(
 
     let rawImageUrl: string;
     try {
-      if (!isGeminiConfigured()) {
+      if (!(await isGeminiConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
       rawImageUrl = await generateImage(imagePrompt);
@@ -1316,7 +1317,7 @@ export async function registerRoutes(
 
     let rawImageUrl: string;
     try {
-      if (!isGeminiConfigured()) {
+      if (!(await isGeminiConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
       rawImageUrl = await editImage(currentImageBase64, editPrompt);
@@ -1446,7 +1447,7 @@ export async function registerRoutes(
 
     let rawImageUrl: string;
     try {
-      if (!isGeminiConfigured()) {
+      if (!(await isGeminiConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
       rawImageUrl = await editImageAdvanced({
@@ -1951,8 +1952,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Proveedor y API key son requeridos." });
       }
       const apiKey = typeof rawApiKey === "string" ? rawApiKey.trim() : rawApiKey;
-      if (!["brevo", "mailchimp"].includes(provider)) {
-        return res.status(400).json({ message: "Proveedor no soportado. Use 'brevo' o 'mailchimp'." });
+      if (!["brevo", "mailchimp", "custom_http"].includes(provider)) {
+        return res.status(400).json({ message: "Proveedor no soportado. Use 'brevo', 'mailchimp' o 'custom_http'." });
       }
 
       if (provider === "brevo") {
@@ -2092,10 +2093,137 @@ export async function registerRoutes(
           selectedAudienceId: autoAudienceId,
           ...(audienceWarning ? { warning: audienceWarning } : {}),
         });
+      } else if (provider === "custom_http") {
+        const {
+          validateCustomHttpConfig,
+          probeCustomHttpConnection,
+        } = await import("./providers/custom-http");
+        const {
+          DEFAULT_CUSTOM_HTTP_AUTH_HEADER,
+          DEFAULT_CUSTOM_HTTP_RATE_LIMIT,
+        } = await import("@shared/schema");
+
+        const validation = validateCustomHttpConfig({
+          endpointUrl: req.body.endpointUrl,
+          apiKey,
+          authHeaderName: req.body.authHeaderName || DEFAULT_CUSTOM_HTTP_AUTH_HEADER,
+          rateLimitPerMinute: req.body.rateLimitPerMinute != null
+            ? Number(req.body.rateLimitPerMinute)
+            : DEFAULT_CUSTOM_HTTP_RATE_LIMIT,
+        });
+        if (!validation.valid || !validation.config) {
+          return res.status(400).json({ message: validation.error || "Configuración inválida." });
+        }
+
+        const probe = await probeCustomHttpConnection(validation.config);
+        if (!probe.ok) {
+          return res.status(400).json({ message: probe.error || "No se pudo verificar la conexión." });
+        }
+
+        const existing = await storage.getEmailProvider(req.session.userId!, provider);
+        if (existing) {
+          await storage.deleteEmailProvider(existing.id);
+        }
+
+        const { encryptApiKey } = await import("./encryption");
+        const encrypted = encryptApiKey(validation.config.apiKey);
+
+        const created = await storage.createEmailProvider({
+          userId: req.session.userId!,
+          provider,
+          encryptedApiKey: encrypted.encrypted,
+          iv: encrypted.iv,
+          authTag: encrypted.authTag,
+          isActive: true,
+          senderEmail: null,
+          senderName: null,
+          webhookId: null,
+          accountEmail: null,
+          accountPlan: "API HTTP personalizada",
+          customHttpEndpointUrl: validation.config.endpointUrl,
+          customHttpAuthHeader: validation.config.authHeaderName,
+          customHttpRateLimitPerMinute: validation.config.rateLimitPerMinute,
+        });
+
+        const allProviders = await storage.getEmailProviders(req.session.userId!);
+        const activeProviders = allProviders.filter(p => p.isActive);
+        if (activeProviders.length === 1) {
+          await storage.updateEmailProvider(created.id, { isDefault: true });
+        }
+
+        res.status(201).json({
+          id: created.id,
+          provider: created.provider,
+          isActive: created.isActive,
+          isDefault: activeProviders.length === 1,
+          accountPlan: created.accountPlan,
+          customHttpEndpointUrl: created.customHttpEndpointUrl,
+          customHttpAuthHeader: created.customHttpAuthHeader,
+          customHttpRateLimitPerMinute: created.customHttpRateLimitPerMinute,
+        });
       }
     } catch (err: any) {
       console.error("Error connecting email provider:", err.message);
       return res.status(500).json({ message: "Error al conectar el proveedor." });
+    }
+  });
+
+  app.patch("/api/email-provider/custom_http/settings", requireAuth, async (req, res) => {
+    try {
+      const existing = await storage.getEmailProvider(req.session.userId!, "custom_http");
+      if (!existing || !existing.isActive) {
+        return res.status(404).json({ message: "API HTTP personalizada no está configurada." });
+      }
+
+      const { validateCustomHttpConfig } = await import("./providers/custom-http");
+      const { DEFAULT_CUSTOM_HTTP_AUTH_HEADER, DEFAULT_CUSTOM_HTTP_RATE_LIMIT } = await import("@shared/schema");
+      const { decryptApiKey, encryptApiKey } = await import("./encryption");
+
+      let apiKey: string;
+      try {
+        apiKey = decryptApiKey(existing.encryptedApiKey, existing.iv, existing.authTag);
+      } catch {
+        return res.status(500).json({ message: "Error al leer la API key guardada. Vuelva a conectar el proveedor." });
+      }
+
+      if (typeof req.body.apiKey === "string" && req.body.apiKey.trim()) {
+        apiKey = req.body.apiKey.trim();
+      }
+
+      const validation = validateCustomHttpConfig({
+        endpointUrl: req.body.endpointUrl ?? existing.customHttpEndpointUrl ?? "",
+        apiKey,
+        authHeaderName: req.body.authHeaderName ?? existing.customHttpAuthHeader ?? DEFAULT_CUSTOM_HTTP_AUTH_HEADER,
+        rateLimitPerMinute: req.body.rateLimitPerMinute != null
+          ? Number(req.body.rateLimitPerMinute)
+          : (existing.customHttpRateLimitPerMinute ?? DEFAULT_CUSTOM_HTTP_RATE_LIMIT),
+      });
+      if (!validation.valid || !validation.config) {
+        return res.status(400).json({ message: validation.error || "Configuración inválida." });
+      }
+
+      const encrypted = encryptApiKey(validation.config.apiKey);
+
+      const updated = await storage.updateEmailProvider(existing.id, {
+        encryptedApiKey: encrypted.encrypted,
+        iv: encrypted.iv,
+        authTag: encrypted.authTag,
+        customHttpEndpointUrl: validation.config.endpointUrl,
+        customHttpAuthHeader: validation.config.authHeaderName,
+        customHttpRateLimitPerMinute: validation.config.rateLimitPerMinute,
+        accountEmail: null,
+      });
+
+      res.json({
+        id: updated?.id,
+        provider: "custom_http",
+        customHttpEndpointUrl: updated?.customHttpEndpointUrl,
+        customHttpAuthHeader: updated?.customHttpAuthHeader,
+        customHttpRateLimitPerMinute: updated?.customHttpRateLimitPerMinute,
+      });
+    } catch (err: any) {
+      console.error("Error updating custom_http settings:", err.message);
+      return res.status(500).json({ message: "Error al actualizar la configuración." });
     }
   });
 
@@ -2155,6 +2283,9 @@ export async function registerRoutes(
           webhookConfigured: !!p.webhookId,
           maskedKey,
           createdAt: p.createdAt,
+          customHttpEndpointUrl: p.customHttpEndpointUrl,
+          customHttpAuthHeader: p.customHttpAuthHeader,
+          customHttpRateLimitPerMinute: p.customHttpRateLimitPerMinute,
         };
       });
       res.json(safe);
@@ -2422,7 +2553,7 @@ export async function registerRoutes(
       return res.status(400).json({ message: "El prompt no puede exceder 1000 caracteres." });
     }
     try {
-      if (!isOpenAIConfigured()) {
+      if (!(await isOpenAIConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
@@ -2430,14 +2561,17 @@ export async function registerRoutes(
 
       const sanitizedHtml = sanitizeHtml(result.html);
       const validation = validateTemplatePlaceholders(sanitizedHtml);
-      if (validation.missing.length > 0) {
-        console.warn("AI template missing placeholders:", validation.missing);
+      if (!validation.valid) {
+        console.error("AI template still incomplete after repair/fallback:", validation.missing);
+        return res.status(422).json({
+          message: "No se pudo generar una plantilla completa con todos los placeholders requeridos. Intente de nuevo.",
+        });
       }
       const structureCheck = validateTemplateStructure(sanitizedHtml);
       if (!structureCheck.valid) {
         console.warn("AI template structure violation:", structureCheck.errors);
         return res.status(422).json({
-          message: `La plantilla generada no cumple con la estructura estándar: ${structureCheck.errors.join(" ")} Se regenerará automáticamente.`,
+          message: `La plantilla generada no cumple con la estructura estándar: ${structureCheck.errors.join(" ")} Intente de nuevo.`,
         });
       }
       const existingTemplates = await storage.getTemplates(req.session.userId!);
@@ -2451,7 +2585,7 @@ export async function registerRoutes(
         isAiGenerated: true,
         aiEditCount: 0,
         originalHtml: sanitizedHtml,
-        hasAllPlaceholders: validation.valid,
+        hasAllPlaceholders: true,
         isConfirmed: false,
         versionNumber: 1,
       });
@@ -2488,13 +2622,19 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Las instrucciones no pueden exceder 1000 caracteres." });
     }
     try {
-      if (!isOpenAIConfigured()) {
+      if (!(await isOpenAIConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
       const editedHtml = await editTemplateHtml(tpl.html, instructions, brandData || null);
       const sanitizedHtml = sanitizeHtml(editedHtml);
       const validation = validateTemplatePlaceholders(sanitizedHtml);
+      if (!validation.valid) {
+        console.error("AI edit still incomplete after repair/fallback:", validation.missing);
+        return res.status(422).json({
+          message: "La edición dejó la plantilla incompleta. Intente de nuevo con otras instrucciones.",
+        });
+      }
       const structureCheck = validateTemplateStructure(sanitizedHtml);
       if (!structureCheck.valid) {
         console.warn("AI edit structure violation:", structureCheck.errors);
@@ -2510,7 +2650,7 @@ export async function registerRoutes(
         isAiGenerated: true,
         aiEditCount: (tpl.aiEditCount || 0) + 1,
         originalHtml: tpl.originalHtml,
-        hasAllPlaceholders: validation.valid,
+        hasAllPlaceholders: true,
         isConfirmed: false,
         parentTemplateId: parentId,
         versionNumber: totalVersions + 1,
@@ -2525,7 +2665,7 @@ export async function registerRoutes(
     const { html } = req.body;
     if (!html || typeof html !== "string") return res.status(400).json({ message: "HTML requerido." });
     try {
-      if (!isOpenAIConfigured()) {
+      if (!(await isOpenAIConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
@@ -2546,7 +2686,7 @@ export async function registerRoutes(
     if (!tpl) return res.status(404).json({ message: "Plantilla no encontrada." });
     if (tpl.hasAllPlaceholders) return res.status(400).json({ message: "Esta plantilla ya tiene todos los placeholders." });
     try {
-      if (!isOpenAIConfigured()) {
+      if (!(await isOpenAIConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de texto no está disponible en este momento." });
       }
       const brandData = await storage.getBrandIdentity(req.session.userId!);
@@ -2941,6 +3081,98 @@ export async function registerRoutes(
         });
 
         return { success: true };
+      } else if (activeProvider.provider === "custom_http") {
+        const {
+          sendCustomHttpBatch,
+          validateCustomHttpConfig,
+        } = await import("./providers/custom-http");
+        const {
+          DEFAULT_CUSTOM_HTTP_AUTH_HEADER,
+          DEFAULT_CUSTOM_HTTP_RATE_LIMIT,
+        } = await import("@shared/schema");
+
+        const cfgValidation = validateCustomHttpConfig({
+          endpointUrl: activeProvider.customHttpEndpointUrl || "",
+          apiKey,
+          authHeaderName: activeProvider.customHttpAuthHeader || DEFAULT_CUSTOM_HTTP_AUTH_HEADER,
+          rateLimitPerMinute: activeProvider.customHttpRateLimitPerMinute ?? DEFAULT_CUSTOM_HTTP_RATE_LIMIT,
+        });
+        if (!cfgValidation.valid || !cfgValidation.config) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: contactsList.length,
+            sentCount: 0,
+            failedCount: contactsList.length,
+            status: "failed",
+            completed: true,
+          });
+          return { success: false, error: cfgValidation.error || "Configuración de API HTTP personalizada inválida." };
+        }
+
+        const batchResult = await sendCustomHttpBatch(
+          cfgValidation.config,
+          subject,
+          cleanHtmlForEmail(renderedHtml),
+          contactsList.map(c => ({ email: c.email, name: c.name || "" })),
+          async ({ sent, failed, total }) => {
+            await db.update(campaignsTable).set({
+              sentCount: sent,
+              failedCount: failed,
+            }).where(eq(campaignsTable.id, campaignId));
+            broadcastWs("campaign-progress", {
+              campaignId,
+              totalExpectedSends: total,
+              sentCount: sent,
+              failedCount: failed,
+              status: "sending",
+            });
+          },
+        );
+
+        for (const errEntry of batchResult.errors) {
+          await storage.updateCampaignSend(campaignId, errEntry.email, {
+            status: "failed",
+            errorMessage: errEntry.error,
+          });
+        }
+        if (batchResult.sent > 0) {
+          const failedEmails = new Set(batchResult.errors.map(e => e.email));
+          for (const contact of contactsList.filter(c => !failedEmails.has(c.email))) {
+            await storage.updateCampaignSend(campaignId, contact.email, { status: "sent" });
+          }
+        }
+
+        await db.update(campaignsTable).set({
+          sentCount: batchResult.sent,
+          failedCount: batchResult.failed,
+        }).where(eq(campaignsTable.id, campaignId));
+
+        if (batchResult.sent === 0) {
+          await storage.updateCampaign(campaignId, { status: "failed" } as any);
+          broadcastWs("campaign-progress", {
+            campaignId,
+            totalExpectedSends: contactsList.length,
+            sentCount: 0,
+            failedCount: batchResult.failed,
+            status: "failed",
+            completed: true,
+          });
+          return { success: false, error: "No se pudo enviar ningún correo a través de la API HTTP personalizada." };
+        }
+
+        const finalStatus = batchResult.failed === 0 ? "sent" : "partial";
+        await storage.updateCampaign(campaignId, { status: finalStatus, sentAt: new Date() } satisfies UpdateCampaign);
+        broadcastWs("campaign-progress", {
+          campaignId,
+          totalExpectedSends: contactsList.length,
+          sentCount: batchResult.sent,
+          failedCount: batchResult.failed,
+          status: finalStatus,
+          completed: true,
+        });
+
+        return { success: true };
       } else {
         return { success: false, error: "Proveedor de email no soportado." };
       }
@@ -3063,7 +3295,30 @@ export async function registerRoutes(
           return res.status(500).json({ message: result.errors[0]?.error || "No se pudo enviar el correo de prueba." });
         }
       } else if (activeProvider.provider === "mailchimp") {
-        return res.status(400).json({ message: "El envío de prueba solo está disponible para Brevo en este momento." });
+        return res.status(400).json({ message: "El envío de prueba solo está disponible para Brevo y API HTTP personalizada en este momento." });
+      } else if (activeProvider.provider === "custom_http") {
+        const { sendOneCustomHttpEmail, validateCustomHttpConfig } = await import("./providers/custom-http");
+        const { DEFAULT_CUSTOM_HTTP_AUTH_HEADER, DEFAULT_CUSTOM_HTTP_RATE_LIMIT } = await import("@shared/schema");
+        const cfgValidation = validateCustomHttpConfig({
+          endpointUrl: activeProvider.customHttpEndpointUrl || "",
+          apiKey,
+          authHeaderName: activeProvider.customHttpAuthHeader || DEFAULT_CUSTOM_HTTP_AUTH_HEADER,
+          rateLimitPerMinute: activeProvider.customHttpRateLimitPerMinute ?? DEFAULT_CUSTOM_HTTP_RATE_LIMIT,
+        });
+        if (!cfgValidation.valid || !cfgValidation.config) {
+          return res.status(400).json({ message: cfgValidation.error || "Configuración de API HTTP inválida." });
+        }
+        const result = await sendOneCustomHttpEmail(
+          cfgValidation.config,
+          user.email,
+          `[PRUEBA] ${subject}`,
+          htmlBody,
+        );
+        if (!result.success) {
+          return res.status(500).json({ message: result.error || "No se pudo enviar el correo de prueba." });
+        }
+      } else {
+        return res.status(400).json({ message: "Proveedor de email no soportado para envío de prueba." });
       }
       res.json({ to: user.email });
     } catch (err: unknown) {
@@ -3214,6 +3469,52 @@ export async function registerRoutes(
     }
     next();
   }
+
+  async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "No autenticado." });
+    }
+    const user = await storage.getUserById(req.session.userId);
+    if (!user || user.role !== "superadmin") {
+      return res.status(403).json({ message: "Acceso denegado. Se requieren permisos de superadministrador." });
+    }
+    next();
+  }
+
+  const platformAiUpdateSchema = z.object({
+    openaiApiKey: z.string().min(10).max(500).optional(),
+    geminiApiKey: z.string().min(10).max(500).optional(),
+    clearOpenaiApiKey: z.boolean().optional(),
+    clearGeminiApiKey: z.boolean().optional(),
+    openaiModel: z.string().min(1).max(100).optional(),
+    geminiImageModel: z.string().min(1).max(100).optional(),
+    geminiFallbackModel: z.string().min(1).max(100).optional(),
+  });
+
+  app.get("/api/admin/platform-ai", requireSuperAdmin, async (_req, res) => {
+    try {
+      const settings = await getPlatformAiPublicSettings();
+      res.json(settings);
+    } catch (err: any) {
+      console.error("[GET /api/admin/platform-ai]", err);
+      res.status(500).json({ message: "No se pudo obtener la configuración de IA." });
+    }
+  });
+
+  app.put("/api/admin/platform-ai", requireSuperAdmin, async (req, res) => {
+    try {
+      const input = platformAiUpdateSchema.parse(req.body);
+      const settings = await updatePlatformAiSettings(input);
+      res.json(settings);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("[PUT /api/admin/platform-ai]", err);
+      const message = err instanceof Error ? err.message : "No se pudo guardar la configuración de IA.";
+      res.status(400).json({ message });
+    }
+  });
 
   app.get("/api/admin/stats", requireAdmin, async (_req, res) => {
     const stats = await storage.getAdminStats();

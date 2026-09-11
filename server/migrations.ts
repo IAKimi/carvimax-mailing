@@ -339,6 +339,47 @@ const migrations: Migration[] = [
       console.log("[migration 016] Created content_preferences table");
     },
   },
+  {
+    name: "017_create_platform_ai_settings",
+    up: async (client) => {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS platform_ai_settings (
+          id SERIAL PRIMARY KEY,
+          openai_encrypted_api_key TEXT,
+          openai_iv TEXT,
+          openai_auth_tag TEXT,
+          gemini_encrypted_api_key TEXT,
+          gemini_iv TEXT,
+          gemini_auth_tag TEXT,
+          openai_model TEXT NOT NULL DEFAULT 'gpt-4.1-mini',
+          gemini_image_model TEXT NOT NULL DEFAULT 'gemini-3.1-flash-image-preview',
+          gemini_fallback_model TEXT NOT NULL DEFAULT 'gemini-2.0-flash',
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        INSERT INTO platform_ai_settings (id, openai_model, gemini_image_model, gemini_fallback_model)
+        VALUES (1, 'gpt-4.1-mini', 'gemini-3.1-flash-image-preview', 'gemini-2.0-flash')
+        ON CONFLICT (id) DO NOTHING
+      `);
+      console.log("[migration 017] Created platform_ai_settings table");
+    },
+  },
+  {
+    name: "018_custom_http_email_provider",
+    up: async (client) => {
+      await client.query(`ALTER TABLE email_providers ADD COLUMN IF NOT EXISTS custom_http_endpoint_url TEXT`);
+      await client.query(`ALTER TABLE email_providers ADD COLUMN IF NOT EXISTS custom_http_auth_header TEXT`);
+      await client.query(`ALTER TABLE email_providers ADD COLUMN IF NOT EXISTS custom_http_rate_limit_per_minute INTEGER`);
+      await client.query(`ALTER TABLE email_providers DROP CONSTRAINT IF EXISTS chk_email_providers_provider`);
+      await client.query(`
+        ALTER TABLE email_providers
+        ADD CONSTRAINT chk_email_providers_provider
+        CHECK (provider IN ('brevo', 'mailchimp', 'custom_http'))
+      `);
+      console.log("[migration 018] Added custom_http fields and updated provider check constraint");
+    },
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

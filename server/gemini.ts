@@ -1,10 +1,10 @@
-const PRIMARY_MODEL = "gemini-3.1-flash-image-preview";
-const FALLBACK_MODEL = "gemini-2.0-flash";
+import { getGeminiApiKey, getGeminiModels } from "./platform-ai";
+
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const RETRYABLE_STATUS_CODES = [500, 502, 503, 429];
 
-function getApiKey(): string | undefined {
-  return process.env.GEMINI_API_KEY;
+async function getApiKey(): Promise<string | undefined> {
+  return (await getGeminiApiKey()) ?? undefined;
 }
 
 function buildModelUrl(model: string, apiKey: string): string {
@@ -70,6 +70,7 @@ async function fetchWithRetries(url: string, body: Record<string, unknown>, maxR
 }
 
 async function fetchGeminiWithFailsafe(body: Record<string, unknown>, apiKey: string): Promise<Response> {
+  const { primary: PRIMARY_MODEL, fallback: FALLBACK_MODEL } = await getGeminiModels();
   const primaryUrl = buildModelUrl(PRIMARY_MODEL, apiKey);
   try {
     const response = await fetchWithRetries(primaryUrl, body, 3);
@@ -96,9 +97,9 @@ async function fetchGeminiWithFailsafe(body: Record<string, unknown>, apiKey: st
 }
 
 export async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
+    throw new Error("La API key de Gemini no está configurada. Un superadministrador debe configurarla en el panel de administración.");
   }
 
   const body = {
@@ -177,9 +178,9 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
 }
 
 export async function editImage(base64Image: string, editPrompt: string, aspectRatio: string = "16:9"): Promise<string> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
+    throw new Error("La API key de Gemini no está configurada. Un superadministrador debe configurarla en el panel de administración.");
   }
 
   const imageData = base64Image.includes(",") ? base64Image.split(",")[1] : base64Image;
@@ -302,9 +303,9 @@ export interface EditImageAdvancedParams {
 export async function editImageAdvanced(params: EditImageAdvancedParams): Promise<string> {
   const { currentImageBase64, referenceImagesBase64, userText, selectedAction, aspectRatio = "16:9" } = params;
 
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY no está configurada. Configure la clave de API en las variables de entorno.");
+    throw new Error("La API key de Gemini no está configurada. Un superadministrador debe configurarla en el panel de administración.");
   }
 
   const microPrompt = MICRO_PROMPTS[selectedAction];
@@ -427,6 +428,6 @@ export async function editImageAdvanced(params: EditImageAdvancedParams): Promis
   throw new Error("Gemini no generó una imagen editada. Intente con instrucciones más descriptivas.");
 }
 
-export function isGeminiConfigured(): boolean {
-  return !!getApiKey();
+export async function isGeminiConfigured(): Promise<boolean> {
+  return !!(await getApiKey());
 }

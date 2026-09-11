@@ -1,16 +1,25 @@
 import OpenAI from "openai";
+import { getOpenAIApiKey, getOpenAIModel } from "./platform-ai";
+import { validateTemplatePlaceholders } from "./templates";
+import { ALL_PLACEHOLDER_KEYS } from "@shared/schema";
 
 let openaiClient: OpenAI | null = null;
+let openaiClientKey: string | null = null;
 
-function getClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY no está configurada.");
-    }
+async function getClient(): Promise<OpenAI> {
+  const apiKey = await getOpenAIApiKey();
+  if (!apiKey) {
+    throw new Error("La API key de OpenAI no está configurada. Un superadministrador debe configurarla en el panel de administración.");
+  }
+  if (!openaiClient || openaiClientKey !== apiKey) {
     openaiClient = new OpenAI({ apiKey });
+    openaiClientKey = apiKey;
   }
   return openaiClient;
+}
+
+async function resolveModel(): Promise<string> {
+  return getOpenAIModel();
 }
 
 export interface EmailContent {
@@ -87,7 +96,7 @@ function buildContentPrefsBlock(prefs: ContentPrefsData, brand: BrandIdentityDat
 function buildInstructions(brand: BrandIdentityData | null, prefs?: ContentPrefsData | null): string {
   const brandContext = brand
     ? `
-IDENTIDAD DE MARCA:
+IDENTIDAD DE MARCA (FUENTE DE VERDAD PARA COPY Y TONO):
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
 - Misión: ${brand.mission || "No especificada"}
@@ -97,6 +106,9 @@ IDENTIDAD DE MARCA:
 - Guía de estilo: ${brand.styleGuide || "No especificada"}
 - Público objetivo: ${brand.targetAudience || "No especificado"}
 - Tono de comunicación: ${brand.tone || "Profesional"}
+- Estilo visual declarado: ${brand.visualStyle || "No especificado"}
+- Sitio web: ${brand.website || "No configurado"}
+- WhatsApp: ${brand.whatsapp || "No configurado"}
 `
     : `
 IDENTIDAD DE MARCA: No configurada. Usa un tono profesional y genérico.
@@ -106,6 +118,12 @@ IDENTIDAD DE MARCA: No configurada. Usa un tono profesional y genérico.
 
   return `Eres el Head of Copywriting de la empresa descrita a continuación. Tu objetivo es redactar un correo electrónico de alta conversión.
 ${brandContext}
+APLICACIÓN DE MARCA (OBLIGATORIA POR DEFECTO):
+- Debes aplicar SIEMPRE el tono, la guía de estilo, la personalidad, el vocabulario y el contexto de marca anteriores, aunque el usuario no lo pida en la idea u objetivo.
+- No hace falta que el usuario mencione la marca: si hay identidad configurada, úsala de forma implícita en asunto, preheader, cuerpo y CTA.
+- SOLO omite o ignora la identidad de marca si el usuario lo pide de forma EXPLÍCITA (ejemplos: "sin branding", "ignora la identidad de marca", "marca genérica", "no uses mi marca", "omite la guía de estilo").
+- Si hay conflicto entre una preferencia puntual del usuario y la marca, prioriza la instrucción explícita del usuario SOLO para ese punto; el resto de la marca sigue aplicándose.
+
 REGLAS ESTRICTAS DE REDACCIÓN:
 1. Independientemente de si las ideas u objetivos proporcionados por el usuario son vagos, cortos, mal redactados o de baja calidad, tú debes asumir el control creativo. Expande la idea de forma profesional, lógica y alineada a la marca. No pidas aclaraciones, asume la mejor intención y genera un copy brillante.
 2. El contenido de cuerpo_html debe tener un máximo de 500 caracteres.
@@ -115,7 +133,7 @@ REGLAS ESTRICTAS DE REDACCIÓN:
 6. El preheader debe complementar el asunto y enganchar al lector (máximo 100 caracteres).
 7. El cta_text debe ser un texto corto y accionable para el botón principal del correo (máximo 40 caracteres).
 8. Todo el contenido debe estar en español.
-9. Respeta estrictamente el tono y la personalidad de la marca descrita arriba.${prefsBlock}`;
+9. El tono, la guía de estilo y la personalidad de marca tienen prioridad sobre un estilo genérico de copywriting.${prefsBlock}`;
 }
 
 const emailSchema = {
@@ -229,7 +247,8 @@ export async function generateEmailContent(
   lockedFields?: string[],
   contentPrefs?: ContentPrefsData | null
 ): Promise<EmailContent> {
-  const client = getClient();
+  const client = await getClient();
+  const model = await resolveModel();
   let instructions = buildInstructions(brandIdentity, contentPrefs);
   
   if (lockedFields && lockedFields.length > 0) {
@@ -250,7 +269,7 @@ export async function generateEmailContent(
 
   try {
     return await callOpenAI(client, {
-      model: "gpt-4.1-mini",
+      model,
       instructions,
       input: userInput,
       text: { format: emailSchema },
@@ -273,7 +292,8 @@ export async function regenerateEmailContent(
   lockedFields?: string[],
   contentPrefs?: ContentPrefsData | null
 ): Promise<EmailContent> {
-  const client = getClient();
+  const client = await getClient();
+  const model = await resolveModel();
   let instructions = buildInstructions(brandIdentity, contentPrefs);
   
   if (lockedFields && lockedFields.length > 0) {
@@ -291,7 +311,7 @@ export async function regenerateEmailContent(
 
   try {
     return await callOpenAI(client, {
-      model: "gpt-4.1-mini",
+      model,
       instructions,
       input: [
         {
@@ -304,7 +324,7 @@ export async function regenerateEmailContent(
         },
         {
           role: "user" as const,
-          content: `INSTRUCCIÓN: Reescribe COMPLETAMENTE el correo electrónico basándote en las siguientes instrucciones del usuario. NO hagas cambios mínimos ni conservadores. Si el usuario pide cambiar el tono, REESCRIBE TODO el correo en ese tono desde cero. Si pide agregar emojis, inclúyelos generosamente. Si pide un enfoque diferente, cambia la estructura y el contenido por completo. El resultado debe ser un correo SUSTANCIALMENTE DIFERENTE al anterior, reflejando fielmente lo que pide el usuario. Mantén el formato JSON original.\n\nInstrucciones del usuario: ${userCorrections}`,
+          content: `INSTRUCCIÓN: Reescribe COMPLETAMENTE el correo electrónico basándote en las siguientes instrucciones del usuario. NO hagas cambios mínimos ni conservadores. Si el usuario pide cambiar el tono, REESCRIBE TODO el correo en ese tono desde cero. Si pide agregar emojis, inclúyelos generosamente. Si pide un enfoque diferente, cambia la estructura y el contenido por completo. El resultado debe ser un correo SUSTANCIALMENTE DIFERENTE al anterior, reflejando fielmente lo que pide el usuario. Mantén el formato JSON original. Aplica la identidad de marca por defecto salvo que el usuario pida omitirla de forma explícita.\n\nInstrucciones del usuario: ${userCorrections}`,
         },
       ],
       text: { format: emailSchema },
@@ -365,28 +385,18 @@ function buildBaseTemplateHtml(brand: BrandIdentityData | null): string {
   const secondaryColor = brand?.secondaryColor || "#e3001b";
   const headingFont = brand?.headingFont || "'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif";
   const bodyFont = brand?.bodyFont || "'Poppins', 'Helvetica Neue', Arial, sans-serif";
-
-  const logoUrl = brand?.logoUrl && !brand.logoUrl.startsWith("data:") ? brand.logoUrl : null;
-  const logoPlaceholder = logoUrl || "{{LOGO_URL}}";
   const companyName = brand?.companyName || "Logo";
 
-  const headerContent = logoUrl || brand?.logoUrl
-    ? `<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  // Siempre usar {{LOGO_URL}} (nunca URL real) para que la plantilla sea completa y usable.
+  const headerContent = `<table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="120" valign="middle" style="padding-right:15px;">
-                  <img src="${logoPlaceholder}" alt="${companyName}" width="120" style="display:block;border:0;" />
+                  <img src="{{LOGO_URL}}" alt="${companyName}" width="120" style="display:block;border:0;" />
                 </td>
                 <td align="center" valign="middle" style="font-family:${headingFont}; font-size:24px; line-height:32px; font-weight:700; color:#ffffff;">
                   {{ASUNTO}}
                 </td>
                 <td width="120"></td>
-              </tr>
-            </table>`
-    : `<table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td align="center" style="font-family:${headingFont}; font-size:28px; line-height:36px; font-weight:700; color:#ffffff;">
-                  {{ASUNTO}}
-                </td>
               </tr>
             </table>`;
 
@@ -467,10 +477,17 @@ function buildTemplateInstructions(brand: BrandIdentityData | null): string {
 
   const brandContext = brand
     ? `
-IDENTIDAD VISUAL DEL USUARIO:
+IDENTIDAD DE MARCA DEL USUARIO (FUENTE DE VERDAD):
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
+- Misión: ${brand.mission || "No especificada"}
+- Visión: ${brand.vision || "No especificada"}
 - Productos/Servicios: ${brand.products || "No especificados"}
+- Historia: ${brand.history || "No especificada"}
+- Guía de estilo: ${brand.styleGuide || "No especificada"}
+- Público objetivo: ${brand.targetAudience || "No especificado"}
+- Tono de comunicación: ${brand.tone || "Profesional"}
+- Estilo visual: ${brand.visualStyle || "No especificado"}
 - Color primario: ${primaryColor}
 - Color secundario: ${secondaryColor}
 - Color de acento: ${accentColor}
@@ -480,14 +497,20 @@ IDENTIDAD VISUAL DEL USUARIO:
 - Sitio web: ${brand.website || "No configurado"}
 - WhatsApp: ${brand.whatsapp || "No configurado"}
 `
-    : "IDENTIDAD VISUAL: No configurada. Usa colores corporativos genéricos profesionales.";
+    : "IDENTIDAD DE MARCA: No configurada. Usa colores corporativos genéricos profesionales y un tono neutro.";
 
   return `Eres un diseñador senior experto en plantillas HTML de email marketing con 15 años de experiencia en compatibilidad cross-client (Gmail, Outlook, Apple Mail, Yahoo).
 
 ${brandContext}
 
+APLICACIÓN DE MARCA (OBLIGATORIA POR DEFECTO):
+- Debes aplicar SIEMPRE la identidad de marca anterior (colores, tipografías, tono, guía de estilo, personalidad y datos de contacto relevantes), aunque el prompt del usuario no la mencione.
+- El prompt del usuario es un ajuste adicional sobre la marca, no un reemplazo de la marca.
+- SOLO omite o ignora la identidad de marca si el usuario lo pide de forma EXPLÍCITA (ejemplos: "sin branding", "ignora la identidad de marca", "plantilla genérica", "no uses mi marca", "omite colores/tono de marca").
+- Si el usuario pide un cambio puntual (ej. "botón rojo") y no pide omitir la marca, aplica ese cambio puntual y conserva el resto del branding.
+
 PLANTILLA HTML BASE (ESTRUCTURA INMUTABLE):
-A continuación se te proporciona la plantilla HTML base que DEBES usar como fundamento. La estructura de bloques es FIJA e INMUTABLE. Tu trabajo es ADAPTAR esta plantilla según las preferencias cosméticas del usuario, SIN alterar el orden ni la posición de los bloques.
+A continuación se te proporciona la plantilla HTML base que DEBES usar como fundamento. La estructura de bloques es FIJA e INMUTABLE. Tu trabajo es ADAPTAR esta plantilla según la identidad de marca y, además, según las preferencias cosméticas del usuario, SIN alterar el orden ni la posición de los bloques.
 
 \`\`\`html
 ${baseHtml}
@@ -542,24 +565,79 @@ REGLAS TÉCNICAS DE HTML PARA EMAIL:
 6. Todas las imágenes con alt="", width="" explícito, y style="display:block;border:0;".
 7. NUNCA uses linear-gradient, radial-gradient ni gradientes CSS.
 8. NUNCA uses JavaScript ni event handlers.
-9. Todo texto auxiliar o decorativo en español.
+9. Todo texto auxiliar o decorativo en español y alineado al tono de marca (salvo omisión explícita).
 10. El nombre de la plantilla debe ser descriptivo y corto (máx 100 chars), en español.
-11. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} — nunca texto de ejemplo.
-12. El botón CTA DEBE usar el patrón "bulletproof button" con bgcolor="" sólido.`;
+11. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} — nunca texto de ejemplo. NUNCA sustituyas {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}} ni {{LOGO_URL}} por texto real, títulos de muestra, botones con copy inventado ni URLs de ejemplo.
+12. El botón CTA DEBE usar el patrón "bulletproof button" con bgcolor="" sólido.
+13. Si personalizas estilos, conserva literales los 7 placeholders. Una plantilla sin los 7 placeholders es INVÁLIDA.`;
+}
+
+async function repairTemplatePlaceholders(
+  client: OpenAI,
+  model: string,
+  brokenHtml: string,
+  missing: string[],
+  brandIdentity: BrandIdentityData | null
+): Promise<string> {
+  const instructions = buildTemplateInstructions(brandIdentity);
+  const response = await client.responses.create({
+    model,
+    instructions: instructions + `\n\nTAREA DE REPARACIÓN: El HTML anterior perdió placeholders obligatorios. Debes devolver el HTML completo restaurando EXACTAMENTE estos placeholders faltantes: ${missing.join(", ")}. No inventes texto de ejemplo en su lugar. Conserva estilos/colores/estructura; solo restaura los tokens {{...}}.`,
+    input: `HTML incompleto (faltan: ${missing.join(", ")}):\n\`\`\`html\n${brokenHtml}\n\`\`\`\n\nDevuelve el HTML completo con TODOS estos placeholders presentes exactamente: ${ALL_PLACEHOLDER_KEYS.join(", ")}.`,
+    text: { format: editTemplateSchema },
+    max_output_tokens: 4000,
+    temperature: 0.2,
+    store: false,
+  });
+
+  const outputText = response.output_text;
+  if (!outputText) throw new Error("OpenAI no devolvió contenido al reparar la plantilla.");
+  const parsed = JSON.parse(outputText) as { html: string };
+  if (!parsed.html) throw new Error("La reparación de plantilla no devolvió HTML.");
+  return parsed.html;
+}
+
+async function ensureCompleteTemplateHtml(
+  client: OpenAI,
+  model: string,
+  html: string,
+  brandIdentity: BrandIdentityData | null,
+  context: string
+): Promise<string> {
+  let candidate = html;
+  let validation = validateTemplatePlaceholders(candidate);
+
+  if (!validation.valid) {
+    console.warn(`[OpenAI] ${context} missing placeholders:`, validation.missing);
+    try {
+      candidate = await repairTemplatePlaceholders(client, model, candidate, validation.missing, brandIdentity);
+      validation = validateTemplatePlaceholders(candidate);
+    } catch (err: any) {
+      console.warn(`[OpenAI] ${context} repair failed:`, err.message);
+    }
+  }
+
+  if (!validation.valid) {
+    console.warn(`[OpenAI] ${context} still incomplete after repair (${validation.missing.join(", ")}). Falling back to base template.`);
+    return buildBaseTemplateHtml(brandIdentity);
+  }
+
+  return candidate;
 }
 
 export async function generateTemplateHtml(
   prompt: string,
   brandIdentity: BrandIdentityData | null
 ): Promise<TemplateContent> {
-  const client = getClient();
+  const client = await getClient();
+  const model = await resolveModel();
   const instructions = buildTemplateInstructions(brandIdentity);
 
   try {
     const response = await client.responses.create({
-      model: "gpt-4.1-mini",
+      model,
       instructions,
-      input: `Adapta la plantilla HTML base según estas preferencias del usuario. Recuerda: MANTÉN la estructura de bloques exactamente igual (Header→Imagen→Contenido→CTA→Footer). Solo personaliza aspectos cosméticos (colores, fuentes, estilos, formato del contenido, dimensiones de imagen) según lo que el usuario solicite:\n\n${prompt}`,
+      input: `Adapta la plantilla HTML base aplicando SIEMPRE la identidad de marca configurada (colores, tipografías, tono y guía de estilo), salvo que el usuario pida omitirla de forma explícita. Las preferencias siguientes son ajustes adicionales sobre esa marca. MANTÉN la estructura de bloques exactamente igual (Header→Imagen→Contenido→CTA→Footer). Personaliza aspectos cosméticos (colores, fuentes, estilos, formato del contenido, dimensiones de imagen) según lo solicitado, sin abandonar el branding por defecto.\n\nCRÍTICO: conserva EXACTAMENTE los 7 placeholders {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}}, {{LOGO_URL}}. No los reemplaces por texto de ejemplo.\n\n${prompt}`,
       text: { format: templateSchema },
       max_output_tokens: 4000,
       temperature: 0.7,
@@ -573,7 +651,16 @@ export async function generateTemplateHtml(
     if (!parsed.html || !parsed.name) {
       throw new Error("La respuesta de OpenAI no contiene los campos requeridos.");
     }
-    return parsed;
+
+    const completeHtml = await ensureCompleteTemplateHtml(
+      client,
+      model,
+      parsed.html,
+      brandIdentity,
+      "template_generate"
+    );
+
+    return { html: completeHtml, name: parsed.name };
   } catch (err: any) {
     handleOpenAIError(err);
   }
@@ -584,13 +671,14 @@ export async function editTemplateHtml(
   userInstructions: string,
   brandIdentity: BrandIdentityData | null
 ): Promise<string> {
-  const client = getClient();
+  const client = await getClient();
+  const model = await resolveModel();
   const instructions = buildTemplateInstructions(brandIdentity);
 
   try {
     const response = await client.responses.create({
-      model: "gpt-4.1-mini",
-      instructions: instructions + `\n\nIMPORTANTE: Se te proporcionará un HTML de plantilla y las instrucciones del usuario para editarlo. DEBES mantener la estructura de bloques EXACTAMENTE igual (Header→Imagen→Contenido→CTA→Footer). Solo aplica cambios cosméticos: colores, fuentes, estilos de texto, formato del contenido, dimensiones de imagen. Si el usuario pide cambiar el orden de los bloques, IGNORA esa parte y mantén el orden original. Devuelve el HTML completo editado.`,
+      model,
+      instructions: instructions + `\n\nIMPORTANTE: Se te proporcionará un HTML de plantilla y las instrucciones del usuario para editarlo. DEBES mantener la estructura de bloques EXACTAMENTE igual (Header→Imagen→Contenido→CTA→Footer). Conserva y refuerza la identidad de marca salvo omisión explícita del usuario. Solo aplica cambios cosméticos: colores, fuentes, estilos de texto, formato del contenido, dimensiones de imagen. Si el usuario pide cambiar el orden de los bloques, IGNORA esa parte y mantén el orden original. CRÍTICO: conserva EXACTAMENTE los 7 placeholders {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}}, {{LOGO_URL}}. Devuelve el HTML completo editado.`,
       input: [
         {
           role: "user" as const,
@@ -598,7 +686,7 @@ export async function editTemplateHtml(
         },
         {
           role: "user" as const,
-          content: `Aplica los siguientes cambios cosméticos a la plantilla (sin alterar el orden de bloques Header→Imagen→Contenido→CTA→Footer):\n${userInstructions}`,
+          content: `Aplica los siguientes cambios cosméticos a la plantilla sin abandonar el branding por defecto (salvo que se pida omitirlo explícitamente). No alteres el orden de bloques Header→Imagen→Contenido→CTA→Footer. Conserva los 7 placeholders literales:\n${userInstructions}`,
         },
       ],
       text: { format: editTemplateSchema },
@@ -612,7 +700,14 @@ export async function editTemplateHtml(
 
     const parsed = JSON.parse(outputText) as { html: string };
     if (!parsed.html) throw new Error("La respuesta no contiene HTML editado.");
-    return parsed.html;
+
+    return ensureCompleteTemplateHtml(
+      client,
+      model,
+      parsed.html,
+      brandIdentity,
+      "template_edit"
+    );
   } catch (err: any) {
     handleOpenAIError(err);
   }
@@ -627,7 +722,8 @@ export async function analyzeTemplatePlaceholders(
   originalHtml: string,
   brandIdentity: BrandIdentityData | null
 ): Promise<TemplateAnalysisResult> {
-  const client = getClient();
+  const client = await getClient();
+  const model = await resolveModel();
 
   const analyzeSchema = {
     type: "json_schema" as const,
@@ -653,7 +749,7 @@ export async function analyzeTemplatePlaceholders(
 
   try {
     const response = await client.responses.create({
-      model: "gpt-4.1-mini",
+      model,
       instructions: `Eres un experto en plantillas HTML de email marketing. Tu tarea es analizar una plantilla HTML subida por un usuario, detectar qué elementos ya existen y SOLO insertar placeholders donde el contenido es realmente variable.
 
 ANÁLISIS INTELIGENTE — Detecta qué elementos ya existen:
@@ -703,6 +799,6 @@ REGLAS ESTRICTAS:
   }
 }
 
-export function isOpenAIConfigured(): boolean {
-  return !!process.env.OPENAI_API_KEY;
+export async function isOpenAIConfigured(): Promise<boolean> {
+  return !!(await getOpenAIApiKey());
 }

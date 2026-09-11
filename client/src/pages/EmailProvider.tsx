@@ -25,6 +25,7 @@ import {
   MapPin,
   Users,
   Zap,
+  Globe,
   Copy,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +55,9 @@ interface ProviderStatus {
   accountEmail: string | null;
   accountPlan: string | null;
   maskedKey: string;
+  customHttpEndpointUrl?: string | null;
+  customHttpAuthHeader?: string | null;
+  customHttpRateLimitPerMinute?: number | null;
 }
 
 interface BrevoSender {
@@ -90,6 +94,12 @@ export default function EmailProvider() {
   const [showMailchimpRequirements, setShowMailchimpRequirements] = useState(false);
   const [showBrevoRequirements, setShowBrevoRequirements] = useState(false);
   const [showIpAnalogy, setShowIpAnalogy] = useState(false);
+  const [customHttpApiKey, setCustomHttpApiKey] = useState("");
+  const [showCustomHttpKey, setShowCustomHttpKey] = useState(false);
+  const [customHttpEndpointUrl, setCustomHttpEndpointUrl] = useState("");
+  const [customHttpAuthHeader, setCustomHttpAuthHeader] = useState("X-API-Key");
+  const [customHttpRateLimit, setCustomHttpRateLimit] = useState("50");
+  const [showCustomHttpHelp, setShowCustomHttpHelp] = useState(false);
 
   const { data: outboundIpData } = useQuery<{ ip: string | null }>({
     queryKey: ["/api/system/outbound-ip"],
@@ -285,6 +295,15 @@ export default function EmailProvider() {
 
   const brevoStatus = allProviders?.find(p => p.provider === "brevo" && p.isActive) || null;
   const mailchimpStatus = allProviders?.find(p => p.provider === "mailchimp" && p.isActive) || null;
+  const customHttpStatus = allProviders?.find(p => p.provider === "custom_http" && p.isActive) || null;
+  const activeProviderCount = [brevoStatus, mailchimpStatus, customHttpStatus].filter(Boolean).length;
+
+  useEffect(() => {
+    if (!customHttpStatus) return;
+    setCustomHttpEndpointUrl(customHttpStatus.customHttpEndpointUrl || "");
+    setCustomHttpAuthHeader(customHttpStatus.customHttpAuthHeader || "X-API-Key");
+    setCustomHttpRateLimit(String(customHttpStatus.customHttpRateLimitPerMinute ?? 50));
+  }, [customHttpStatus]);
 
   const { data: sendersData, isLoading: sendersLoading } = useQuery<{ senders: BrevoSender[] }>({
     queryKey: ["/api/email-provider/brevo/senders"],
@@ -321,20 +340,22 @@ export default function EmailProvider() {
   });
 
   const connectMutation = useMutation({
-    mutationFn: async ({ provider, apiKey }: { provider: string; apiKey: string }) => {
-      const res = await apiRequest("POST", "/api/email-provider/connect", { provider, apiKey });
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const res = await apiRequest("POST", "/api/email-provider/connect", payload);
       return res.json();
     },
     onSuccess: (data, variables) => {
-      if (variables.provider === "brevo") setBrevoApiKey("");
-      else setMailchimpApiKey("");
+      const provider = String(variables.provider || "");
+      if (provider === "brevo") setBrevoApiKey("");
+      else if (provider === "mailchimp") setMailchimpApiKey("");
+      else if (provider === "custom_http") setCustomHttpApiKey("");
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${variables.provider}/senders`] });
-      if (variables.provider === "mailchimp") {
+      queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${provider}/senders`] });
+      if (provider === "mailchimp") {
         queryClient.invalidateQueries({ queryKey: ["/api/email-provider/mailchimp/audiences"] });
       }
-      const name = variables.provider === "brevo" ? "Brevo" : "Mailchimp";
+      const name = provider === "brevo" ? "Brevo" : provider === "mailchimp" ? "Mailchimp" : "API HTTP personalizada";
       toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.`, duration: 8000 });
       if (data?.warning) {
         toast({ title: "Aviso", description: data.warning, variant: "destructive", duration: 8000 });
@@ -342,6 +363,22 @@ export default function EmailProvider() {
     },
     onError: (err: Error) => {
       toast({ title: "Error de conexión", description: err.message || "No se pudo conectar. Verifique su API key.", variant: "destructive", duration: 8000 });
+    },
+  });
+
+  const updateCustomHttpMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const res = await apiRequest("PATCH", "/api/email-provider/custom_http/settings", payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      setCustomHttpApiKey("");
+      setShowCustomHttpKey(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
+      toast({ title: "Configuración actualizada", description: "Los cambios de la API HTTP personalizada se guardaron." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -353,7 +390,7 @@ export default function EmailProvider() {
       queryClient.invalidateQueries({ queryKey: ["/api/email-provider/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
       queryClient.invalidateQueries({ queryKey: [`/api/email-provider/${provider}/senders`] });
-      const name = provider === "brevo" ? "Brevo" : "Mailchimp";
+      const name = provider === "brevo" ? "Brevo" : provider === "mailchimp" ? "Mailchimp" : "API HTTP personalizada";
       toast({ title: "Proveedor desconectado", description: `Su cuenta de ${name} ha sido desvinculada.` });
     },
     onError: (err: Error) => {
@@ -423,7 +460,7 @@ export default function EmailProvider() {
           </div>
         </TutorialHighlight>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
           {/* ── Brevo Card ── */}
           <div data-testid="card-brevo" className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -605,7 +642,7 @@ export default function EmailProvider() {
 
                   {brevoRequirementsPanel("-connected")}
 
-                  {brevoStatus && mailchimpStatus ? (
+                  {activeProviderCount >= 2 ? (
                     <TutorialHighlight fieldId="provider-default">
                       <Button
                         data-testid="button-toggle-brevo-default"
@@ -883,7 +920,7 @@ export default function EmailProvider() {
 
                   {mailchimpRequirementsPanel("-connected")}
 
-                  {brevoStatus && mailchimpStatus ? (
+                  {activeProviderCount >= 2 ? (
                     <TutorialHighlight fieldId="provider-default">
                       <Button
                         data-testid="button-toggle-mailchimp-default"
@@ -926,6 +963,284 @@ export default function EmailProvider() {
                         <AlertDialogAction
                           data-testid="button-confirm-disconnect-mailchimp"
                           onClick={() => disconnectMutation.mutate("mailchimp")}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          {disconnectMutation.isPending ? "Desconectando..." : "Desconectar"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── API HTTP personalizada ── */}
+          <div data-testid="card-custom-http" className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#002073]/10 flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-[#002073]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">API HTTP personalizada</h3>
+                  <p className="text-xs text-muted-foreground">Endpoint propio (to, subject, htmlContent)</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {customHttpStatus?.isDefault && (
+                  <span data-testid="badge-custom-http-default" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                    Predeterminado
+                  </span>
+                )}
+                {customHttpStatus && (
+                  <span data-testid="badge-custom-http-connected" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                    <Check className="w-3 h-3" />
+                    Conectado
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {!customHttpStatus ? (
+                <>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-url">URL del endpoint</Label>
+                      <Input
+                        id="custom-http-url"
+                        data-testid="input-custom-http-url"
+                        placeholder="https://api.ejemplo.com/mail"
+                        value={customHttpEndpointUrl}
+                        onChange={(e) => setCustomHttpEndpointUrl(e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-header">Header de autenticación</Label>
+                      <Input
+                        id="custom-http-header"
+                        data-testid="input-custom-http-header"
+                        placeholder="X-API-Key"
+                        value={customHttpAuthHeader}
+                        onChange={(e) => setCustomHttpAuthHeader(e.target.value)}
+                        className="rounded-xl font-mono text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-api-key">API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="custom-http-api-key"
+                          data-testid="input-custom-http-api-key"
+                          type={showCustomHttpKey ? "text" : "password"}
+                          placeholder=""
+                          value={customHttpApiKey}
+                          onChange={(e) => setCustomHttpApiKey(e.target.value)}
+                          className="rounded-xl pr-10"
+                        />
+                        <button
+                          type="button"
+                          data-testid="button-toggle-custom-http-key"
+                          onClick={() => setShowCustomHttpKey(!showCustomHttpKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showCustomHttpKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-rate-limit">Límite de peticiones por minuto</Label>
+                      <Input
+                        id="custom-http-rate-limit"
+                        data-testid="input-custom-http-rate-limit"
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={customHttpRateLimit}
+                        onChange={(e) => setCustomHttpRateLimit(e.target.value)}
+                        className="rounded-xl"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        La plataforma respetará este tope al enviar campañas (ej. 50 = una petición cada ~1,2 s).
+                      </p>
+                    </div>
+                    <Button
+                      data-testid="button-connect-custom-http"
+                      onClick={() => connectMutation.mutate({
+                        provider: "custom_http",
+                        apiKey: customHttpApiKey.trim(),
+                        endpointUrl: customHttpEndpointUrl.trim(),
+                        authHeaderName: customHttpAuthHeader.trim() || "X-API-Key",
+                        rateLimitPerMinute: Number(customHttpRateLimit) || 50,
+                      })}
+                      disabled={
+                        connectMutation.isPending
+                        || !customHttpApiKey.trim()
+                        || !customHttpEndpointUrl.trim()
+                      }
+                      className="w-full rounded-xl gap-2"
+                    >
+                      {connectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+                      {connectMutation.isPending ? "Conectando..." : "Conectar"}
+                    </Button>
+                  </div>
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      data-testid="button-toggle-custom-http-help"
+                      onClick={() => setShowCustomHttpHelp(!showCustomHttpHelp)}
+                      className="flex items-center gap-2 text-sm text-primary hover:underline"
+                    >
+                      {showCustomHttpHelp ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      ¿Qué formato debe tener la API?
+                    </button>
+                    {showCustomHttpHelp && (
+                      <div className="mt-3 p-4 bg-muted/50 rounded-xl text-sm space-y-2 text-muted-foreground">
+                        <p>Debe exponer un <strong>POST</strong> JSON con:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li><code>to</code> — email del destinatario</li>
+                          <li><code>subject</code> — asunto</li>
+                          <li><code>htmlContent</code> — cuerpo HTML</li>
+                          <li><code>attachments</code> — opcional / null</li>
+                        </ul>
+                        <p>La autenticación va en un header configurable (API key).</p>
+                        <p>El envío es de un destinatario por petición; PostIAlo itera contactos respetando el rate limit.</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {customHttpStatus.maskedKey && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">API Key:</span>
+                        <span data-testid="text-custom-http-masked-key" className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                          ••••••••{customHttpStatus.maskedKey}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 border-t border-border pt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ajustes</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-url-edit">URL del endpoint</Label>
+                      <Input
+                        id="custom-http-url-edit"
+                        data-testid="input-custom-http-url-edit"
+                        value={customHttpEndpointUrl}
+                        onChange={(e) => setCustomHttpEndpointUrl(e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-header-edit">Header de autenticación</Label>
+                      <Input
+                        id="custom-http-header-edit"
+                        data-testid="input-custom-http-header-edit"
+                        value={customHttpAuthHeader}
+                        onChange={(e) => setCustomHttpAuthHeader(e.target.value)}
+                        className="rounded-xl font-mono text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-rate-edit">Límite por minuto</Label>
+                      <Input
+                        id="custom-http-rate-edit"
+                        data-testid="input-custom-http-rate-edit"
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={customHttpRateLimit}
+                        onChange={(e) => setCustomHttpRateLimit(e.target.value)}
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-http-key-edit">Nueva API Key (opcional)</Label>
+                      <div className="relative">
+                        <Input
+                          id="custom-http-key-edit"
+                          data-testid="input-custom-http-key-edit"
+                          type={showCustomHttpKey ? "text" : "password"}
+                          placeholder="Dejar vacío para conservar la actual"
+                          value={customHttpApiKey}
+                          onChange={(e) => setCustomHttpApiKey(e.target.value)}
+                          className="rounded-xl pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomHttpKey(!showCustomHttpKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showCustomHttpKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <Button
+                      data-testid="button-save-custom-http"
+                      onClick={() => {
+                        const payload: Record<string, unknown> = {
+                          endpointUrl: customHttpEndpointUrl.trim(),
+                          authHeaderName: customHttpAuthHeader.trim() || "X-API-Key",
+                          rateLimitPerMinute: Number(customHttpRateLimit) || 50,
+                        };
+                        if (customHttpApiKey.trim()) payload.apiKey = customHttpApiKey.trim();
+                        updateCustomHttpMutation.mutate(payload);
+                      }}
+                      disabled={updateCustomHttpMutation.isPending || !customHttpEndpointUrl.trim()}
+                      className="w-full rounded-xl gap-2"
+                    >
+                      {updateCustomHttpMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      Guardar cambios
+                    </Button>
+                  </div>
+
+                  {activeProviderCount >= 2 ? (
+                    <Button
+                      data-testid="button-toggle-custom-http-default"
+                      variant={customHttpStatus.isDefault ? "default" : "outline"}
+                      onClick={() => setDefaultMutation.mutate({ id: customHttpStatus.id, remove: customHttpStatus.isDefault })}
+                      disabled={setDefaultMutation.isPending}
+                      className={`w-full rounded-xl gap-2 ${customHttpStatus.isDefault ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                    >
+                      <Star className={`w-4 h-4 ${customHttpStatus.isDefault ? "fill-white" : ""}`} />
+                      {customHttpStatus.isDefault ? "Predeterminado" : "Establecer como predeterminado"}
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
+                      <Star className="w-4 h-4 fill-amber-500" />
+                      <span>Predeterminado</span>
+                    </div>
+                  )}
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        data-testid="button-disconnect-custom-http"
+                        variant="outline"
+                        className="w-full rounded-xl gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      >
+                        <Unplug className="w-4 h-4" />
+                        Desconectar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Desconectar API HTTP personalizada?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Se eliminará esta configuración. No podrá enviar campañas con este proveedor hasta volver a conectarlo.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          data-testid="button-confirm-disconnect-custom-http"
+                          onClick={() => disconnectMutation.mutate("custom_http")}
                           className="bg-red-600 hover:bg-red-700"
                         >
                           {disconnectMutation.isPending ? "Desconectando..." : "Desconectar"}

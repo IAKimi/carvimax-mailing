@@ -146,6 +146,12 @@ export const emailProviders = pgTable("email_providers", {
   accountPlan: text("account_plan"),
   mailchimpDataCenter: text("mailchimp_data_center"),
   mailchimpAudienceId: text("mailchimp_audience_id"),
+  /** URL completa del endpoint POST (ej. https://api.ejemplo.com/mail) */
+  customHttpEndpointUrl: text("custom_http_endpoint_url"),
+  /** Nombre del header de autenticación (ej. X-API-Key) */
+  customHttpAuthHeader: text("custom_http_auth_header"),
+  /** Límite de peticiones por minuto al enviar campañas */
+  customHttpRateLimitPerMinute: integer("custom_http_rate_limit_per_minute"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -169,8 +175,10 @@ export const insertContactSchema = createInsertSchema(contacts).omit({ id: true,
 export const insertBrandIdentitySchema = createInsertSchema(brandIdentity).omit({ id: true, updatedAt: true });
 export const insertTemplateSchema = createInsertSchema(templates).omit({ id: true, createdAt: true });
 export const insertCampaignSendSchema = createInsertSchema(campaignSends).omit({ id: true, createdAt: true, updatedAt: true });
-export const EMAIL_PROVIDER_TYPES = ["brevo", "mailchimp"] as const;
+export const EMAIL_PROVIDER_TYPES = ["brevo", "mailchimp", "custom_http"] as const;
 export type EmailProviderType = typeof EMAIL_PROVIDER_TYPES[number];
+export const DEFAULT_CUSTOM_HTTP_AUTH_HEADER = "X-API-Key";
+export const DEFAULT_CUSTOM_HTTP_RATE_LIMIT = 50;
 export const insertEmailProviderSchema = createInsertSchema(emailProviders).omit({ id: true, createdAt: true }).extend({
   provider: z.enum(EMAIL_PROVIDER_TYPES),
 });
@@ -244,3 +252,43 @@ export const assistantConversations = pgTable("assistant_conversations", {
 export const insertAssistantConversationSchema = createInsertSchema(assistantConversations).omit({ id: true, updatedAt: true });
 export type AssistantConversation = typeof assistantConversations.$inferSelect;
 export type InsertAssistantConversation = z.infer<typeof insertAssistantConversationSchema>;
+
+/** Singleton de configuración de IA de la plataforma (solo superadmin). */
+export const platformAiSettings = pgTable("platform_ai_settings", {
+  id: serial("id").primaryKey(),
+  openaiEncryptedApiKey: text("openai_encrypted_api_key"),
+  openaiIv: text("openai_iv"),
+  openaiAuthTag: text("openai_auth_tag"),
+  geminiEncryptedApiKey: text("gemini_encrypted_api_key"),
+  geminiIv: text("gemini_iv"),
+  geminiAuthTag: text("gemini_auth_tag"),
+  openaiModel: text("openai_model").notNull().default("gpt-4.1-mini"),
+  geminiImageModel: text("gemini_image_model").notNull().default("gemini-3.1-flash-image-preview"),
+  geminiFallbackModel: text("gemini_fallback_model").notNull().default("gemini-2.0-flash"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PlatformAiSettings = typeof platformAiSettings.$inferSelect;
+
+export const OPENAI_MODEL_OPTIONS = [
+  "gpt-4.1-mini",
+  "gpt-4.1",
+  "gpt-4o-mini",
+  "gpt-4o",
+] as const;
+
+export const GEMINI_IMAGE_MODEL_OPTIONS = [
+  "gemini-3.1-flash-image-preview",
+  "gemini-2.5-flash-image",
+  "gemini-2.0-flash-preview-image-generation",
+] as const;
+
+export const GEMINI_FALLBACK_MODEL_OPTIONS = [
+  "gemini-2.0-flash",
+  "gemini-2.5-flash",
+  "gemini-1.5-flash",
+] as const;
+
+export const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
+export const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
+export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
