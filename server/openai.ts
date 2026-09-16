@@ -99,12 +99,9 @@ function buildInstructions(brand: BrandIdentityData | null, prefs?: ContentPrefs
 IDENTIDAD DE MARCA (FUENTE DE VERDAD PARA COPY Y TONO):
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
-- Misión: ${brand.mission || "No especificada"}
-- Visión: ${brand.vision || "No especificada"}
 - Productos/Servicios: ${brand.products || "No especificados"}
-- Historia: ${brand.history || "No especificada"}
+- Sobre la empresa: ${brand.history || "No especificado"}
 - Guía de estilo: ${brand.styleGuide || "No especificada"}
-- Público objetivo: ${brand.targetAudience || "No especificado"}
 - Tono de comunicación: ${brand.tone || "Profesional"}
 - Estilo visual declarado: ${brand.visualStyle || "No especificado"}
 - Sitio web: ${brand.website || "No configurado"}
@@ -480,12 +477,9 @@ function buildTemplateInstructions(brand: BrandIdentityData | null): string {
 IDENTIDAD DE MARCA DEL USUARIO (FUENTE DE VERDAD):
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
-- Misión: ${brand.mission || "No especificada"}
-- Visión: ${brand.vision || "No especificada"}
 - Productos/Servicios: ${brand.products || "No especificados"}
-- Historia: ${brand.history || "No especificada"}
+- Sobre la empresa: ${brand.history || "No especificado"}
 - Guía de estilo: ${brand.styleGuide || "No especificada"}
-- Público objetivo: ${brand.targetAudience || "No especificado"}
 - Tono de comunicación: ${brand.tone || "Profesional"}
 - Estilo visual: ${brand.visualStyle || "No especificado"}
 - Color primario: ${primaryColor}
@@ -531,13 +525,21 @@ ESTRUCTURA DE BLOQUES FIJA (NUNCA cambiar el orden):
 - El logo SIEMPRE debe estar en la esquina superior izquierda del header (si está configurado).
 
 QUÉ PUEDE PERSONALIZAR EL USUARIO (a través de su prompt):
-- Colores de texto, fondos de secciones, bordes
-- Estilos de fuente (negrita, tamaño, cursiva)
-- Formato del contenido (tablas, listas, relieves, secciones internas)
-- Dimensiones y alineación de la imagen (centrada, full-width, con márgenes, bordes redondeados)
-- Estilo del botón CTA (colores, bordes, tamaño)
-- Añadir elementos decorativos DENTRO de los bloques existentes (separadores, íconos, badges)
+- Colores de texto, fondos de secciones, bordes y contrastes de marca
+- Estilos de fuente (negrita, tamaño, cursiva, jerarquía tipográfica)
+- Formato del contenedor de contenido (tablas internas, listas decorativas, relieves, secciones internas)
+- Dimensiones y alineación de la imagen (centrada, full-width, con márgenes, bordes redondeados, sombras suaves simuladas con borde)
+- Estilo del botón CTA (colores de acento, tamaño, peso visual, bordes)
+- Elementos decorativos DENTRO de los bloques existentes (separadores, badges, franjas, etiquetas estáticas de categoría como "Promoción", "Oferta", etc.)
 - Estilos del footer
+
+INTENCIÓN CREATIVA (OBLIGATORIA):
+- Interpreta la intención del prompt del usuario (por ejemplo: promociones, plantilla llamativa, diagramación para llamar la atención) y TRADÚCELA a un diseño visual claramente diferenciado.
+- NO devuelvas la plantilla base casi idéntica. El resultado debe verse personalizado, con jerarquía visual fuerte y alineado a la marca.
+- Sí puedes añadir chrome decorativo fijo (badges, franjas, tipografía expresiva alrededor de los placeholders).
+- NO inventes el copy de la campaña: el texto variable DEBE seguir siendo {{ASUNTO}}, {{CONTENIDO}} y {{CTA_TEXTO}}.
+- Ejemplo CORRECTO en BLOQUE 3: un contenedor con fondo/borde/acento que contenga {{CONTENIDO}} (y opcionalmente un badge estático como "Promoción").
+- Ejemplo INCORRECTO: sustituir {{CONTENIDO}} por párrafos inventados tipo "¡Promociones exclusivas!" o listas de beneficios de muestra.
 
 QUÉ NO PUEDE PERSONALIZAR:
 - El orden de los bloques (siempre Header → Imagen → Contenido → CTA → Footer)
@@ -549,7 +551,7 @@ SISTEMA DE PLACEHOLDERS OBLIGATORIOS (los 7 deben estar presentes):
 1. {{ASUNTO}} — En <title> del <head> Y visible centrado en el header/banner.
 2. {{PREHEADER}} — Primer elemento del <body>, en <span> oculto.
 3. {{IMAGEN_URL}} — src="" de la imagen hero en el BLOQUE 2.
-4. {{CONTENIDO}} — Bloque de texto principal en el BLOQUE 3. Ya viene en HTML, NO envolver en <p>.
+4. {{CONTENIDO}} — Bloque de texto principal en el BLOQUE 3. Ya viene en HTML, NO envolver en <p>. Puede ir dentro de un contenedor estilizado.
 5. {{CTA_TEXTO}} — Texto del botón en el BLOQUE 4.
 6. {{CTA_URL}} — href="" del botón en el BLOQUE 4.
 7. {{LOGO_URL}} — src="" de la imagen del logo en el header (esquina superior izquierda).
@@ -569,7 +571,8 @@ REGLAS TÉCNICAS DE HTML PARA EMAIL:
 10. El nombre de la plantilla debe ser descriptivo y corto (máx 100 chars), en español.
 11. Los placeholders deben quedar EXACTAMENTE como {{NOMBRE}} — nunca texto de ejemplo. NUNCA sustituyas {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}} ni {{LOGO_URL}} por texto real, títulos de muestra, botones con copy inventado ni URLs de ejemplo.
 12. El botón CTA DEBE usar el patrón "bulletproof button" con bgcolor="" sólido.
-13. Si personalizas estilos, conserva literales los 7 placeholders. Una plantilla sin los 7 placeholders es INVÁLIDA.`;
+13. Si personalizas estilos, conserva literales los 7 placeholders. Una plantilla sin los 7 placeholders es INVÁLIDA.
+14. Prioriza impacto visual (contraste, acento de marca, CTA dominante, imagen protagonista) sin romper compatibilidad de email.`;
 }
 
 async function repairTemplatePlaceholders(
@@ -582,7 +585,7 @@ async function repairTemplatePlaceholders(
   const instructions = buildTemplateInstructions(brandIdentity);
   const response = await client.responses.create({
     model,
-    instructions: instructions + `\n\nTAREA DE REPARACIÓN: El HTML anterior perdió placeholders obligatorios. Debes devolver el HTML completo restaurando EXACTAMENTE estos placeholders faltantes: ${missing.join(", ")}. No inventes texto de ejemplo en su lugar. Conserva estilos/colores/estructura; solo restaura los tokens {{...}}.`,
+    instructions: instructions + `\n\nTAREA DE REPARACIÓN: El HTML anterior perdió placeholders obligatorios. Debes devolver el HTML completo restaurando EXACTAMENTE estos placeholders faltantes: ${missing.join(", ")}. No inventes texto de ejemplo en su lugar. CONSERVA al máximo el diseño visual, colores, badges, tipografías y diagramación ya generados; solo restaura los tokens {{...}} donde corresponda.`,
     input: `HTML incompleto (faltan: ${missing.join(", ")}):\n\`\`\`html\n${brokenHtml}\n\`\`\`\n\nDevuelve el HTML completo con TODOS estos placeholders presentes exactamente: ${ALL_PLACEHOLDER_KEYS.join(", ")}.`,
     text: { format: editTemplateSchema },
     max_output_tokens: 4000,
@@ -637,7 +640,16 @@ export async function generateTemplateHtml(
     const response = await client.responses.create({
       model,
       instructions,
-      input: `Adapta la plantilla HTML base aplicando SIEMPRE la identidad de marca configurada (colores, tipografías, tono y guía de estilo), salvo que el usuario pida omitirla de forma explícita. Las preferencias siguientes son ajustes adicionales sobre esa marca. MANTÉN la estructura de bloques exactamente igual (Header→Imagen→Contenido→CTA→Footer). Personaliza aspectos cosméticos (colores, fuentes, estilos, formato del contenido, dimensiones de imagen) según lo solicitado, sin abandonar el branding por defecto.\n\nCRÍTICO: conserva EXACTAMENTE los 7 placeholders {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}}, {{LOGO_URL}}. No los reemplaces por texto de ejemplo.\n\n${prompt}`,
+      input: `Adapta la plantilla HTML base aplicando SIEMPRE la identidad de marca configurada (colores, tipografías, tono y guía de estilo), salvo que el usuario pida omitirla de forma explícita.
+
+INTERPRETA LA INTENCIÓN creativa del usuario y tradúcela a diagramación visual llamativa (jerarquía tipográfica, badges, franjas, CTA dominante, tratamiento de imagen, contrastes de marca). NO entregues una plantilla genérica casi igual a la base.
+
+MANTÉN la estructura de bloques exactamente igual (Header→Imagen→Contenido→CTA→Footer).
+
+CRÍTICO: conserva EXACTAMENTE los 7 placeholders {{ASUNTO}}, {{PREHEADER}}, {{CONTENIDO}}, {{CTA_TEXTO}}, {{CTA_URL}}, {{IMAGEN_URL}}, {{LOGO_URL}}. No los reemplaces por texto de ejemplo ni por copy promocional inventado. El copy variable de cada campaña se llenará después; tú diseñas el marco visual.
+
+Preferencias / intención del usuario:
+${prompt}`,
       text: { format: templateSchema },
       max_output_tokens: 4000,
       temperature: 0.7,

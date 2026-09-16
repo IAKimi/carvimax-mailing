@@ -37,12 +37,9 @@ const BRAND_FIELDS: { key: string; default: string }[] = [
   { key: "industry", default: "" },
   { key: "website", default: "" },
   { key: "whatsapp", default: "" },
-  { key: "mission", default: "" },
-  { key: "vision", default: "" },
   { key: "products", default: "" },
   { key: "history", default: "" },
   { key: "styleGuide", default: "" },
-  { key: "targetAudience", default: "" },
   { key: "tone", default: "profesional" },
   { key: "primaryColor", default: "#002073" },
   { key: "secondaryColor", default: "#e3001b" },
@@ -60,12 +57,9 @@ const DEFAULT_BRAND = {
   industry: "",
   website: "",
   whatsapp: "",
-  mission: "",
-  vision: "",
   products: "",
   history: "",
   styleGuide: "",
-  targetAudience: "",
   tone: "profesional",
   primaryColor: "#002073",
   secondaryColor: "#e3001b",
@@ -118,8 +112,8 @@ function SectionDivider({ label }: { label: string }) {
   );
 }
 
-const LEFT_SECTION_FIELDS = new Set(["companyName", "industry", "website", "whatsapp", "mission", "vision", "products", "history"]);
-const RIGHT_SECTION_FIELDS = new Set(["styleGuide", "targetAudience", "tone", "colors", "fonts", "logo", "visualStyle"]);
+const LEFT_SECTION_FIELDS = new Set(["companyName", "industry", "website", "whatsapp", "products", "history"]);
+const RIGHT_SECTION_FIELDS = new Set(["styleGuide", "tone", "colors", "fonts", "logo", "visualStyle"]);
 
 function getFieldValue(brand: typeof DEFAULT_BRAND, fieldId: string): string {
   const map: Record<string, string> = {
@@ -127,12 +121,9 @@ function getFieldValue(brand: typeof DEFAULT_BRAND, fieldId: string): string {
     industry: brand.industry,
     website: brand.website,
     whatsapp: brand.whatsapp,
-    mission: brand.mission,
-    vision: brand.vision,
     products: brand.products,
     history: brand.history,
     styleGuide: brand.styleGuide,
-    targetAudience: brand.targetAudience,
     tone: brand.tone,
     colors: brand.primaryColor,
     fonts: brand.headingFont,
@@ -143,7 +134,8 @@ function getFieldValue(brand: typeof DEFAULT_BRAND, fieldId: string): string {
 }
 
 function isFieldEmpty(brand: typeof DEFAULT_BRAND, fieldId: string): boolean {
-  if (fieldId === "tone" || fieldId === "colors" || fieldId === "fonts" || fieldId === "visualStyle") return false;
+  // history es opcional; no bloquea el tutorial
+  if (fieldId === "tone" || fieldId === "colors" || fieldId === "fonts" || fieldId === "visualStyle" || fieldId === "history") return false;
   const val = getFieldValue(brand, fieldId);
   return val.trim() === "";
 }
@@ -236,12 +228,9 @@ export default function BrandIdentity() {
         industry: brandData.industry || "",
         website: brandData.website || "",
         whatsapp: brandData.whatsapp || "",
-        mission: brandData.mission || "",
-        vision: brandData.vision || "",
         products: brandData.products || "",
         history: brandData.history || "",
         styleGuide: brandData.styleGuide || "",
-        targetAudience: brandData.targetAudience || "",
         tone: brandData.tone || "profesional",
         primaryColor: brandData.primaryColor || "#002073",
         secondaryColor: brandData.secondaryColor || "#e3001b",
@@ -298,7 +287,13 @@ export default function BrandIdentity() {
       toast({ title: "Campo requerido", description: "El sector o industria es obligatorio.", variant: "destructive" });
       return;
     }
-    saveMutation.mutate(brand);
+    // Campos retirados de la UI: se limpian para no seguir alimentando a la IA.
+    saveMutation.mutate({
+      ...brand,
+      mission: null,
+      vision: null,
+      targetAudience: null,
+    } as any);
   }
 
   const completionPct = useMemo(() => {
@@ -439,22 +434,6 @@ export default function BrandIdentity() {
                     </div>
                   </div>
 
-                  <SectionDivider label="Misión y Visión" />
-                  <div className="space-y-4">
-                    <TutorialHighlight fieldId="mission">
-                      <div className="space-y-2">
-                        <Label>Misión</Label>
-                        <Textarea data-testid="input-mission" placeholder="¿Cuál es la misión de su empresa?" value={brand.mission} onChange={e => updateField("mission", e.target.value)} onBlur={() => handleTutorialBlur("mission")} maxLength={2000} className="rounded-xl min-h-[100px]" />
-                      </div>
-                    </TutorialHighlight>
-                    <TutorialHighlight fieldId="vision">
-                      <div className="space-y-2">
-                        <Label>Visión</Label>
-                        <Textarea data-testid="input-vision" placeholder="¿Cuál es la visión de su empresa?" value={brand.vision} onChange={e => updateField("vision", e.target.value)} onBlur={() => handleTutorialBlur("vision")} maxLength={2000} className="rounded-xl min-h-[100px]" />
-                      </div>
-                    </TutorialHighlight>
-                  </div>
-
                   <SectionDivider label="Productos y Servicios" />
                   <TutorialHighlight fieldId="products">
                     <div className="space-y-2">
@@ -463,11 +442,19 @@ export default function BrandIdentity() {
                     </div>
                   </TutorialHighlight>
 
-                  <SectionDivider label="Historia de la Compañía" />
+                  <SectionDivider label="Sobre la Empresa" />
                   <TutorialHighlight fieldId="history">
                     <div className="space-y-2">
-                      <Label>Cuéntenos sobre la historia y trayectoria</Label>
-                      <Textarea data-testid="input-history" placeholder="¿Cómo surgió la empresa? ¿Cuáles son sus logros más importantes?" value={brand.history} onChange={e => updateField("history", e.target.value)} onBlur={() => handleTutorialBlur("history")} maxLength={2000} className="rounded-xl min-h-[120px]" />
+                      <Label>Cuéntenos un poco más sobre su empresa <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+                      <Textarea
+                        data-testid="input-history"
+                        placeholder="Puede incluir trayectoria, a quién se dirige, diferenciadores u otro contexto útil para la IA."
+                        value={brand.history}
+                        onChange={e => updateField("history", e.target.value)}
+                        onBlur={() => handleTutorialBlur("history")}
+                        maxLength={2000}
+                        className="rounded-xl min-h-[120px]"
+                      />
                     </div>
                   </TutorialHighlight>
             </div>
@@ -487,12 +474,6 @@ export default function BrandIdentity() {
                       <div className="space-y-2">
                         <Label>Guías y Estilos de Contenido</Label>
                         <Textarea data-testid="input-style-guide" placeholder="¿Qué tipo de lenguaje prefiere? ¿Formal o informal? ¿Frases cortas o largas?" value={brand.styleGuide} onChange={e => updateField("styleGuide", e.target.value)} onBlur={() => handleTutorialBlur("styleGuide")} maxLength={2000} className="rounded-xl min-h-[100px]" />
-                      </div>
-                    </TutorialHighlight>
-                    <TutorialHighlight fieldId="targetAudience">
-                      <div className="space-y-2">
-                        <Label>Público Objetivo</Label>
-                        <Textarea data-testid="input-target-audience" placeholder="Describa a su público: rango de edad, intereses, necesidades..." value={brand.targetAudience} onChange={e => updateField("targetAudience", e.target.value)} onBlur={() => handleTutorialBlur("targetAudience")} maxLength={2000} className="rounded-xl min-h-[80px]" />
                       </div>
                     </TutorialHighlight>
                     <TutorialHighlight fieldId="tone">

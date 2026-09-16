@@ -43,7 +43,7 @@ ${SCOPE_REDIRECT(section)}`;
   const sectionInstructions: Record<AssistantSection, string> = {
     brand: `${base}
 El usuario está en la sección de Identidad de Marca.
-Tu especialidad aquí: misión, visión, tono de comunicación, paleta de colores, tipografía, audiencia objetivo, guía de estilo, descripción de productos/servicios, e-mail y nombre del remitente.
+Tu especialidad aquí: tono de comunicación, paleta de colores, tipografía, guía de estilo, descripción de productos/servicios, contexto general de la empresa, e-mail y nombre del remitente.
 Ofrece sugerencias concretas para construir una identidad de marca sólida orientada al email marketing.`,
 
     calendar: `${base}
