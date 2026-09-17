@@ -66,6 +66,14 @@ async function buildAll() {
     await copyFile("server/seed-data.json", "dist/server/seed-data.json");
     console.log("copied seed-data.json to dist/server/");
   }
+
+  // connect-pg-simple is bundled into dist/index.cjs, so createTableIfMissing
+  // resolves table.sql relative to /app/dist — copy it next to the bundle.
+  const sessionTableSql = "node_modules/connect-pg-simple/table.sql";
+  if (existsSync(sessionTableSql)) {
+    await copyFile(sessionTableSql, "dist/table.sql");
+    console.log("copied connect-pg-simple table.sql to dist/");
+  }
 }
 
 buildAll().catch((err) => {

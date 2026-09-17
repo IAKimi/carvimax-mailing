@@ -32,7 +32,7 @@ type ResolverVersion = { id?: number; type: string; isSelected: boolean | null; 
 // image-type versions bake in a text snapshot at creation time but never receive user edits.
 function pickTextSourceVersion(versions: ResolverVersion[]): ResolverVersion | undefined {
   const ordered = [...versions].sort((a, b) => (a.versionNumber ?? 0) - (b.versionNumber ?? 0));
-  const textVersions = ordered.filter(v => v.type === "initial" || v.type === "text");
+  const textVersions = ordered.filter(v => v.type === "initial" || v.type === "text" || v.type === "uploaded_html");
   const lastSelected = [...textVersions].reverse().find(v => v.isSelected);
   return lastSelected || textVersions[textVersions.length - 1];
 }
@@ -209,6 +209,9 @@ const createCampaignSchema = z.object({
   templateId: z.number().int().positive().nullable().optional(),
   providerId: z.number().int().positive().nullable().optional(),
   scheduledAt: z.string().nullable().optional(),
+  /** Full email HTML uploaded from calendar (skip AI generation). */
+  html: z.string().min(10, "El HTML es demasiado corto.").max(2_000_000, "El HTML no puede exceder 2 MB.").optional(),
+  subject: z.string().max(200, "El asunto no puede exceder 200 caracteres").optional(),
 });
 
 const updateCampaignSchema = createCampaignSchema.partial().extend({
@@ -434,7 +437,19 @@ function getImagePublicUrl(filename: string, req?: Request): string {
   return `${baseUrl}/uploads/campaigns/${filename}`;
 }
 
+function isUploadedHtmlContent(contentJson: Record<string, unknown> | null | undefined): boolean {
+  return !!contentJson && contentJson.source === "uploaded_html";
+}
+
+function getUploadedHtml(contentJson: Record<string, unknown> | null | undefined): string {
+  if (!contentJson) return "";
+  return sanitizeHtml(String(contentJson.html || contentJson.cuerpo_html || ""));
+}
+
 function buildNoTemplateHtml(contentJson: Record<string, unknown> | null, imagePublicUrl: string | null): string {
+  if (isUploadedHtmlContent(contentJson)) {
+    return getUploadedHtml(contentJson);
+  }
   const body = (contentJson?.cuerpo_html as string) || "";
   const imgBlock = imagePublicUrl
     ? `<img src="${imagePublicUrl}" style="width:100%;max-width:560px;display:block;margin:0 auto 24px" alt="" />`
@@ -905,12 +920,38 @@ export async function registerRoutes(
       if (scheduledAt && scheduledAt.getTime() < Date.now()) {
         return res.status(400).json({ message: "La fecha programada debe ser en el futuro." });
       }
+
+      const { html: rawHtml, subject: uploadSubject, ...campaignFields } = input;
+      const isHtmlUpload = typeof rawHtml === "string" && rawHtml.trim().length >= 10;
+
+      if (isHtmlUpload && campaignFields.templateId) {
+        return res.status(400).json({ message: "Un correo con HTML cargado no puede usar plantilla." });
+      }
+
       const campaign = await storage.createCampaign({
-        ...input,
+        ...campaignFields,
         userId: req.session.userId!,
         scheduledAt,
         status: "draft",
+        ...(isHtmlUpload ? { imageApproved: true, templateId: null } : {}),
       } as any);
+
+      if (isHtmlUpload) {
+        const sanitized = sanitizeHtml(rawHtml!.trim());
+        await storage.createCampaignVersion({
+          campaignId: campaign.id,
+          versionNumber: 1,
+          contentJson: {
+            source: "uploaded_html",
+            html: sanitized,
+            asunto: (uploadSubject || campaign.name || "").slice(0, 200),
+          },
+          imageUrl: null,
+          isSelected: true,
+          type: "initial",
+        } as any);
+      }
+
       res.status(201).json(campaign);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1043,6 +1084,13 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No se puede modificar un correo cancelado o enviado." });
     }
     const versions = await storage.getCampaignVersions(campaignId);
+    const hasUploadedHtml = versions.some(v => {
+      const cj = v.contentJson as Record<string, unknown> | null;
+      return isUploadedHtmlContent(cj);
+    });
+    if (hasUploadedHtml) {
+      return res.status(400).json({ message: "Este correo se creó con HTML cargado y no admite generación con IA." });
+    }
     const versionNumber = versions.length + 1;
     if (versionNumber > 3) {
       return res.status(400).json({ message: "Máximo 3 generaciones alcanzado." });
@@ -2871,9 +2919,12 @@ export async function registerRoutes(
       });
 
       if (isLocalImage && fileExists === false) {
-        const errMsg = `La imagen "${imageFilename}" no existe en el servidor (uploads/campaigns/). Regenera o sube la imagen de nuevo antes de enviar.`;
-        console.error("[CAMPAIGN SEND] ABORT — archivo de imagen ausente:", { campaignId, imageFilename });
-        return { success: false, error: errMsg };
+        const contentIsUploadedHtml = isUploadedHtmlContent(resolved.contentJson as Record<string, unknown> | null);
+        if (!contentIsUploadedHtml) {
+          const errMsg = `La imagen "${imageFilename}" no existe en el servidor (uploads/campaigns/). Regenera o sube la imagen de nuevo antes de enviar.`;
+          console.error("[CAMPAIGN SEND] ABORT — archivo de imagen ausente:", { campaignId, imageFilename });
+          return { success: false, error: errMsg };
+        }
       }
 
       // Stamp sentHtml on the text-type version that contributed the content,

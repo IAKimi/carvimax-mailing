@@ -33,6 +33,32 @@ import { useCampaignProgress, type CampaignProgress } from "@/hooks/use-campaign
 import { Progress } from "@/components/ui/progress";
 import { useGenerating } from "@/contexts/GeneratingContext";
 
+/** Prepare HTML for preview: keep content visible and open links in a new tab. */
+function htmlPreviewSrcDoc(html: string, emptyMessage = "Sin contenido para previsualizar."): string {
+  const content = (html || "").trim();
+  if (!content) {
+    return `<p style="padding:16px;color:#888;font-family:sans-serif">${emptyMessage}</p>`;
+  }
+  // Rewrite anchors so clicks work inside a sandboxed iframe (open in new tab).
+  return content.replace(/<a\b([^>]*)>/gi, (_match, attrs: string) => {
+    let next = String(attrs || "");
+    if (/target\s*=/i.test(next)) {
+      next = next.replace(/target\s*=\s*(['"])[\s\S]*?\1/i, 'target="_blank"');
+    } else {
+      next += ' target="_blank"';
+    }
+    if (/rel\s*=/i.test(next)) {
+      next = next.replace(/rel\s*=\s*(['"])[\s\S]*?\1/i, 'rel="noopener noreferrer"');
+    } else {
+      next += ' rel="noopener noreferrer"';
+    }
+    return `<a${next}>`;
+  });
+}
+
+/** Popups needed for target=_blank; same-origin helps srcDoc render reliably in Chromium. */
+const HTML_PREVIEW_SANDBOX = "allow-popups allow-popups-to-escape-sandbox allow-same-origin";
+
 function SendProgressBar({ campaignId, campaign }: { campaignId: number; campaign: Campaign }) {
   const { getProgress } = useCampaignProgress();
   const wsProgress = getProgress(campaignId);
@@ -179,6 +205,11 @@ export default function CalendarView() {
   const [imageApproved, setImageApprovedLocal] = useState(false);
   const [approvedImageUrl, setApprovedImageUrl] = useState<string | null>(null);
   const [form, setForm] = useState({ campaignName: "", idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: "", imagePrompt: "", targetAudience: "", providerId: "" });
+  const [createMode, setCreateMode] = useState<"configure" | "upload-html">("configure");
+  const [uploadedHtml, setUploadedHtml] = useState("");
+  const [htmlFileName, setHtmlFileName] = useState<string | null>(null);
+  const [htmlDragActive, setHtmlDragActive] = useState(false);
+  const [localFullHtml, setLocalFullHtml] = useState("");
   const [showTargetAudience, setShowTargetAudience] = useState(false);
   const [useTemplate, setUseTemplate] = useState(true);
   const [generateImage, setGenerateImage] = useState(false);
@@ -219,6 +250,7 @@ export default function CalendarView() {
   const [genStep, setGenStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorFileInputRef = useRef<HTMLInputElement>(null);
+  const htmlFileInputRef = useRef<HTMLInputElement>(null);
   const { getProgress } = useCampaignProgress();
   const { setGenerating } = useGenerating();
 
@@ -358,16 +390,23 @@ export default function CalendarView() {
   const createCampaignMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/campaigns", data);
-      return res.json();
+      return { campaign: await res.json() as Campaign, payload: data };
     },
-    onSuccess: (campaign: Campaign) => {
+    onSuccess: ({ campaign, payload }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       setShowNewDialog(false);
       setEditingCampaignId(campaign.id);
       setTextApprovedLocal(false);
-      setImageApprovedLocal(false);
-      toast({ title: "Correo creado", description: "Generando contenido..." });
-      generateVersionMutation.mutate(campaign.id);
+      setImageApprovedLocal(!!payload.html || !!campaign.imageApproved);
+      if (payload.html) {
+        setLocalFullHtml(payload.html);
+        setLocalAsunto((payload.subject || campaign.name || "").slice(0, 60));
+        queryClient.invalidateQueries({ queryKey: ["/api/campaigns", campaign.id, "versions"] });
+        toast({ title: "Correo cargado", description: "Revise el HTML, el asunto y apruebe para enviar." });
+      } else {
+        toast({ title: "Correo creado", description: "Generando contenido..." });
+        generateVersionMutation.mutate(campaign.id);
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message || "No se pudo crear el correo.", variant: "destructive" });
@@ -543,6 +582,10 @@ export default function CalendarView() {
     }
     const defaultProviderId = defaultProvider ? String(defaultProvider.id) : (allEmailProviders.length === 1 ? String(allEmailProviders[0].id) : "");
     setForm({ campaignName: "", idea: "", objective: "", templateId: "", targetDatabase: "", scheduledDate: `${dateStr}T${defaultTime}`, imagePrompt: "", targetAudience: "", providerId: defaultProviderId });
+    setCreateMode("configure");
+    setUploadedHtml("");
+    setHtmlFileName(null);
+    setHtmlDragActive(false);
     setShowTargetAudience(false);
     setUseTemplate(true);
     setGenerateImage(false);
@@ -766,11 +809,11 @@ export default function CalendarView() {
   function handleGenerate() {
     if (!form.campaignName.trim() || !form.idea.trim()) return;
     if (useTemplate && !form.templateId) {
-      toast({ title: "Plantilla requerida", description: "Selecciona una plantilla o desactiva la opción de plantilla.", variant: "destructive" });
+      toast({ title: "Plantilla requerida", description: "Seleccione una plantilla o desactive la opción de plantilla.", variant: "destructive" });
       return;
     }
     if (!useTemplate && generateImage && !form.imagePrompt.trim() && !uploadedImageFile) {
-      toast({ title: "Imagen requerida", description: "Ingresa un prompt de imagen o sube una imagen, o desactiva la opción de imagen.", variant: "destructive" });
+      toast({ title: "Imagen requerida", description: "Ingrese un prompt de imagen o suba una imagen, o desactive la opción de imagen.", variant: "destructive" });
       return;
     }
     let scheduledAt: string | null = null;
@@ -790,6 +833,110 @@ export default function CalendarView() {
       templateId: useTemplate && form.templateId ? parseInt(form.templateId) : null,
       providerId: form.providerId ? parseInt(form.providerId) : null,
       scheduledAt,
+    });
+  }
+
+  function rtfToPlainText(rtf: string): string {
+    let text = rtf;
+    text = text.replace(/\\par[d]?\b/gi, "\n");
+    text = text.replace(/\\line\b/gi, "\n");
+    text = text.replace(/\\tab\b/gi, "\t");
+    text = text.replace(/\\'[0-9a-fA-F]{2}/g, (m) => String.fromCharCode(parseInt(m.slice(2), 16)));
+    text = text.replace(/\\u(-?\d+)\??/g, (_, n) => {
+      const code = parseInt(n, 10);
+      return code < 0 ? "" : String.fromCharCode(code);
+    });
+    text = text.replace(/\{\\[^*]+?\s[^{}]*\}/g, "");
+    text = text.replace(/\\[a-z]+\d* ?/gi, "");
+    text = text.replace(/[{}]/g, "");
+    return text.replace(/\r\n/g, "\n").trim();
+  }
+
+  async function processHtmlFile(file: File) {
+    const lower = file.name.toLowerCase();
+    const allowed = [".html", ".htm", ".txt", ".rtf"];
+    if (!allowed.some((ext) => lower.endsWith(ext))) {
+      toast({
+        title: "Formato no admitido",
+        description: "Se aceptan archivos .html, .htm, .txt y .rtf (Notas / TextEdit de macOS).",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Archivo demasiado grande", description: "El archivo no puede superar 2 MB.", variant: "destructive" });
+      return;
+    }
+    try {
+      const raw = await file.text();
+      const content = lower.endsWith(".rtf") ? rtfToPlainText(raw) : raw;
+      if (!content.trim()) {
+        toast({ title: "Archivo vacío", description: "No se encontró contenido en el archivo.", variant: "destructive" });
+        return;
+      }
+      setUploadedHtml(content);
+      setHtmlFileName(file.name);
+      toast({ title: "Archivo cargado", description: file.name });
+    } catch {
+      toast({ title: "Error", description: "No se pudo leer el archivo.", variant: "destructive" });
+    }
+  }
+
+  async function handleHtmlFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await processHtmlFile(file);
+  }
+
+  function handleHtmlDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setHtmlDragActive(true);
+  }
+
+  function handleHtmlDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setHtmlDragActive(false);
+  }
+
+  async function handleHtmlDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setHtmlDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processHtmlFile(file);
+  }
+
+  function handleCreateFromHtml() {
+    if (!form.campaignName.trim()) {
+      toast({ title: "Nombre requerido", description: "Indique un nombre para la campaña.", variant: "destructive" });
+      return;
+    }
+    if (!uploadedHtml.trim()) {
+      toast({ title: "HTML requerido", description: "Cargue un archivo o pegue el HTML del correo.", variant: "destructive" });
+      return;
+    }
+    let scheduledAt: string | null = null;
+    if (form.scheduledDate) {
+      const localDate = new Date(form.scheduledDate);
+      scheduledAt = localDate.toISOString();
+    }
+    createCampaignMutation.mutate({
+      name: form.campaignName.trim(),
+      idea: "Correo HTML cargado",
+      objective: "Envío de HTML preparado por el usuario",
+      tone: "profesional",
+      imagePrompt: null,
+      targetDatabase: form.targetDatabase || null,
+      targetAudience: null,
+      templateId: null,
+      providerId: form.providerId ? parseInt(form.providerId) : null,
+      scheduledAt,
+      html: uploadedHtml.trim(),
+      subject: form.campaignName.trim().slice(0, 60),
     });
   }
 
@@ -886,7 +1033,10 @@ export default function CalendarView() {
     });
   }, [versions]);
 
-  const textVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "text").sort((a, b) => a.versionNumber - b.versionNumber);
+  const textVersions = versions.filter(v => {
+    const t = (v as any).type;
+    return t === "initial" || t === "text" || t === "uploaded_html";
+  }).sort((a, b) => a.versionNumber - b.versionNumber);
   const imageVersions = versions.filter(v => (v as any).type === "initial" || (v as any).type === "image").sort((a, b) => a.versionNumber - b.versionNumber);
 
   function doSelectTextVersion(versionId: number) {
@@ -944,17 +1094,48 @@ export default function CalendarView() {
     if (textApproved) return;
     const version = versions.find(v => v.id === versionId);
     const existing = (version?.contentJson as any) || {};
-    const currentHtml = existing.cuerpo_html ?? existing.html ?? "";
+    const isUploaded = existing.source === "uploaded_html";
+    const currentHtml = isUploaded
+      ? (existing.html ?? existing.cuerpo_html ?? "")
+      : (existing.cuerpo_html ?? existing.html ?? "");
     if (newHtml === currentHtml) return;
-    const updatedContent = existing.cuerpo_html !== undefined
-      ? { ...existing, cuerpo_html: newHtml }
-      : { ...existing, html: newHtml };
+    const updatedContent = isUploaded
+      ? { ...existing, html: newHtml }
+      : existing.cuerpo_html !== undefined
+        ? { ...existing, cuerpo_html: newHtml }
+        : { ...existing, html: newHtml };
     setHasUnsavedChanges(true);
     updateVersionMutation.mutate(
       { id: versionId, updates: { contentJson: updatedContent } },
       { onSuccess: () => setHasUnsavedChanges(false) }
     );
     setTextApprovedLocal(false);
+  }
+
+  function handleSaveUploadedHtmlChanges() {
+    if (!selectedVersion) return;
+    const existing = (selectedVersion.contentJson as any) || {};
+    const updatedContent = {
+      ...existing,
+      source: "uploaded_html",
+      html: localFullHtml,
+      asunto: localAsunto,
+    };
+    updateVersionMutation.mutate(
+      { id: selectedVersion.id, updates: { contentJson: updatedContent } },
+      {
+        onSuccess: () => {
+          setHasUnsavedChanges(false);
+          setTextApprovedLocal(false);
+          setJustSaved(true);
+          setTimeout(() => setJustSaved(false), 2000);
+          toast({ title: "Cambios guardados" });
+        },
+        onError: () => {
+          toast({ title: "Error", description: "No se pudieron guardar los cambios.", variant: "destructive" });
+        },
+      }
+    );
   }
 
   function isValidCtaUrl(url: string): boolean {
@@ -973,6 +1154,44 @@ export default function CalendarView() {
       toast({ title: "Asunto vacío", description: "Debe tener un asunto válido antes de aprobar el texto.", variant: "destructive" });
       return;
     }
+
+    if (isUploadedHtmlCampaign) {
+      const htmlToApprove = localFullHtml.trim() || selectedHtml.trim();
+      if (!htmlToApprove) {
+        toast({ title: "HTML vacío", description: "Debe tener HTML en el correo antes de aprobar.", variant: "destructive" });
+        return;
+      }
+      if (!selectedVersion) {
+        setTextApproved(true);
+        toast({ title: "Texto aprobado" });
+        checkBothApprovalsAndSchedule(true, true);
+        return;
+      }
+      const existing = (selectedVersion.contentJson as any) || {};
+      const updatedContent = {
+        ...existing,
+        source: "uploaded_html",
+        html: htmlToApprove,
+        asunto: localAsunto,
+      };
+      updateVersionMutation.mutate(
+        { id: selectedVersion.id, updates: { contentJson: updatedContent } },
+        {
+          onSuccess: () => {
+            setHasUnsavedChanges(false);
+            setLocalFullHtml(htmlToApprove);
+            setTextApproved(true);
+            toast({ title: "Correo aprobado" });
+            checkBothApprovalsAndSchedule(true, true);
+          },
+          onError: () => {
+            toast({ title: "Error", description: "No se pudo guardar antes de aprobar.", variant: "destructive" });
+          },
+        }
+      );
+      return;
+    }
+
     const strippedText = (selectedHtml || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
     if (!selectedHtml || !selectedHtml.trim() || !strippedText) {
       toast({ title: "Contenido vacío", description: "Debe tener contenido en el cuerpo del correo antes de aprobar.", variant: "destructive" });
@@ -1201,18 +1420,22 @@ export default function CalendarView() {
   const selectedImageVersion = imageVersions.find(v => v.isSelected) || imageVersions[0];
   const selectedVersion = selectedTextVersion;
   const contentData = selectedTextVersion?.contentJson as any;
+  const isUploadedHtmlCampaign = contentData?.source === "uploaded_html"
+    || editingCampaign?.idea === "Correo HTML cargado";
   const selectedAsunto = contentData?.asunto || contentData?.title || "";
   const selectedPreheader = contentData?.preheader || "";
   const selectedCtaText = contentData?.cta_text || contentData?.cta || "Ver más";
   const selectedCtaUrl = contentData?.cta_url || "#";
   const selectedHtml = contentData
-    ? contentData.cuerpo_html
-      ? contentData.cuerpo_html
-      : contentData.html
-        ? contentData.html
-        : contentData.body
-          ? `<p>${contentData.body}</p>`
-          : ""
+    ? isUploadedHtmlCampaign
+      ? (contentData.html || contentData.cuerpo_html || "")
+      : contentData.cuerpo_html
+        ? contentData.cuerpo_html
+        : contentData.html
+          ? contentData.html
+          : contentData.body
+            ? `<p>${contentData.body}</p>`
+            : ""
     : "";
   const selectedImageUrl = editorLocalImageUrl || (imageApproved && approvedImageUrl ? approvedImageUrl : selectedImageVersion?.imageUrl) || "https://placehold.co/600x300/002073/white?text=Sin+Imagen";
 
@@ -1224,6 +1447,11 @@ export default function CalendarView() {
       setLocalCta(cd?.cta_text || cd?.cta || "");
       setLocalCtaUrl(cd?.cta_url || "");
       setCtaEnabled(cd?.cta_enabled !== false);
+      if (cd?.source === "uploaded_html" || editingCampaign?.idea === "Correo HTML cargado") {
+        setLocalFullHtml(cd.html || cd.cuerpo_html || "");
+      } else {
+        setLocalFullHtml("");
+      }
       setHasUnsavedChanges(false);
     } else {
       setLocalAsunto("");
@@ -1231,9 +1459,13 @@ export default function CalendarView() {
       setLocalCta("");
       setLocalCtaUrl("");
       setCtaEnabled(true);
+      // Keep optimistic HTML from create-from-upload until the version arrives
+      if (!(editingCampaign?.idea === "Correo HTML cargado")) {
+        setLocalFullHtml("");
+      }
       setHasUnsavedChanges(false);
     }
-  }, [selectedVersion?.id]);
+  }, [selectedVersion?.id, selectedVersion?.contentJson, editingCampaign?.idea]);
 
   useEffect(() => {
     if (imageApproved && !approvedImageUrl && selectedImageVersion?.imageUrl) {
@@ -1356,7 +1588,7 @@ export default function CalendarView() {
     const selectedTemplate = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
     const templateLockedFields: string[] = (selectedTemplate as any)?.lockedFields || [];
     const isFieldLocked = (field: string) => templateLockedFields.includes(field);
-    const imageEffectivelyApproved = imageApproved || isFieldLocked("imagen");
+    const imageEffectivelyApproved = imageApproved || isFieldLocked("imagen") || isUploadedHtmlCampaign;
     const isReady = imageEffectivelyApproved && textApproved;
     const progressPercent = isLocked ? -1 : (imageEffectivelyApproved ? 50 : 0) + (textApproved ? 50 : 0);
 
@@ -1484,7 +1716,7 @@ export default function CalendarView() {
                   className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <Send className="w-4 h-4" />
-                  {editingCampaign.status === "failed" || editingCampaign.status === "partial" || editingCampaign.status === "cancelled" ? "Reintentar Envío" : "Publicar Ahora"}
+                  {editingCampaign.status === "failed" || editingCampaign.status === "partial" || editingCampaign.status === "cancelled" ? "Reintentar Envío" : (isUploadedHtmlCampaign ? "Enviar ahora" : "Publicar Ahora")}
                 </Button>
               )}
             </div>
@@ -1540,6 +1772,10 @@ export default function CalendarView() {
                       if (storedHtml) {
                         return `<html><body style="margin:0;font-family:Arial,sans-serif;overflow:hidden">${storedHtml}${heightScript}</body></html>`;
                       }
+                      if (isUploadedHtmlCampaign) {
+                        const html = localFullHtml || selectedHtml || "";
+                        return htmlPreviewSrcDoc(`${html}${heightScript}`, "Sin contenido");
+                      }
                       const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
                       const asunto = localAsunto || selectedAsunto || "";
                       const preheader = localPreheader || selectedPreheader || "";
@@ -1573,7 +1809,7 @@ export default function CalendarView() {
                         ${heightScript}
                       </body></html>`;
                     })()}
-                    sandbox="allow-scripts"
+                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                     className="w-full border-0"
                     style={{ minHeight: "400px", height: sentPreviewHeight > 0 ? sentPreviewHeight + "px" : "700px" }}
                     title="Vista final del correo enviado"
@@ -1654,7 +1890,7 @@ export default function CalendarView() {
             </div>
           )}
 
-          {!isLocked && (
+          {!isLocked && !isUploadedHtmlCampaign && (
             <div data-testid="section-template-link" className="bg-card rounded-2xl border border-border p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-3 min-w-0">
@@ -1757,7 +1993,110 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {!isSent && !isSending && !isFailed && !isPartial && ((isAiGenerating || versionsLoading) ? (
+          {!isSent && !isSending && !isFailed && !isPartial && (isUploadedHtmlCampaign ? (
+            versionsLoading && !selectedVersion ? (
+              <div data-testid="overlay-loading-uploaded-html" className="bg-card rounded-2xl border border-border p-8 shadow-sm flex items-center justify-center gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Cargando HTML...</span>
+              </div>
+            ) : (
+            <div data-testid="section-uploaded-html-editor" className="bg-card rounded-2xl border border-border p-5 shadow-sm space-y-4">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Asunto del correo</Label>
+                  <span className="text-[10px] text-muted-foreground">{localAsunto.length}/60</span>
+                </div>
+                <Input
+                  data-testid="input-edit-asunto-html-upload"
+                  value={localAsunto}
+                  onChange={(e) => { setLocalAsunto(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                  maxLength={60}
+                  disabled={isLocked || textApproved}
+                  placeholder="Asunto del correo"
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="font-bold flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  HTML del correo
+                </h3>
+                {textApproved && !isLocked && (
+                  <div className="flex items-center gap-2">
+                    <span data-testid="badge-html-approved" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Aprobado
+                    </span>
+                    <button
+                      data-testid="button-unapprove-html"
+                      onClick={() => { setTextApproved(false); toast({ title: "Aprobación retirada" }); }}
+                      className="text-[10px] text-muted-foreground hover:text-destructive underline"
+                    >
+                      Desaprobar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Editor HTML</Label>
+                  <Textarea
+                    data-testid="textarea-uploaded-html"
+                    value={localFullHtml}
+                    onChange={(e) => { setLocalFullHtml(e.target.value); setHasUnsavedChanges(true); setTextApprovedLocal(false); }}
+                    disabled={isLocked || textApproved}
+                    className="rounded-xl min-h-[420px] font-mono text-xs"
+                    placeholder="Pegue aquí su HTML"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vista previa</Label>
+                  <div className="border border-border rounded-xl overflow-hidden bg-white min-h-[420px]">
+                    <iframe
+                      data-testid="iframe-uploaded-html-preview"
+                      key={`html-preview-${localFullHtml.length}-${localFullHtml.slice(0, 64)}`}
+                      srcDoc={htmlPreviewSrcDoc(localFullHtml)}
+                      sandbox={HTML_PREVIEW_SANDBOX}
+                      className="w-full border-0 bg-white"
+                      style={{ minHeight: "420px", height: "520px" }}
+                      title="Vista previa del HTML cargado"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {hasUnsavedChanges && !textApproved && (
+                <Button
+                  data-testid="button-save-uploaded-html"
+                  onClick={handleSaveUploadedHtmlChanges}
+                  disabled={isLocked || updateVersionMutation.isPending}
+                  className="w-full rounded-xl gap-2"
+                >
+                  {updateVersionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Guardar Cambios
+                </Button>
+              )}
+              {justSaved && !hasUnsavedChanges && (
+                <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium justify-center">
+                  <Check className="w-3.5 h-3.5" />
+                  Cambios guardados
+                </div>
+              )}
+
+              {!textApproved && !isLocked && (
+                <Button
+                  data-testid="button-approve-uploaded-html"
+                  onClick={handleApproveText}
+                  className="w-full rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Check className="w-4 h-4" />
+                  Aprobar
+                </Button>
+              )}
+            </div>
+            )
+          ) : (isAiGenerating || versionsLoading) ? (
             <div data-testid="overlay-generating" className={isAiGenerating ? "bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-sm space-y-5" : "bg-card rounded-2xl border border-border p-5 shadow-sm"}>
               {isAiGenerating ? (() => {
                 const GEN_STEPS = [
@@ -2314,6 +2653,9 @@ export default function CalendarView() {
                   <iframe
                     data-testid="iframe-email-preview"
                     srcDoc={(() => {
+                      if (isUploadedHtmlCampaign) {
+                        return htmlPreviewSrcDoc(localFullHtml || selectedHtml, "Sin contenido");
+                      }
                       const tpl = editingCampaign?.templateId ? userTemplates.find(t => t.id === editingCampaign.templateId) : null;
                       const previewCtaEnabled = (selectedVersion?.contentJson as any)?.cta_enabled !== false && ctaEnabled;
                       const asunto = localAsunto || selectedAsunto || "";
@@ -2366,7 +2708,7 @@ export default function CalendarView() {
                         </script>
                       </body></html>`;
                     })()}
-                    sandbox="allow-scripts"
+                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                     className="w-full border-0"
                     style={{ minHeight: "400px", height: previewHeight > 0 ? previewHeight + "px" : "600px" }}
                     title="Vista previa completa"
@@ -2978,7 +3320,9 @@ export default function CalendarView() {
               Nuevo Correo — {selectedDay} de {MONTHS[month]} {year}
             </DialogTitle>
             <DialogDescription>
-              Complete los datos para generar su correo con IA.
+              {createMode === "upload-html"
+                ? "Cargue o pegue el HTML de un correo ya preparado."
+                : "Complete los datos para generar su correo con IA."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5 mt-3">
@@ -2994,9 +3338,195 @@ export default function CalendarView() {
                 className="rounded-xl"
                 maxLength={200}
               />
-              <p className="text-xs text-muted-foreground">Solo para identificar tu campaña internamente. No aparece en el correo.</p>
+              <p className="text-xs text-muted-foreground">Solo para identificar la campaña internamente. No aparece en el correo.</p>
             </div>
 
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button
+                data-testid="button-mode-configure"
+                type="button"
+                size="sm"
+                variant={createMode === "configure" ? "default" : "outline"}
+                className="rounded-lg h-8 text-xs font-medium"
+                onClick={() => setCreateMode("configure")}
+              >
+                Configurar campaña
+              </Button>
+              <Button
+                data-testid="button-mode-upload-html"
+                type="button"
+                size="sm"
+                variant={createMode === "upload-html" ? "default" : "outline"}
+                className="rounded-lg h-8 text-xs font-medium"
+                onClick={() => setCreateMode("upload-html")}
+              >
+                Cargar HTML
+              </Button>
+            </div>
+
+            {createMode === "upload-html" ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Archivo HTML</Label>
+                  <input
+                    ref={htmlFileInputRef}
+                    data-testid="input-upload-html-file"
+                    type="file"
+                    accept=".html,.htm,.txt,.rtf,text/html,text/plain,application/rtf,text/rtf"
+                    className="hidden"
+                    onChange={handleHtmlFileSelected}
+                  />
+                  <button
+                    type="button"
+                    data-testid="button-upload-html-file"
+                    onClick={() => htmlFileInputRef.current?.click()}
+                    onDragOver={handleHtmlDragOver}
+                    onDragEnter={handleHtmlDragOver}
+                    onDragLeave={handleHtmlDragLeave}
+                    onDrop={handleHtmlDrop}
+                    className={`w-full rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors cursor-pointer ${
+                      htmlDragActive
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40 hover:bg-muted/40"
+                    }`}
+                  >
+                    <Upload className={`w-5 h-5 mx-auto mb-2 ${htmlDragActive ? "text-primary" : "text-muted-foreground"}`} />
+                    <p className="text-sm font-medium">
+                      {htmlDragActive ? "Suelte el archivo aquí" : "Arrastre un archivo o haga clic para cargar"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">.html, .htm, .txt y .rtf (Notas / TextEdit de macOS)</p>
+                  </button>
+                  {htmlFileName && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-xl px-3 py-2">
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{htmlFileName}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="textarea-paste-html">HTML del correo <span className="text-red-500">*</span></Label>
+                  <Textarea
+                    id="textarea-paste-html"
+                    data-testid="textarea-paste-html"
+                    placeholder="Pegue aquí su HTML"
+                    value={uploadedHtml}
+                    onChange={(e) => { setUploadedHtml(e.target.value); setHtmlFileName(null); }}
+                    className="rounded-xl min-h-[180px] font-mono text-xs"
+                  />
+                </div>
+
+                <TutorialHighlight fieldId="targetDatabase">
+                  <div className="space-y-2">
+                    <Label>Base de Datos de Destino</Label>
+                    <Select
+                      value={form.targetDatabase}
+                      onValueChange={(v) => setForm(f => ({ ...f, targetDatabase: v }))}
+                    >
+                      <SelectTrigger data-testid="select-calendar-database-html" className="rounded-xl">
+                        <SelectValue placeholder="Seleccione una base de datos..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userDatabases.map(db => (
+                          <SelectItem key={db.id} value={String(db.id)}>{db.name}</SelectItem>
+                        ))}
+                        {userDatabases.length === 0 && (
+                          <div className="px-3 py-2 text-xs text-muted-foreground">No hay bases de datos. Créelas en Contactos.</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TutorialHighlight>
+
+                <div className="space-y-2">
+                  <Label>Fecha y Hora de Programación</Label>
+                  <Input
+                    data-testid="input-calendar-date-html"
+                    type="datetime-local"
+                    value={form.scheduledDate}
+                    onChange={e => setForm(f => ({ ...f, scheduledDate: e.target.value }))}
+                    className="rounded-xl"
+                    min={(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}T${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`; })()}
+                  />
+                </div>
+
+                {isLoadingProviders ? (
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 border rounded-xl text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    <span className="text-muted-foreground">Verificando proveedor de email...</span>
+                  </div>
+                ) : allEmailProviders.length === 0 ? (
+                  <div data-testid="info-provider-missing-html" className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <div className="flex-1">
+                      <span className="text-amber-700">Sin proveedor de email configurado.</span>
+                    </div>
+                    <Link href="/email-provider">
+                      <Button data-testid="link-setup-provider-html" variant="ghost" size="sm" className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 gap-1 h-7 text-xs">
+                        <Link2 className="w-3 h-3" />
+                        Configurar
+                      </Button>
+                    </Link>
+                  </div>
+                ) : allEmailProviders.length === 1 ? (
+                  <div data-testid="info-provider-connected-html" className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
+                    {allEmailProviders[0].provider === "custom_http" ? (
+                      <Globe className="w-5 h-5 text-[#002073]" />
+                    ) : (
+                      <img src={allEmailProviders[0].provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
+                    )}
+                    <span className="text-emerald-700">
+                      Proveedor: <strong>{allEmailProviders[0].provider === "custom_http" ? "API HTTP personalizada" : allEmailProviders[0].provider === "brevo" ? "Brevo" : "Mailchimp"}</strong>
+                      {allEmailProviders[0].senderEmail && <> · {allEmailProviders[0].senderEmail}</>}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Proveedor de Envío</Label>
+                    <Select
+                      value={form.providerId}
+                      onValueChange={(v) => setForm(f => ({ ...f, providerId: v }))}
+                    >
+                      <SelectTrigger data-testid="select-campaign-provider-html" className="rounded-xl">
+                        <SelectValue placeholder="Seleccione un proveedor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allEmailProviders.map(p => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            <span className="inline-flex items-center gap-2">
+                              {p.provider === "custom_http" ? (
+                                <Globe className="w-5 h-5 text-[#002073]" />
+                              ) : (
+                                <img src={p.provider === "brevo" ? brevoLogo : mailchimpLogo} alt="" className="w-5 h-5 rounded object-cover" />
+                              )}
+                              <span>{p.provider === "custom_http" ? "API HTTP personalizada" : p.provider === "brevo" ? "Brevo" : "Mailchimp"}</span>
+                              {p.isDefault && <span className="text-xs text-amber-600 font-semibold">★</span>}
+                              {p.senderEmail && <span className="text-muted-foreground">· {p.senderEmail}</span>}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <Button
+                  data-testid="button-create-from-html"
+                  onClick={handleCreateFromHtml}
+                  className="w-full rounded-xl gap-2"
+                  size="lg"
+                  disabled={!form.campaignName.trim() || !uploadedHtml.trim() || createCampaignMutation.isPending}
+                >
+                  {createCampaignMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Continuar con HTML
+                </Button>
+              </>
+            ) : (
+              <>
             {/* 2. Idea */}
             <TutorialHighlight fieldId="idea">
               <div className="space-y-2">
@@ -3415,6 +3945,8 @@ export default function CalendarView() {
               )}
               Generar Correo
             </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
