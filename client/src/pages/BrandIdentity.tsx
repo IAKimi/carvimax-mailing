@@ -263,10 +263,13 @@ export default function BrandIdentity() {
         description: "Los datos de su marca han sido guardados correctamente.",
       });
     },
-    onError: () => {
+    onError: (err: Error) => {
+      const isNetwork = /failed to fetch|networkerror|load failed|network request failed/i.test(err?.message || "");
       toast({
         title: "Error",
-        description: "No se pudieron guardar los datos. Intente de nuevo.",
+        description: isNetwork
+          ? "No se pudo conectar con el servidor. Verifique que la aplicación local esté en ejecución e intente de nuevo."
+          : (err?.message || "No se pudieron guardar los datos. Intente de nuevo."),
         variant: "destructive",
       });
     },
@@ -616,8 +619,17 @@ export default function BrandIdentity() {
                                 toast({ title: "Logo subido correctamente" });
                               }
                             } catch (err: any) {
-                              setBrand(b => ({ ...b, logoUrl: base64 }));
-                              toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });
+                              const isNetwork = /failed to fetch|networkerror|load failed|network request failed/i.test(err?.message || "");
+                              if (isNetwork) {
+                                toast({
+                                  title: "No se pudo subir el logo",
+                                  description: "No hay conexión con el servidor local. Reinicie la aplicación e intente de nuevo.",
+                                  variant: "destructive",
+                                });
+                              } else {
+                                setBrand(b => ({ ...b, logoUrl: base64 }));
+                                toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });
+                              }
                             }
                           };
                           reader.readAsDataURL(file);
@@ -688,11 +700,20 @@ export default function BrandIdentity() {
                                 } else {
                                   toast({ title: "Logo subido correctamente" });
                                 }
-                              } catch {
-                                setBrand(b => ({ ...b, logoUrl: base64 }));
-                                setHasUnsavedChanges(true);
-                                setSaved(false);
-                                toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });
+                              } catch (err: any) {
+                                const isNetwork = /failed to fetch|networkerror|load failed|network request failed/i.test(err?.message || "");
+                                if (isNetwork) {
+                                  toast({
+                                    title: "No se pudo subir el logo",
+                                    description: "No hay conexión con el servidor local. Reinicie la aplicación e intente de nuevo.",
+                                    variant: "destructive",
+                                  });
+                                } else {
+                                  setBrand(b => ({ ...b, logoUrl: base64 }));
+                                  setHasUnsavedChanges(true);
+                                  setSaved(false);
+                                  toast({ title: "Logo guardado localmente", description: "Se usará al guardar.", variant: "default" });
+                                }
                               }
                             };
                             reader.readAsDataURL(file);
