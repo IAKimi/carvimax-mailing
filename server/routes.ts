@@ -12,6 +12,8 @@ import { generateImage, editImage, editImageAdvanced, isGeminiConfigured, type A
 import { generateEmailContent, regenerateEmailContent, generateTemplateHtml, editTemplateHtml, analyzeTemplatePlaceholders, isOpenAIConfigured } from "./openai";
 import { validateTemplatePlaceholders, validateTemplateStructure, renderTemplateWithContent } from "./templates";
 import { campaigns as campaignsTable, type UpdateCampaign, ASSISTANT_SECTIONS, type AssistantSection } from "@shared/schema";
+import { buildBrandedCampaignHtml, enrichImagePromptWithBrand } from "@shared/branded-email";
+import { sendVerificationEmail, isSmtpConfigured } from "./mail/verification";
 import { streamAssistantResponse } from "./lib/assistant";
 import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
@@ -437,6 +439,36 @@ function getImagePublicUrl(filename: string, req?: Request): string {
   return `${baseUrl}/uploads/campaigns/${filename}`;
 }
 
+function getPublicAppBaseUrl(req: Request): string {
+  const fromEnv = (process.env.APP_URL || process.env.PRODUCTION_URL || "").replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  const protocol = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim();
+  const host = req.headers["host"] || "localhost:5000";
+  return `${protocol}://${host}`;
+}
+
+async function dispatchVerificationEmail(params: {
+  email: string;
+  name: string;
+  company?: string | null;
+  verificationLink: string;
+  context: "register" | "resend-verification";
+}): Promise<void> {
+  if (!isSmtpConfigured()) {
+    console.error(`[${params.context}] SMTP no configurado (SMTP_USER / SMTP_PASS). No se envió el correo de verificación.`);
+    return;
+  }
+  try {
+    await sendVerificationEmail({
+      to: params.email,
+      name: params.name,
+      verificationLink: params.verificationLink,
+    });
+  } catch (err: any) {
+    console.error(`[${params.context}] Error enviando correo SMTP:`, err?.message || err);
+  }
+}
+
 function isUploadedHtmlContent(contentJson: Record<string, unknown> | null | undefined): boolean {
   return !!contentJson && contentJson.source === "uploaded_html";
 }
@@ -446,25 +478,15 @@ function getUploadedHtml(contentJson: Record<string, unknown> | null | undefined
   return sanitizeHtml(String(contentJson.html || contentJson.cuerpo_html || ""));
 }
 
-function buildNoTemplateHtml(contentJson: Record<string, unknown> | null, imagePublicUrl: string | null): string {
+function buildNoTemplateHtml(
+  contentJson: Record<string, unknown> | null,
+  imagePublicUrl: string | null,
+  brandData?: Parameters<typeof buildBrandedCampaignHtml>[2]
+): string {
   if (isUploadedHtmlContent(contentJson)) {
     return getUploadedHtml(contentJson);
   }
-  const body = (contentJson?.cuerpo_html as string) || "";
-  const imgBlock = imagePublicUrl
-    ? `<img src="${imagePublicUrl}" style="width:100%;max-width:560px;display:block;margin:0 auto 24px" alt="" />`
-    : "";
-  // Include CTA only when an image is present (visual layout context); text-only mode omits CTA button
-  if (imagePublicUrl) {
-    const ctaEnabled = contentJson?.cta_enabled !== false;
-    const ctaText = ctaEnabled ? ((contentJson?.cta_text as string) || "") : "";
-    const ctaUrl = ctaEnabled && ctaText ? ((contentJson?.cta_url as string) || "#") : "";
-    const ctaBlock = ctaText
-      ? `<div style="text-align:center;margin:24px 0"><a href="${ctaUrl}" style="display:inline-block;padding:12px 28px;background:#1a56db;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:15px">${ctaText}</a></div>`
-      : "";
-    return `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${imgBlock}${body}${ctaBlock}</div>`;
-  }
-  return `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:20px">${body}</div>`;
+  return buildBrandedCampaignHtml(contentJson, imagePublicUrl, brandData || null);
 }
 
 function loadImageAsBase64(imageUrl: string): string {
@@ -604,29 +626,14 @@ export async function registerRoutes(
 
       await storage.setVerificationToken(user.id, verificationToken, verificationTokenExpiresAt);
 
-      const protocol = req.headers["x-forwarded-proto"] || "https";
-      const host = req.headers["host"] || "localhost:5000";
-      const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
-
-      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.us2.make.com/8cvfysvskqxngepd1aczaaxckbchfv6l";
-      try {
-        const webhookRes = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "verification",
-            email: user.email,
-            name: user.name,
-            company: user.company || "",
-            verificationLink,
-          }),
-        });
-        if (!webhookRes.ok) {
-          console.error(`[register] Verification webhook returned ${webhookRes.status}: ${await webhookRes.text().catch(() => "")}`);
-        }
-      } catch (webhookErr) {
-        console.error("[register] Failed to call verification webhook:", webhookErr);
-      }
+      const verificationLink = `${getPublicAppBaseUrl(req)}/api/auth/verify/${verificationToken}`;
+      await dispatchVerificationEmail({
+        email: user.email,
+        name: user.name,
+        company: user.company,
+        verificationLink,
+        context: "register",
+      });
 
       res.status(201).json({ 
         success: true,
@@ -743,29 +750,14 @@ export async function registerRoutes(
       const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await storage.setVerificationToken(user.id, verificationToken, verificationTokenExpiresAt);
 
-      const protocol = req.headers["x-forwarded-proto"] || "https";
-      const host = req.headers["host"] || "localhost:5000";
-      const verificationLink = `${protocol}://${host}/api/auth/verify/${verificationToken}`;
-
-      const webhookUrl = process.env.MAKE_VERIFICATION_WEBHOOK_URL || "https://hook.us2.make.com/8cvfysvskqxngepd1aczaaxckbchfv6l";
-      try {
-        const webhookRes = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "verification",
-            email: user.email,
-            name: user.name,
-            company: user.company || "",
-            verificationLink,
-          }),
-        });
-        if (!webhookRes.ok) {
-          console.error(`[resend-verification] Webhook returned ${webhookRes.status}: ${await webhookRes.text().catch(() => "")}`);
-        }
-      } catch (webhookErr) {
-        console.error("[resend-verification] Failed to call webhook:", webhookErr);
-      }
+      const verificationLink = `${getPublicAppBaseUrl(req)}/api/auth/verify/${verificationToken}`;
+      await dispatchVerificationEmail({
+        email: user.email,
+        name: user.name,
+        company: user.company,
+        verificationLink,
+        context: "resend-verification",
+      });
       res.json({ message: "Si el correo existe, se enviará un nuevo enlace de verificación." });
     } catch (err) {
       console.error("[resend-verification] Error:", err);
@@ -1097,19 +1089,6 @@ export async function registerRoutes(
     }
 
     try {
-    const imagePromise = (async () => {
-      if (!campaign.imagePrompt) return null;
-      if (!(await isGeminiConfigured())) {
-        return "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
-      }
-      try {
-        return await generateImage(campaign.imagePrompt);
-      } catch (err: any) {
-        console.error("[Image API][image_generate] Error generando imagen inicial:", err.message);
-        return "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
-      }
-    })();
-
     const templateLocked: string[] = campaign.templateId
       ? ((await storage.getTemplate(campaign.templateId))?.lockedFields as string[] || [])
       : [];
@@ -1118,6 +1097,20 @@ export async function registerRoutes(
       storage.getBrandIdentity(req.session.userId!),
       storage.getContentPreferences(req.session.userId!),
     ]);
+
+    const imagePromise = (async () => {
+      if (!campaign.imagePrompt) return null;
+      if (!(await isGeminiConfigured())) {
+        return "https://placehold.co/600x300/002073/white?text=Sin+API+Key";
+      }
+      try {
+        const brandedPrompt = enrichImagePromptWithBrand(campaign.imagePrompt, brandData || null);
+        return await generateImage(brandedPrompt);
+      } catch (err: any) {
+        console.error("[Image API][image_generate] Error generando imagen inicial:", err.message);
+        return "https://placehold.co/600x300/e3001b/white?text=Error+generando+imagen";
+      }
+    })();
 
     const textPromise = (async () => {
       if (campaign.idea && campaign.objective && (await isOpenAIConfigured())) {
@@ -1301,7 +1294,9 @@ export async function registerRoutes(
       if (!(await isGeminiConfigured())) {
         return res.status(400).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
       }
-      rawImageUrl = await generateImage(imagePrompt);
+      const brandForImage = await storage.getBrandIdentity(req.session.userId!);
+      const brandedPrompt = enrichImagePromptWithBrand(imagePrompt, brandForImage || null);
+      rawImageUrl = await generateImage(brandedPrompt);
     } catch (err: any) {
       return res.status(500).json({ message: toUserSafeMessage(err, "image_generate") });
     }
@@ -2803,9 +2798,9 @@ export async function registerRoutes(
       const template = tpls.find(t => t.id === campaign.templateId);
       html = template
         ? renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html
-        : buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+        : buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl, brandData);
     } else {
-      html = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+      html = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl, brandData);
     }
 
     res.json({ html });
@@ -2886,12 +2881,12 @@ export async function registerRoutes(
             campaignId,
             templateId: campaign.templateId,
           });
-          renderedHtml = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+          renderedHtml = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl, brandData);
         } else {
           renderedHtml = renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html;
         }
       } else {
-        renderedHtml = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl);
+        renderedHtml = buildNoTemplateHtml(resolved.contentJson as Record<string, unknown> | null, imagePublicUrl, brandData);
       }
 
       const imageFilename = resolved.imageUrl;
@@ -3316,18 +3311,17 @@ export async function registerRoutes(
     const imagePublicUrl = resolved.imageUrl ? getImagePublicUrl(resolved.imageUrl, req) : null;
 
     let htmlBody: string;
+    const brandData = await storage.getBrandIdentity(req.session.userId!);
     if (campaign.templateId) {
       const tpls = await storage.getTemplates(req.session.userId!);
       const template = tpls.find(t => t.id === campaign.templateId);
       if (template) {
-        const brandData = await storage.getBrandIdentity(req.session.userId!);
         htmlBody = renderTemplateWithContent(template.html, resolved.contentJson, imagePublicUrl, brandData).html;
       } else {
-        const body = (contentJson.cuerpo_html as string) || "";
-        htmlBody = `<div style="font-family:sans-serif;max-width:600px;margin:auto">${body}</div>`;
+        htmlBody = buildNoTemplateHtml(contentJson as Record<string, unknown> | null, imagePublicUrl, brandData);
       }
     } else {
-      htmlBody = buildNoTemplateHtml(contentJson as Record<string, unknown> | null, imagePublicUrl);
+      htmlBody = buildNoTemplateHtml(contentJson as Record<string, unknown> | null, imagePublicUrl, brandData);
     }
 
     try {

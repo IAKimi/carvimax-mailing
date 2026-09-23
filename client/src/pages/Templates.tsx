@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, ArrowRight, Type } from "lucide-react";
+import { Plus, Star, StarOff, Trash2, Code, Eye, Loader2, Sparkles, Wand2, Pencil, CheckCircle2, AlertTriangle, Info, Check, X, GitBranch, Shield, Type } from "lucide-react";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
 import { TutorialTip } from "@/components/TutorialTip";
@@ -39,7 +38,6 @@ function detectUnsupportedPlaceholders(html: string): string[] {
 }
 
 export default function Templates() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { setCurrentSection, tutorialActive } = useTutorial();
   const [showDialog, setShowDialog] = useState(false);
@@ -71,10 +69,6 @@ export default function Templates() {
 
   const { data: templates = [], isLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates"],
-  });
-
-  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
-    queryKey: ["/api/onboarding-status"],
   });
 
   const { confirmedTemplates, draftTemplates } = useMemo(() => {
@@ -846,22 +840,6 @@ export default function Templates() {
         )}
 
         {tutorialActive && <TutorialTip />}
-
-        {templates.length > 0 && !onboardingStatus?.hasContactDatabases && (
-          <div className="flex justify-end mt-6">
-            <Button
-              data-testid="button-next-to-contacts"
-              onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-                setLocation("/contacts");
-              }}
-              className="rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white px-6"
-            >
-              Siguiente: Base de Datos
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
       </div>
 
       <Dialog open={showDialog} onOpenChange={(open) => { if (!open && adaptAiPending) return; setShowDialog(open); if (!open) { setUploadLockedFields([]); setAiAdapted(false); } }}>

@@ -118,7 +118,7 @@ export default function Home() {
     enabled: !!user,
   });
 
-  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
+  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasProvider?: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
     queryKey: ["/api/onboarding-status"],
     enabled: !!user,
   });
@@ -129,6 +129,7 @@ export default function Home() {
   const scheduledCampaigns = allCampaigns?.filter(c => c.status === "scheduled").length || 0;
   const recentCampaigns = (stats?.recentCampaigns || []).slice(0, 4);
   const hasBrand = onboardingStatus?.hasBrand || false;
+  const hasProvider = onboardingStatus?.hasProvider || false;
 
   const now = new Date();
   const hour = now.getHours();
@@ -244,6 +245,21 @@ export default function Home() {
                     <Button data-testid="button-cta-brand" className="rounded-xl gap-2">
                       <Palette className="w-4 h-4" />
                       Ir a Identidad de Marca
+                    </Button>
+                  </Link>
+                </Card>
+              </FadeIn>
+            )}
+            {hasBrand && !hasProvider && (
+              <FadeIn delay={0.15}>
+                <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-primary/10 text-center">
+                  <Sparkles className="w-7 h-7 text-accent mx-auto mb-2" />
+                  <h3 className="text-lg font-bold mb-1">Conecte su proveedor de email</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Al vincular Brevo o Mailchimp se desbloquean plantillas, calendario, contactos y el resto de funciones.</p>
+                  <Link href="/email-provider">
+                    <Button data-testid="button-cta-provider" className="rounded-xl gap-2">
+                      <Send className="w-4 h-4" />
+                      Ir a Proveedor de Email
                     </Button>
                   </Link>
                 </Card>

@@ -28,11 +28,11 @@ const ROUTE_LEVELS: Record<string, number> = {
   "/brand": 0,
   "/email-provider": 1,
   "/templates": 2,
-  "/contacts": 3,
-  "/calendar": 4,
-  "/emails": 4,
-  "/dashboard": 4,
-  "/campaigns": 4,
+  "/contacts": 2,
+  "/calendar": 2,
+  "/emails": 2,
+  "/dashboard": 2,
+  "/campaigns": 2,
   "/admin/users": 0,
   "/admin/config": 0,
   "/admin": 0,
@@ -41,7 +41,7 @@ const ROUTE_LEVELS: Record<string, number> = {
 
 function getRequiredLevel(path: string): number {
   if (ROUTE_LEVELS[path] !== undefined) return ROUTE_LEVELS[path];
-  if (path.startsWith("/campaigns/")) return 4;
+  if (path.startsWith("/campaigns/")) return 2;
   if (path.startsWith("/admin")) return 0;
   return 0;
 }
@@ -49,8 +49,6 @@ function getRequiredLevel(path: string): number {
 function getRedirectForLevel(level: number): string {
   if (level < 1) return "/brand";
   if (level < 2) return "/email-provider";
-  if (level < 3) return "/templates";
-  if (level < 4) return "/contacts";
   return "/";
 }
 

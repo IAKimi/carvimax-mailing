@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { TutorialHighlight } from "@/components/TutorialHighlight";
@@ -27,6 +28,8 @@ import {
   Zap,
   Globe,
   Copy,
+  ArrowRight,
+  CalendarDays,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -356,7 +359,11 @@ export default function EmailProvider() {
         queryClient.invalidateQueries({ queryKey: ["/api/email-provider/mailchimp/audiences"] });
       }
       const name = provider === "brevo" ? "Brevo" : provider === "mailchimp" ? "Mailchimp" : "API HTTP personalizada";
-      toast({ title: "Proveedor conectado", description: `Su cuenta de ${name} ha sido vinculada exitosamente.`, duration: 8000 });
+      toast({
+        title: "Proveedor conectado",
+        description: `Su cuenta de ${name} ha sido vinculada. Ya puede usar plantillas, calendario, contactos y el resto de funciones.`,
+        duration: 8000,
+      });
       if (data?.warning) {
         toast({ title: "Aviso", description: data.warning, variant: "destructive", duration: 8000 });
       }
@@ -1254,6 +1261,23 @@ export default function EmailProvider() {
           </div>
 
         </div>
+        {activeProviderCount > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6 p-4 rounded-2xl border border-emerald-200 bg-emerald-50">
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">Plataforma desbloqueada</p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Ya puede crear campañas, gestionar contactos y usar plantillas cuando lo necesite. Las plantillas son opcionales.
+              </p>
+            </div>
+            <Link href="/calendar">
+              <Button data-testid="button-go-calendar-after-provider" className="rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white">
+                <CalendarDays className="w-4 h-4" />
+                Ir al calendario
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
+        )}
         {tutorialActive && <TutorialTip />}
       </div>
     </Layout>

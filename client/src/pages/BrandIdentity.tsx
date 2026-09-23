@@ -217,7 +217,7 @@ export default function BrandIdentity() {
     queryKey: ["/api/brand-identity"],
   });
 
-  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
+  const { data: onboardingStatus } = useQuery<{ hasBrand: boolean; hasProvider: boolean; hasTemplates: boolean; hasContactDatabases: boolean }>({
     queryKey: ["/api/onboarding-status"],
   });
 
@@ -786,17 +786,17 @@ export default function BrandIdentity() {
           </Button>
         </div>
       )}
-      {saved && brand.companyName?.trim() && brand.industry?.trim() && !onboardingStatus?.hasTemplates && (
+      {saved && brand.companyName?.trim() && brand.industry?.trim() && !onboardingStatus?.hasProvider && (
         <div className="flex justify-end mt-6">
           <Button
-            data-testid="button-next-to-templates"
+            data-testid="button-next-to-email-provider"
             onClick={() => {
               queryClient.invalidateQueries({ queryKey: ["/api/onboarding-status"] });
-              setLocation("/templates");
+              setLocation("/email-provider");
             }}
             className="rounded-xl gap-2 bg-[#002073] hover:bg-[#001a5e] text-white px-6"
           >
-            Siguiente: Plantillas
+            Siguiente: Proveedor de Email
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>

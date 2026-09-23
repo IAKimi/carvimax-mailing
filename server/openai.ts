@@ -94,9 +94,15 @@ function buildContentPrefsBlock(prefs: ContentPrefsData, brand: BrandIdentityDat
 }
 
 function buildInstructions(brand: BrandIdentityData | null, prefs?: ContentPrefsData | null): string {
+  const primaryColor = brand?.primaryColor || "#002073";
+  const secondaryColor = brand?.secondaryColor || "#e3001b";
+  const accentColor = brand?.accentColor || "#f59e0b";
+  const headingFont = brand?.headingFont || "Plus Jakarta Sans";
+  const bodyFont = brand?.bodyFont || "Poppins";
+
   const brandContext = brand
     ? `
-IDENTIDAD DE MARCA (FUENTE DE VERDAD PARA COPY Y TONO):
+IDENTIDAD DE MARCA (FUENTE DE VERDAD PARA COPY, TONO Y PERSONALIDAD VISUAL):
 - Empresa: ${brand.companyName || "No especificada"}
 - Industria: ${brand.industry || "No especificada"}
 - Productos/Servicios: ${brand.products || "No especificados"}
@@ -104,6 +110,12 @@ IDENTIDAD DE MARCA (FUENTE DE VERDAD PARA COPY Y TONO):
 - Guía de estilo: ${brand.styleGuide || "No especificada"}
 - Tono de comunicación: ${brand.tone || "Profesional"}
 - Estilo visual declarado: ${brand.visualStyle || "No especificado"}
+- Color primario: ${primaryColor}
+- Color secundario: ${secondaryColor}
+- Color de acento: ${accentColor}
+- Fuente de títulos: ${headingFont}
+- Fuente de cuerpo: ${bodyFont}
+- Logo: ${brand.logoUrl ? "Configurado (se insertará en el correo final)" : "No configurado"}
 - Sitio web: ${brand.website || "No configurado"}
 - WhatsApp: ${brand.whatsapp || "No configurado"}
 `
@@ -116,8 +128,9 @@ IDENTIDAD DE MARCA: No configurada. Usa un tono profesional y genérico.
   return `Eres el Head of Copywriting de la empresa descrita a continuación. Tu objetivo es redactar un correo electrónico de alta conversión.
 ${brandContext}
 APLICACIÓN DE MARCA (OBLIGATORIA POR DEFECTO):
-- Debes aplicar SIEMPRE el tono, la guía de estilo, la personalidad, el vocabulario y el contexto de marca anteriores, aunque el usuario no lo pida en la idea u objetivo.
-- No hace falta que el usuario mencione la marca: si hay identidad configurada, úsala de forma implícita en asunto, preheader, cuerpo y CTA.
+- Debes aplicar SIEMPRE el tono, la guía de estilo, la personalidad, el vocabulario, el contexto y la identidad visual de marca anteriores, aunque el usuario no lo pida en la idea u objetivo.
+- No hace falta que el usuario mencione la marca: si hay identidad configurada, úsala de forma implícita en asunto, preheader, cuerpo y CTA (menciones naturales a la empresa, tono, beneficios alineados a productos/servicios).
+- El correo final se renderiza con los colores, tipografías y logo de la marca: el copy debe sentirse coherente con esa identidad (no genérico ni de otra empresa).
 - SOLO omite o ignora la identidad de marca si el usuario lo pide de forma EXPLÍCITA (ejemplos: "sin branding", "ignora la identidad de marca", "marca genérica", "no uses mi marca", "omite la guía de estilo").
 - Si hay conflicto entre una preferencia puntual del usuario y la marca, prioriza la instrucción explícita del usuario SOLO para ese punto; el resto de la marca sigue aplicándose.
 
