@@ -12,10 +12,11 @@ import { TipTapEditor } from "@/components/TipTapEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useCampaignProgress } from "@/hooks/use-campaign-progress";
 import type { Campaign } from "@shared/schema";
 
 interface CampaignVersion {
@@ -38,7 +39,7 @@ interface ContactDatabaseType {
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "Borrador", color: "bg-gray-100 text-gray-700", icon: Clock },
   scheduled: { label: "Programado", color: "bg-blue-100 text-blue-700", icon: CalendarDays },
-  sending: { label: "Enviando", color: "bg-amber-100 text-amber-700", icon: Send },
+  sending: { label: "Enviando", color: "bg-blue-100 text-blue-700", icon: Loader2 },
   sent: { label: "Enviado", color: "bg-emerald-100 text-emerald-700", icon: Check },
   partial: { label: "Parcial", color: "bg-orange-100 text-orange-700", icon: AlertTriangle },
   failed: { label: "Fallido", color: "bg-red-100 text-red-700", icon: XCircle },
@@ -57,7 +58,9 @@ export default function MyEmails() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const { setCurrentSection, tutorialActive } = useTutorial();
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const { toast } = useToast();
+  const { getProgress } = useCampaignProgress();
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState<number | null>(null);
@@ -140,7 +143,19 @@ export default function MyEmails() {
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
+    refetchInterval: (query) => {
+      const data = query.state.data as Campaign[] | undefined;
+      return data?.some((c) => c.status === "sending") ? 2500 : false;
+    },
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const highlight = Number(params.get("highlight"));
+    if (highlight && !Number.isNaN(highlight)) {
+      setExpandedId(highlight);
+    }
+  }, [searchString]);
 
   const { data: databases = [] } = useQuery<ContactDatabaseType[]>({
     queryKey: ["/api/contact-databases"],
@@ -248,6 +263,8 @@ export default function MyEmails() {
         return true;
       })
       .sort((a, b) => {
+        if (a.status === "sending" && b.status !== "sending") return -1;
+        if (b.status === "sending" && a.status !== "sending") return 1;
         const dateA = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
         const dateB = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
         return dateB - dateA;
@@ -534,6 +551,7 @@ export default function MyEmails() {
               const config = statusConfig[campaign.status] || statusConfig.draft;
               const StatusIcon = config.icon;
               const isExpanded = expandedId === campaign.id;
+              const isSending = campaign.status === "sending";
               const version = versionsByCampaign.get(campaign.id);
               const subject = version?.contentJson?.asunto || version?.contentJson?.subject || campaign.name;
               const scheduledDate = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
@@ -544,6 +562,12 @@ export default function MyEmails() {
                   ? `${scheduledDate.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })} a las ${scheduledDate.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`
                   : "Sin fecha";
               const dbName = campaign.targetDatabase ? (dbNameMap.get(campaign.targetDatabase) || campaign.targetDatabase) : null;
+              const live = getProgress(campaign.id);
+              const sentCount = live?.sentCount ?? campaign.sentCount ?? 0;
+              const totalExpected = live?.totalExpectedSends ?? campaign.totalExpectedSends ?? 0;
+              const showSendProgress =
+                totalExpected > 0 &&
+                (isSending || campaign.status === "sent" || campaign.status === "partial" || campaign.status === "failed");
 
               return (
                 <motion.div
@@ -568,15 +592,23 @@ export default function MyEmails() {
                         )}
                       </div>
                     )}
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <StatusIcon className="w-5 h-5 text-primary" />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isSending ? "bg-blue-100" : "bg-primary/10"}`}>
+                      <StatusIcon className={`w-5 h-5 ${isSending ? "text-blue-600 animate-spin" : "text-primary"}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold truncate" data-testid={`text-campaign-subject-${campaign.id}`}>{subject}</h3>
                       <p className="text-xs text-muted-foreground">{displayDate}</p>
                     </div>
+                    {isSending && totalExpected > 0 && (
+                      <span
+                        data-testid={`text-send-progress-compact-${campaign.id}`}
+                        className="text-xs font-semibold text-blue-600 tabular-nums flex-shrink-0"
+                      >
+                        {sentCount}/{totalExpected}
+                      </span>
+                    )}
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 flex-shrink-0 ${config.color}`}>
-                      <StatusIcon className="w-3 h-3" />
+                      <StatusIcon className={`w-3 h-3 ${isSending ? "animate-spin" : ""}`} />
                       {config.label}
                     </span>
                     <ChevronDown className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
@@ -597,6 +629,15 @@ export default function MyEmails() {
                             <DetailField icon={Target} label="Objetivo" value={campaign.objective} />
                             <DetailField icon={MessageSquare} label="Tono" value={campaign.tone} />
                             <DetailField icon={LayoutTemplate} label="Layout" value={campaign.layoutPreference || "Sin especificar"} />
+                            {showSendProgress && (
+                              <DetailField
+                                icon={isSending ? Loader2 : Send}
+                                iconClassName={isSending ? "animate-spin text-blue-600" : undefined}
+                                label="Progreso"
+                                value={`${sentCount}/${totalExpected} correos enviados`}
+                                valueTestId={`text-send-progress-detail-${campaign.id}`}
+                              />
+                            )}
                             {campaign.targetAudience && (
                               <DetailField icon={Users} label="Público objetivo" value={campaign.targetAudience} />
                             )}
@@ -863,14 +904,28 @@ export default function MyEmails() {
   );
 }
 
-function DetailField({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function DetailField({
+  icon: Icon,
+  label,
+  value,
+  iconClassName,
+  valueTestId,
+}: {
+  icon: any;
+  label: string;
+  value: string;
+  iconClassName?: string;
+  valueTestId?: string;
+}) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        <Icon className="w-3.5 h-3.5" />
+        <Icon className={`w-3.5 h-3.5 ${iconClassName || ""}`} />
         {label}
       </div>
-      <p className="text-sm leading-relaxed">{value}</p>
+      <p className="text-sm leading-relaxed tabular-nums" data-testid={valueTestId}>
+        {value}
+      </p>
     </div>
   );
 }

@@ -709,12 +709,13 @@ export default function CalendarView() {
       const res = await apiRequest("POST", `/api/campaigns/${id}/send`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       toast({
-        title: "Enviando correo",
-        description: "El envío comenzó. Puedes ver el progreso en tiempo real abajo.",
+        title: "Envío en curso",
+        description: "El progreso del envío se muestra en el historial.",
       });
+      setLoc(`/emails?highlight=${id}`);
     },
     onError: (err: Error) => {
       toast({ title: "Error al enviar", description: err.message, variant: "destructive" });
@@ -3125,7 +3126,7 @@ export default function CalendarView() {
             <AlertDialogHeader>
               <AlertDialogTitle>El envío sigue en curso</AlertDialogTitle>
               <AlertDialogDescription>
-                ¿Quieres salir igualmente? El correo seguirá enviándose en segundo plano. Puedes ver el progreso desde el historial.
+                ¿Desea salir de todas formas? El correo seguirá enviándose en segundo plano. El progreso puede consultarse en el historial.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -3133,7 +3134,7 @@ export default function CalendarView() {
                 data-testid="button-stay-while-sending"
                 onClick={() => setShowLeaveWhileSendingDialog(false)}
               >
-                Quedarme
+                Permanecer
               </AlertDialogCancel>
               <AlertDialogAction
                 data-testid="button-leave-while-sending"
